@@ -71,6 +71,10 @@ void display_color(int xy, int color) {
         display_current[xy] = color;
         
         // CR rrheingans-yoo for ntarleton: get ready to set cell xy to color color
+        //
+        // note that the actual grid should use the RGB values given at
+        // http://static.rossry.net/lights/v0.5.30/colors.html -- the xterm
+        // colors used for ncurses here are approximations
     }
 }
 
@@ -78,5 +82,5 @@ void display_flush() {
     // ncurses flush
     refresh();
     
-    // CR rrheingans-yoo for ntarleton: set all cell colors
+    // CR rrheingans-yoo for ntarleton: set all cell colors at once
 }
