@@ -49,6 +49,10 @@ int main(int argc, char *argv[]) {
     int waves_diag[ROWS * COLS];
     int waves_diag_next[ROWS * COLS];
     
+    hanabi_cell hanabi[ROWS * COLS];
+    hanabi_cell hanabi_next[ROWS * COLS];
+    int hanabi_seed_color[ROWS * COLS];
+    
     int in_chr;
     
     for (int xy = 0; xy < ROWS * COLS; ++xy) {
@@ -70,6 +74,11 @@ int main(int argc, char *argv[]) {
         
         waves_orth[xy] = 0;
         waves_diag[xy] = 0;
+        
+        hanabi[xy].color = 0;
+        hanabi[xy].orth = 0;
+        hanabi[xy].diag = 0;
+        hanabi_seed_color[xy] = RAND_COLOR;
     }
     
     struct timeval start, computed, drawn, refreshed, handled, slept, stop;
@@ -84,7 +93,7 @@ int main(int argc, char *argv[]) {
         for (int xy = 0; xy < ROWS * COLS; ++xy) {
             // evolve control_directive_(1|2), control_(orth|diag)
             if (xy == COLS*(ROWS-1) + COLS/2 // CR rrheingans-yoo for ntarleton: this should instead be pressure_switch_depressed(xy)
-                && ((epoch + 3000) / 6000) % 2 == 0 // CR rrheingans-yoo for ntarleton: remove me
+                && ((epoch + 5000) / 6000) % 2 == 0 // CR rrheingans-yoo for ntarleton: remove me
                 && epoch > INITIALIZATION_EPOCHS // CR rrheingans-yoo for ntarleton: remove me
             ) {
                 if (control_orth[xy] == 0) {
@@ -117,6 +126,13 @@ int main(int argc, char *argv[]) {
                 xy
             );
             
+            // evolve waves_(orth|diag)
+            compute_decay(
+                waves_orth, waves_diag,
+                waves_orth_next, waves_diag_next,
+                scratch, scratch, scratch, scratch,
+            xy);
+            
             if (epoch % WILDFIRE_SPEEDUP == 0) {
                 // evolve rainbow_0
                 rainbow_0_next[xy] = compute_cyclic(rainbow_0, impatience_0, xy);
@@ -142,20 +158,27 @@ int main(int argc, char *argv[]) {
                     pressure_self[xy] -= 1;
                     pressure_orth_next[xy] = pressure_diag_next[xy] = PRESSURE_RADIUS_TICKS;
                 }
+                
+                compute_hanabi(hanabi, hanabi_next, xy);
+                if ((waves_orth_next[xy] / 17) % 480 < 12) {
+                    hanabi_next[xy].orth = hanabi_next[xy].diag = 0;
+                }
             }
-            
-            // evolve waves_(orth|diag)
-            compute_decay(
-                waves_orth, waves_diag,
-                waves_orth_next, waves_diag_next,
-                scratch, scratch, scratch, scratch,
-            xy);
         }
         
         // drive waves_(orth|diag)'s top row
         waves_base_z_orig += 17;
         for (int x = 0; x < COLS; ++x) {
             waves_orth_next[x] = waves_diag_next[x] = waves_base[x+WAVES_BASE_X_ORIG] + waves_base_z_orig;
+        }
+        
+        for (int xy = 0; xy < ROWS * COLS; ++xy) {
+            if (rand() % (ROWS * COLS * 20) == 0) { // CR rrheingans-yoo for ntarleton: this should instead be pressure_switch_depressed(xy)
+                if (pressure_self[xy] < PRESSURE_DELAY_EPOCHS) {
+                    run_hanabi_spark(hanabi_next, xy, hanabi_seed_color[xy]);
+                }
+                pressure_self[xy] = PRESSURE_DELAY_EPOCHS;
+            }
         }
         
         gettimeofday(&computed, NULL);
@@ -186,9 +209,20 @@ int main(int argc, char *argv[]) {
                             min(rainbow_1_next[xy],
                                 COLORS - rainbow_1_next[xy]
                             ) + zz
-                        ) + MAKE_GREY
+                        ) + MAKE_GREY + 30
                     );
+                    
+                    if (hanabi_next[xy].orth > 0) {
+                        display_color(xy, hanabi_next[xy].color);
+                    }
                 }
+                /*
+                if (hanabi_next[xy].orth > 0) {
+                    display_color(xy, hanabi_next[xy].color);
+                } else {
+                    display_color(xy, 15);
+                }
+                */
             }
             
             // increment all states
@@ -205,6 +239,10 @@ int main(int argc, char *argv[]) {
             
             waves_orth[xy] = waves_orth_next[xy];
             waves_diag[xy] = waves_diag_next[xy];
+            
+            hanabi[xy].orth = hanabi_next[xy].orth;
+            hanabi[xy].diag = hanabi_next[xy].diag;
+            hanabi[xy].color = hanabi_next[xy].color;
         }
         
         gettimeofday(&drawn, NULL);
