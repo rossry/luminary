@@ -4,9 +4,23 @@
 
 #include "constants.h"
 
-int y_zero[] = {0, -1, -1+COLS, -COLS, 0, 0, 0, 1, 1+COLS};
-int y_rows_minus_one[] = {-1-COLS, -1, 0, 0, 0, COLS, 1-COLS, 1, 0};
+int y_zero[] = {0, -1, -1+COLS, 0, 0, COLS, 0, 1, 1+COLS};
+int y_rows_minus_one[] = {-1-COLS, -1, 0, -COLS, 0, 0, 1-COLS, 1, 0};
 int y_else[] = {-1-COLS, -1, -1+COLS, -COLS, 0, COLS, 1-COLS, 1, 1+COLS};
+
+int* get_offset_array(int y) {
+    switch (y) {
+    case 0 :
+        return y_zero;
+    case ROWS-1 : 
+        return y_rows_minus_one;
+    default :
+        return y_else;
+    }
+}
+
+#define X_INIT(x)       ((x) > 0 ? 0 : 3)
+#define X_CONTINUE(x,i) ((i) < 6 || ((i) < 9 && (x) < COLS-1))
 
 void max_equals(int* x, int y, int* t0, int* t1, int s0, int s1) {
     if (y > *x) {
@@ -54,36 +68,14 @@ int compute_cyclic(int* grid, int* impatience, int xy) {
     
     int x = xy % COLS;
     int y = xy / COLS;
+    int* offset = get_offset_array(y);
     
-    if (x > 0) {
-        inc = maybe_increment(grid, xy, xy-1, inc, neighbors, &n_neighbors);
-    }
-    if (x < COLS-1) {
-        inc = maybe_increment(grid, xy, xy+1, inc, neighbors, &n_neighbors);
-    }
-    if (y > 0) {
-        inc = maybe_increment(grid, xy, xy-COLS, inc, neighbors, &n_neighbors);
-        if (rand() < 0.6*RAND_MAX) {
-            if (x > 0) {
-                inc = maybe_increment(grid, xy, xy-COLS-1, inc, neighbors, &n_neighbors);
-            }
-        }
-        if (rand() < 0.6*RAND_MAX) {
-            if (x < COLS-1) {
-                inc = maybe_increment(grid, xy, xy-COLS+1, inc, neighbors, &n_neighbors);
-            }
-        }
-    }
-    if (y < ROWS-1) {
-        inc = maybe_increment(grid, xy, xy+COLS, inc, neighbors, &n_neighbors);
-        if (rand() < 0.6*RAND_MAX) {
-            if (x > 0) {
-                inc = maybe_increment(grid, xy, xy+COLS-1, inc, neighbors, &n_neighbors);
-            }
-        }
-        if (rand() < 0.6*RAND_MAX) {
-            if (x < COLS-1) {
-                inc = maybe_increment(grid, xy, xy+COLS+1, inc, neighbors, &n_neighbors);
+    for (int i = X_INIT(x); X_CONTINUE(x,i); ++i) {
+        if (offset[i] != 0) {
+            if (i % 2) { // orthogonal neighbor
+                inc = maybe_increment(grid, xy, xy+offset[i], inc, neighbors, &n_neighbors);
+            } else if (rand() < 0.6*RAND_MAX) { // diagonal neighbor (maybe)
+                inc = maybe_increment(grid, xy, xy+offset[i], inc, neighbors, &n_neighbors);
             }
         }
     }
@@ -120,6 +112,7 @@ int compute_cyclic(int* grid, int* impatience, int xy) {
     return (grid[xy] + inc) % COLORS;
 }
 
+
 // hand-tuned to decay mostly like Euclidean distance
 void compute_decay(
     int* orth, int* diag,
@@ -128,153 +121,76 @@ void compute_decay(
     int* directive_0_next, int* directive_1_next,
     int xy
 ) {
+    int x = xy % COLS;
+    int y = xy / COLS;
+    int* offset = get_offset_array(y);
+    
+    int z_for_orth;
+    int z_for_diag;
+    int max_increment_orth;
+    int max_increment_diag;
+    
     orth_next[xy] = 0;
     diag_next[xy] = 0;
     
-    int x = xy % COLS;
-    int y = xy / COLS;
+    for (int i = X_INIT(x); X_CONTINUE(x,i); ++i) {
+        if (offset[i] != 0) {
+            if (i % 2) { // orthogonal neighbor
+                z_for_orth = orth[xy+offset[i]] - 17;
+                z_for_diag = orth[xy+offset[i]] - 17;
+                max_increment_orth = z_for_orth; // unbounded increment
+                max_increment_diag = z_for_diag; // unbounded increment
+            } else { // diagonal neighbor
+                z_for_orth = diag[xy+offset[i]] - 21;
+                z_for_diag = diag[xy+offset[i]] - 24;
+                max_increment_orth = 150;
+                max_increment_diag = 55;
+            }
+            
+            max_equals(
+                &orth_next[xy], min(orth[xy]+max_increment_orth,z_for_orth),
+                &directive_0_next[xy], &directive_1_next[xy],
+                directive_0[xy+offset[i]], directive_1[xy+offset[i]]
+            );
+            max_equals(
+                &diag_next[xy], min(orth[xy]+max_increment_diag,z_for_diag),
+                &directive_0_next[xy], &directive_1_next[xy],
+                directive_0[xy+offset[i]], directive_1[xy+offset[i]]
+            );
+        }
+    }
     
-    // CR-someday rrheingans-yoo: it's probably possible to factor this 
-    // boilerplate out into a function that uses global **s for the arrays.
-    if (x > 0) {
-        max_equals(
-            &orth_next[xy], orth[xy-1]-17,
-            &directive_0_next[xy], &directive_1_next[xy],
-            directive_0[xy-1], directive_1[xy-1]
-        );
-        max_equals(
-            &diag_next[xy], orth[xy-1]-17,
-            &directive_0_next[xy], &directive_1_next[xy],
-            directive_0[xy-1], directive_1[xy-1]
-        );
-    }
-    if (x < COLS-1) {
-        max_equals(
-            &orth_next[xy], orth[xy+1]-17,
-            &directive_0_next[xy], &directive_1_next[xy],
-            directive_0[xy+1], directive_1[xy+1]
-        );
-        max_equals(
-            &diag_next[xy], orth[xy+1]-17,
-            &directive_0_next[xy], &directive_1_next[xy],
-            directive_0[xy+1], directive_1[xy+1]
-        );
-    }
-    if (y > 0) {
-        max_equals(
-            &orth_next[xy], orth[xy-COLS]-17,
-            &directive_0_next[xy], &directive_1_next[xy],
-            directive_0[xy-COLS], directive_1[xy-COLS]
-        );
-        max_equals(
-            &diag_next[xy], orth[xy-COLS]-17,
-            &directive_0_next[xy], &directive_1_next[xy],
-            directive_0[xy-COLS], directive_1[xy-COLS]
-        );
-        if (x > 0) {
-            max_equals(
-                &orth_next[xy], min(orth[xy]+150,diag[xy-COLS-1]-(38-17)),
-                &directive_0_next[xy], &directive_1_next[xy],
-                directive_0[xy-COLS-1], directive_1[xy-COLS-1]
-            );
-            max_equals(
-                &diag_next[xy], min(orth[xy]+55, diag[xy-COLS-1]-24),
-                &directive_0_next[xy], &directive_1_next[xy],
-                directive_0[xy-COLS-1], directive_1[xy-COLS-1]
-            );
-        }
-        if (x < COLS-1) {
-            max_equals(
-                &orth_next[xy], min(orth[xy]+150, diag[xy-COLS+1]-(38-17)),
-                &directive_0_next[xy], &directive_1_next[xy],
-                directive_0[xy-COLS+1], directive_1[xy-COLS+1]
-            );
-            max_equals(
-                &diag_next[xy], min(orth[xy]+55, diag[xy-COLS+1]-24),
-                &directive_0_next[xy], &directive_1_next[xy],
-                directive_0[xy-COLS+1], directive_1[xy-COLS+1]
-            );
-        }
-    }
-    if (y < ROWS-1) {
-        max_equals(
-            &orth_next[xy], orth[xy+COLS]-17,
-            &directive_0_next[xy], &directive_1_next[xy],
-            directive_0[xy+COLS], directive_1[xy+COLS]
-        );
-        max_equals(
-            &diag_next[xy], orth[xy+COLS]-17,
-            &directive_0_next[xy], &directive_1_next[xy],
-            directive_0[xy+COLS], directive_1[xy+COLS]
-        );
-        if (x > 0) {
-            max_equals(
-                &orth_next[xy], min(orth[xy]+150, diag[xy+COLS-1]-(38-17)),
-                &directive_0_next[xy], &directive_1_next[xy],
-                directive_0[xy+COLS-1], directive_1[xy+COLS-1]
-            );
-            max_equals(
-                &diag_next[xy], min(orth[xy]+55,diag[xy+COLS-1]-24),
-                &directive_0_next[xy], &directive_1_next[xy],
-                directive_0[xy+COLS-1], directive_1[xy+COLS-1]
-            );
-        }
-        if (x < COLS-1) {
-            max_equals(
-                &orth_next[xy], min(orth[xy]+150,diag[xy+COLS+1]-(38-17)),
-                &directive_0_next[xy], &directive_1_next[xy],
-                directive_0[xy+COLS+1], directive_1[xy+COLS+1]
-            );
-            max_equals(
-                &diag_next[xy], min(orth[xy]+55, diag[xy+COLS+1]-24),
-                &directive_0_next[xy], &directive_1_next[xy],
-                directive_0[xy+COLS+1], directive_1[xy+COLS+1]
-            );
-        }
-    }
     if (orth_next[xy] <= 17) {
         directive_0_next[xy] = directive_0[xy];
         directive_1_next[xy] = directive_1[xy];
     }
 }
 
-int* get_offset_array(int y) {
-    switch (y) {
-    case 0 :
-        return y_zero;
-    case ROWS-1 : 
-        return y_rows_minus_one;
-    default :
-        return y_else;
-    }
-}
-
 void compute_hanabi(hanabi_cell* grid, hanabi_cell* grid_next, int xy) {
-    int scratch;
     int x = xy % COLS;
     int y = xy / COLS;
+    int* offset = get_offset_array(y);
+    
+    int scratch;
     int z_for_orth;
     int z_for_diag;
     int live_neighbors = 0;
-    int* offset;
     
     if (grid[xy].orth > 0) {
         grid_next[xy].orth *= -1;
     } else if (grid[xy].orth < 0) {
         grid_next[xy].orth = 0;
     } else {
-        offset = get_offset_array(y);
-        
         grid_next[xy].orth = 0;
         grid_next[xy].diag = 0;
         
-        for (int i = x > 0 ? 0 : 3; i < 6 || (i < 9 && x < COLS-1); ++i) {
+        for (int i = X_INIT(x); X_CONTINUE(x,i); ++i) {
             if (offset[i] != 0) {
                 if (grid[xy+offset[i]].orth > 17) {
-                    if (i % 2) {
+                    if (i % 2) { // orthogonal neighbor
                         z_for_orth = grid[xy+offset[i]].orth - 17;
                         z_for_diag = grid[xy+offset[i]].orth - 17;
-                    } else {
+                    } else { // diagonal neighbor
                         z_for_orth = grid[xy+offset[i]].diag - 21;
                         z_for_diag = grid[xy+offset[i]].diag - 24;
                     }

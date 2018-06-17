@@ -93,7 +93,7 @@ void display_color(int xy, int color) {
         // http://static.rossry.net/lights/v0.5.30/colors.html -- the xterm
         // colors used for ncurses here are approximations
     } else {
-        if (rand() % 100 == 0) {
+        if (rand() % 100 == 0 || xy == ROWS * COLS - 1) {
             attron(COLOR_PAIR(1+color));
             mvprintw(xy/COLS, 2*(xy%COLS), " ,");
             attroff(COLOR_PAIR(1+color));

@@ -92,6 +92,7 @@ int main(int argc, char *argv[]) {
         
         for (int xy = 0; xy < ROWS * COLS; ++xy) {
             // evolve control_directive_(1|2), control_(orth|diag)
+            // CR rrheingans-yoo: move these overrides to the post-processing segment below
             if (xy == COLS*(ROWS-1) + COLS/2 // CR rrheingans-yoo for ntarleton: this should instead be pressure_switch_depressed(xy)
                 && ((epoch + 5000) / 6000) % 2 == 0 // CR rrheingans-yoo for ntarleton: remove me
                 && epoch > INITIALIZATION_EPOCHS // CR rrheingans-yoo for ntarleton: remove me
@@ -295,6 +296,8 @@ int main(int argc, char *argv[]) {
         mvprintw(ROWS+0, 2*COLS-37, "epoch: %7d", epoch);
         mvprintw(ROWS+1, 2*COLS-37, "Hz:    %7.1f", 1 / (total_avg / MILLION));
         mvprintw(ROWS+1, 1, "control_orth[0] = %7d", control_orth[0]);
+        mvprintw(ROWS+2, 1, "control_directive_0[0] = %2d", control_directive_0[0]);
+        mvprintw(ROWS+3, 1, "control_directive_1[0] = %2d", control_directive_1[0]);
         
         start = stop;
     }
