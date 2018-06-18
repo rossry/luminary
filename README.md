@@ -43,6 +43,7 @@ Here are some parameters (set in `constants.h`) that would be useful to test on 
 
 * pattern variants that emphasize only a subset of colors (or single color) at a time
 * effects for driving sphere lights in synchrony with waves-based effects/transitions
+* FIRST DRAFT DONE: layout for driving petal lights by extending floor patterns
 * additional "building blocks" -- [Brian's Brain](https://en.wikipedia.org/wiki/Brian%27s_Brain), competing [turmites](https://en.wikipedia.org/wiki/Turmite)...
 * additional interactivity rules to let interacters cause more complex effects than centered spotlights
 * as of 2018-06-16, rrheingans-yoo started work on a fireworks-type effect, based on a GOL/BBrain rule suggested by mocean, sparked by pressure toggles
