@@ -5,22 +5,38 @@
 #include "constants.h"
 
 int y_zero[] = {0, -1, -1+COLS, 0, 0, COLS, 0, 1, 1+COLS};
+int y_wrap_x_zero[] = {-1, -1+COLS, -1+2*COLS, -COLS, 0, COLS, 1-COLS, 1, 1+COLS};
+int y_wrap_x_cols_minus_one[] = {-1-COLS, -1, -1+COLS, -COLS, 0, COLS, 1-2*COLS, 1-COLS, 1};
 int y_rows_minus_one[] = {-1-COLS, -1, 0, -COLS, 0, 0, 1-COLS, 1, 0};
 int y_else[] = {-1-COLS, -1, -1+COLS, -COLS, 0, COLS, 1-COLS, 1, 1+COLS};
 
-int* get_offset_array(int y) {
+int* get_offset_array(int x, int y) {
     switch (y) {
     case 0 :
         return y_zero;
     case ROWS-1 : 
         return y_rows_minus_one;
     default :
+        if (y < PETAL_ROWS && y > 24) {
+            if (x == 0) {
+                return y_wrap_x_zero;
+            } else if (x == COLS - 1) {
+                return y_wrap_x_cols_minus_one;
+            }
+        } else if (y == PETAL_ROWS -1 && x > FLOOR_COLS) {
+            return y_rows_minus_one;
+        }
         return y_else;
     }
 }
 
-#define X_INIT(x)       ((x) > 0 ? 0 : 3)
-#define X_CONTINUE(x,i) ((i) < 6 || ((i) < 9 && (x) < COLS-1))
+#define X_INIT(x,y) \
+    (((y) < PETAL_ROWS && (y) > PETAL_ROWS_SEPARATED) \
+    || ((x) > 0 && ((y) > PETAL_ROWS_SEPARATED || (x) % 32 > 0)) \
+    ? 0 : 3)
+#define X_CONTINUE(x,y,i) \
+    ((i) < 6 \
+    || ((i) < 9 && (((y) < PETAL_ROWS && (y) > PETAL_ROWS_SEPARATED) || ((x) < COLS-1 && ((y) > PETAL_ROWS_SEPARATED || (x) % 32 < 31)))))
 
 void max_equals(int* x, int y, int* t0, int* t1, int s0, int s1) {
     if (y > *x) {
@@ -68,9 +84,9 @@ int compute_cyclic(int* grid, int* impatience, int xy) {
     
     int x = xy % COLS;
     int y = xy / COLS;
-    int* offset = get_offset_array(y);
+    int* offset = get_offset_array(x,y);
     
-    for (int i = X_INIT(x); X_CONTINUE(x,i); ++i) {
+    for (int i = X_INIT(x,y); X_CONTINUE(x,y,i); ++i) {
         if (offset[i] != 0) {
             if (i % 2) { // orthogonal neighbor
                 inc = maybe_increment(grid, xy, xy+offset[i], inc, neighbors, &n_neighbors);
@@ -123,7 +139,7 @@ void compute_decay(
 ) {
     int x = xy % COLS;
     int y = xy / COLS;
-    int* offset = get_offset_array(y);
+    int* offset = get_offset_array(x,y);
     
     int z_for_orth;
     int z_for_diag;
@@ -133,7 +149,7 @@ void compute_decay(
     orth_next[xy] = 0;
     diag_next[xy] = 0;
     
-    for (int i = X_INIT(x); X_CONTINUE(x,i); ++i) {
+    for (int i = X_INIT(x,y); X_CONTINUE(x,y,i); ++i) {
         if (offset[i] != 0) {
             if (i % 2) { // orthogonal neighbor
                 z_for_orth = orth[xy+offset[i]] - 17;
@@ -169,22 +185,27 @@ void compute_decay(
 void compute_hanabi(hanabi_cell* grid, hanabi_cell* grid_next, int xy) {
     int x = xy % COLS;
     int y = xy / COLS;
-    int* offset = get_offset_array(y);
+    int* offset = get_offset_array(x,y);
     
     int scratch;
     int z_for_orth;
     int z_for_diag;
     int live_neighbors = 0;
     
+    /*
     if (grid[xy].orth > 0) {
         grid_next[xy].orth *= -1;
     } else if (grid[xy].orth < 0) {
         grid_next[xy].orth = 0;
+    */
+    if (grid[xy].orth > 0) {
+        grid_next[xy].orth = 0;
+        grid_next[xy].diag = 0;
     } else {
         grid_next[xy].orth = 0;
         grid_next[xy].diag = 0;
         
-        for (int i = X_INIT(x); X_CONTINUE(x,i); ++i) {
+        for (int i = X_INIT(x,y); X_CONTINUE(x,y,i); ++i) {
             if (offset[i] != 0) {
                 if (grid[xy+offset[i]].orth > 17) {
                     if (i % 2) { // orthogonal neighbor
@@ -219,10 +240,10 @@ void compute_hanabi(hanabi_cell* grid, hanabi_cell* grid_next, int xy) {
 void run_hanabi_spark(hanabi_cell* grid, int xy, int color) {
     int x = xy % COLS;
     int y = xy / COLS;
-    int* offset = get_offset_array(y);
+    int* offset = get_offset_array(x,y);
     
     for (int i = x > 0 ? 0 : 3; i < 6 || (i < 9 && x < COLS-1); ++i) {
-        grid[xy+offset[i]].orth = grid[xy+offset[i]].diag = 340 * (rand() % 3 ? 1 : 0); // CR rrheingans-yoo: tune this
+        grid[xy+offset[i]].orth = grid[xy+offset[i]].diag = 170 * (rand() % 3 ? 1 : 0); // CR rrheingans-yoo: tune this
         grid[xy+offset[i]].color = color;
     }
 }

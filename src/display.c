@@ -82,10 +82,20 @@ void display_init() {
 void display_color(int xy, int color) {
     if (display_current[xy] != color) {
         // ncurses drawing
-        attron(COLOR_PAIR(1+color));
-        mvprintw(xy/COLS, 2*(xy%COLS), " .");
-        attroff(COLOR_PAIR(1+color));
-        display_current[xy] = color;
+        int x = xy % COLS;
+        int y = xy / COLS;
+        if (y % DIAGNOSTIC_SAMPLING_RATE == 0
+            && x % DIAGNOSTIC_SAMPLING_RATE == 0
+            && (y < PETAL_ROWS || x < FLOOR_COLS)) {
+            attron(COLOR_PAIR(1+color));
+            mvprintw(
+                xy/COLS/DIAGNOSTIC_SAMPLING_RATE,
+                2*(xy%COLS)/DIAGNOSTIC_SAMPLING_RATE,
+                " ."
+            );
+            attroff(COLOR_PAIR(1+color));
+            display_current[xy] = color;
+        }
         
         // CR rrheingans-yoo for ntarleton: get ready to set cell xy to color color
         //
@@ -93,11 +103,13 @@ void display_color(int xy, int color) {
         // http://static.rossry.net/lights/v0.5.30/colors.html -- the xterm
         // colors used for ncurses here are approximations
     } else {
+        /*
         if (rand() % 100 == 0 || xy == ROWS * COLS - 1) {
             attron(COLOR_PAIR(1+color));
             mvprintw(xy/COLS, 2*(xy%COLS), " ,");
             attroff(COLOR_PAIR(1+color));
         }
+        */
     }
 }
 
