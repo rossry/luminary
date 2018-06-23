@@ -9,7 +9,7 @@
 #define MILLION  1000000
 
 // physical dimensions
-//#define PETALS_ACTIVE
+#define PETALS_ACTIVE
 
 #define FLOOR_COLS 64
 #define FLOOR_ROWS 48
@@ -52,6 +52,18 @@
 #define RAINBOW_09  43
 #define RAINBOW_10  32
 #define RAINBOW_11  62
+#define RAINBOW_40  54
+#define RAINBOW_41  53
+#define RAINBOW_42  89
+#define RAINBOW_43  95
+#define RAINBOW_44  94
+#define RAINBOW_45  58
+#define RAINBOW_46  64
+#define RAINBOW_47  28
+#define RAINBOW_48  29
+#define RAINBOW_49  23
+#define RAINBOW_50  59
+#define RAINBOW_51  60
 #define GREY_0 242
 #define GREY_1 243
 #define GREY_2 244
@@ -59,13 +71,13 @@
 #define GREY_4 246
 #define GREY_5 247
 #define GREY_6 248
-#define GREY_30 232
-#define GREY_31 235
-#define GREY_32 248
-#define GREY_33 241
-#define GREY_34 244
-#define GREY_35 247
-#define GREY_36 250
+#define GREY_40 232
+#define GREY_41 235
+#define GREY_42 248
+#define GREY_43 241
+#define GREY_44 244
+#define GREY_45 247
+#define GREY_46 250
 
 // speeds, times, distances
 #define BASE_HZ                    10
@@ -79,9 +91,10 @@
 #define PRESSURE_RADIUS_TICKS      76
 
 // other constants (probably don't mess with these)
-#define COLORS     12
-#define RAND_COLOR ( rand() % COLORS )
-#define MAKE_GREY  20
+#define COLORS      12
+#define RAND_COLOR  ( rand() % COLORS )
+#define MAKE_GREY   20
+#define MAKE_DARKER 40
 
 #define WAVES_BASE_ARRAY  {-331,-319,-307,-295,-283,-271,-260,-249,-237,-226,-215,-205,-194,-184,-173,-163,-154,-144,-135,-125,-116,-108,-99,-91,-83,-75,-68,-61,-54,-47,-41,-35,-29,-24,-18,-14,-9,-5,-1,2,4,6,6,7,8,8,9,9,9,9,9,8,8,7,6,6,4,2,-1,-5,-9,-14,-18,-24,-29,-35,-41,-47,-54,-61,-68,-75,-83,-91,-99,-108,-116,-125,-135,-144,-154,-163,-173,-184,-194,-205,-215,-226,-237,-249,-260,-271,-283,-295,-307,-319,-331}
 #define WAVES_BASE_X_ORIG 16
@@ -98,7 +111,8 @@
 
 // pattern names
 #define PATTERN_BASE 0
-#define PATTERN_RAINBOW_SPOTLIGHTS 1
+#define PATTERN_RAINBOW_SPOTLIGHTS_ON_GREY 1
+#define PATTERN_RAINBOW_SPOTLIGHTS_ON_TWO_TONES 2
 #define PATTERN_FULL_RAINBOW 10
 
 #define max(a,b) \

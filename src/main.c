@@ -26,10 +26,11 @@ int main(int argc, char *argv[]) {
     int control_diag[ROWS * COLS];
     int control_diag_next[ROWS * COLS];
     
+    int rainbow_tone[ROWS * COLS];
+    
     int rainbow_0[ROWS * COLS];
     int rainbow_0_next[ROWS * COLS];
     int impatience_0[ROWS * COLS];
-    
     int rainbow_1[ROWS * COLS];
     int rainbow_1_next[ROWS * COLS];
     int impatience_1[ROWS * COLS];
@@ -68,6 +69,8 @@ int main(int argc, char *argv[]) {
         rainbow_1[xy] = RAND_COLOR;
         impatience_1[xy] = 0;
         
+        rainbow_tone[xy] = 0;
+        
         pressure_self[xy] = 0;
         pressure_orth[xy] = 0;
         pressure_diag[xy] = 0;
@@ -102,7 +105,7 @@ int main(int argc, char *argv[]) {
                 ) {
                     if (control_orth[xy] == 0) {
                         control_directive_0[xy] = PATTERN_FULL_RAINBOW;
-                        control_directive_1[xy] = PATTERN_RAINBOW_SPOTLIGHTS;
+                        control_directive_1[xy] = PATTERN_RAINBOW_SPOTLIGHTS_ON_TWO_TONES;
                         control_orth[xy] = HIBERNATION_TICKS + TRANSITION_TICKS;
                     } else if (control_orth[xy] < HIBERNATION_TICKS) {
                         control_orth[xy] = HIBERNATION_TICKS;
@@ -135,7 +138,8 @@ int main(int argc, char *argv[]) {
                     waves_orth, waves_diag,
                     waves_orth_next, waves_diag_next,
                     scratch, scratch, scratch, scratch,
-                xy);
+                    xy
+                );
                 
                 if (epoch % WILDFIRE_SPEEDUP == 0) {
                     // evolve rainbow_0
@@ -188,6 +192,10 @@ int main(int argc, char *argv[]) {
                 }
                 pressure_self[xy] = PRESSURE_DELAY_EPOCHS;
             }
+            
+            if (rainbow_tone[xy] != rainbow_0[xy]) {
+                rainbow_tone[xy] = (waves_orth_next[xy] / 17) / 120;
+            }
         }
         
         gettimeofday(&computed, NULL);
@@ -197,11 +205,32 @@ int main(int argc, char *argv[]) {
             if (epoch > INITIALIZATION_EPOCHS) {
                 switch (control_directive_0_next[xy]) {
                 
-                case PATTERN_RAINBOW_SPOTLIGHTS:
+                case PATTERN_RAINBOW_SPOTLIGHTS_ON_GREY:
                     if (rainbow_1_next[xy] == -1) {
                         display_color(xy, rainbow_0_next[xy]);
                     } else {
                         display_color(xy, rainbow_1_next[xy] + MAKE_GREY);
+                    }
+                    break;
+                
+                case PATTERN_RAINBOW_SPOTLIGHTS_ON_TWO_TONES:
+                    if (rainbow_1_next[xy] == -1) {
+                        display_color(xy, rainbow_0_next[xy]);
+                    } else {
+                        switch ((rainbow_0_next[xy] - rainbow_tone[xy] + COLORS) % COLORS) {
+                        case COLORS - 1:
+                            display_color(xy, ((rainbow_0_next[xy] + 1) % COLORS) + MAKE_DARKER);
+                            break;
+                        case 0:
+                        case 1:
+                            display_color(xy, rainbow_0_next[xy]);
+                            break;
+                        case 2:
+                            display_color(xy, ((rainbow_0_next[xy] + COLORS-1) % COLORS) + MAKE_DARKER);
+                            break;
+                        default:
+                            display_color(xy, 19 + MAKE_DARKER);
+                        }
                     }
                     break;
                 
@@ -218,7 +247,7 @@ int main(int argc, char *argv[]) {
                             min(rainbow_1_next[xy],
                                 COLORS - rainbow_1_next[xy]
                             ) + zz
-                        ) + MAKE_GREY + 30
+                        ) + MAKE_GREY + MAKE_DARKER
                     );
                     
                     if (hanabi_next[xy].orth > 0) {
@@ -227,7 +256,18 @@ int main(int argc, char *argv[]) {
                 }
                 
                 /*
-                display_color(xy, rainbow_0_next[xy]);
+                if (
+                    rainbow_1_next[xy] == (rainbow_tone[xy]) % COLORS
+                    || rainbow_1_next[xy] == (rainbow_tone[xy]+1) % COLORS
+                ) {
+                    display_color(xy, rainbow_1_next[xy]);
+                } else if (rainbow_1_next[xy] == (rainbow_tone[xy] + COLORS-1) % COLORS) {
+                    display_color(xy, ((rainbow_1_next[xy] + 1) % COLORS) + MAKE_DARKER);
+                } else if (rainbow_1_next[xy] == (rainbow_tone[xy]+2) % COLORS) {
+                    display_color(xy, ((rainbow_1_next[xy] + COLORS-1) % COLORS) + MAKE_DARKER);
+                } else {
+                    display_color(xy, 19 + MAKE_DARKER);
+                }
                 /**/
                 
                 /*
@@ -280,7 +320,7 @@ int main(int argc, char *argv[]) {
                 // CR rrheingans-yoo: do something!
                 int xy = COLS*(ROWS-1) + COLS/2;
                 control_directive_0[xy] = PATTERN_FULL_RAINBOW;
-                control_directive_1[xy] = PATTERN_RAINBOW_SPOTLIGHTS;
+                control_directive_1[xy] = PATTERN_RAINBOW_SPOTLIGHTS_ON_TWO_TONES;
                 control_orth[xy] = HIBERNATION_TICKS + TRANSITION_TICKS;
             }
             
