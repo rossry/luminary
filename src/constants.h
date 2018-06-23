@@ -9,7 +9,7 @@
 #define MILLION  1000000
 
 // physical dimensions
-#define PETALS_ACTIVE
+//#define PETALS_ACTIVE
 
 #define FLOOR_COLS 64
 #define FLOOR_ROWS 48
@@ -87,8 +87,13 @@
 #define RAND_SECONDARY_TRANSITION  ( rand() % (ROWS * COLS) == 0 )
 #define HIBERNATION_TICKS          70000 // 70000 ticks ~ 103 seconds
 #define INITIALIZATION_EPOCHS      ( 200 * WILDFIRE_SPEEDUP ) // run this many epochs on startup
-#define PRESSURE_DELAY_EPOCHS      5
+#define PRESSURE_DELAY_EPOCHS      30
 #define PRESSURE_RADIUS_TICKS      76
+
+// gif output
+//#define OUTPUT_GIF
+#define GIF_ZOOM 10
+#define GIF_EPOCHS 1200 * WILDFIRE_SPEEDUP
 
 // other constants (probably don't mess with these)
 #define COLORS      12

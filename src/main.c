@@ -101,7 +101,7 @@ int main(int argc, char *argv[]) {
                 // CR rrheingans-yoo: move these overrides to the post-processing segment below
                 if (xy == COLS*(ROWS-1) + FLOOR_COLS/2 // CR rrheingans-yoo for ntarleton: this should instead be pressure_switch_depressed(xy)
                     && ((epoch + 5000) / 6000) % 2 == 0 // CR rrheingans-yoo for ntarleton: remove me
-                    && epoch > INITIALIZATION_EPOCHS + 190 // CR rrheingans-yoo for ntarleton: remove me
+                    && epoch > INITIALIZATION_EPOCHS + 1 // CR rrheingans-yoo for ntarleton: remove me
                 ) {
                     if (control_orth[xy] == 0) {
                         control_directive_0[xy] = PATTERN_FULL_RAINBOW;
@@ -159,11 +159,7 @@ int main(int argc, char *argv[]) {
                         scratch, scratch, scratch, scratch,
                         xy
                     );
-                    /*
-                    if (y > PETAL_ROWS && rand() % (FLOOR_ROWS * FLOOR_COLS) == 0) { // CR rrheingans-yoo for ntarleton: this should instead be pressure_switch_depressed(xy)
-                        pressure_self[xy] = PRESSURE_DELAY_EPOCHS;
-                    }
-                    */
+                    
                     if (pressure_self[xy] > 0) {
                         pressure_self[xy] -= 1;
                         pressure_orth_next[xy] = pressure_diag_next[xy] = PRESSURE_RADIUS_TICKS;
@@ -186,15 +182,17 @@ int main(int argc, char *argv[]) {
         for (int xy = 0; xy < ROWS * COLS; ++xy) {
             int x = xy % COLS;
             int y = xy / COLS;
-            if ((y > PETAL_ROWS && x < FLOOR_COLS) && rand() % (FLOOR_ROWS * FLOOR_COLS * 10) == 0) { // CR rrheingans-yoo for ntarleton: this should instead be pressure_switch_depressed(xy)
+            if ((y > PETAL_ROWS && x < FLOOR_COLS) // CR rrheingans-yoo for ntarleton: this should instead be pressure_switch_depressed(xy)
+                && rand() % (FLOOR_ROWS * FLOOR_COLS * 100) == 0 // CR rrheingans-yoo for ntarleton: remove me
+            ) { 
                 if (pressure_self[xy] < PRESSURE_DELAY_EPOCHS) {
                     run_hanabi_spark(hanabi_next, xy, hanabi_seed_color[xy]);
                 }
                 pressure_self[xy] = PRESSURE_DELAY_EPOCHS;
             }
             
-            if (rainbow_tone[xy] != rainbow_0[xy]) {
-                rainbow_tone[xy] = (waves_orth_next[xy] / 17) / 120;
+            if (rainbow_0_next[xy] != rainbow_0[xy]) {
+                rainbow_tone[xy] = ((waves_orth_next[xy] / 17) / 120) % COLORS;
             }
         }
         
@@ -218,7 +216,7 @@ int main(int argc, char *argv[]) {
                         display_color(xy, rainbow_0_next[xy]);
                     } else {
                         switch ((rainbow_0_next[xy] - rainbow_tone[xy] + COLORS) % COLORS) {
-                        case COLORS - 1:
+                        case -1 + COLORS:
                             display_color(xy, ((rainbow_0_next[xy] + 1) % COLORS) + MAKE_DARKER);
                             break;
                         case 0:
@@ -226,10 +224,10 @@ int main(int argc, char *argv[]) {
                             display_color(xy, rainbow_0_next[xy]);
                             break;
                         case 2:
-                            display_color(xy, ((rainbow_0_next[xy] + COLORS-1) % COLORS) + MAKE_DARKER);
+                            display_color(xy, ((rainbow_0_next[xy] - 1 + COLORS) % COLORS) + MAKE_DARKER);
                             break;
                         default:
-                            display_color(xy, 19 + MAKE_DARKER);
+                            display_color(xy, -1 + MAKE_GREY + MAKE_DARKER);
                         }
                     }
                     break;
@@ -254,29 +252,6 @@ int main(int argc, char *argv[]) {
                         display_color(xy, hanabi_next[xy].color);
                     }
                 }
-                
-                /*
-                if (
-                    rainbow_1_next[xy] == (rainbow_tone[xy]) % COLORS
-                    || rainbow_1_next[xy] == (rainbow_tone[xy]+1) % COLORS
-                ) {
-                    display_color(xy, rainbow_1_next[xy]);
-                } else if (rainbow_1_next[xy] == (rainbow_tone[xy] + COLORS-1) % COLORS) {
-                    display_color(xy, ((rainbow_1_next[xy] + 1) % COLORS) + MAKE_DARKER);
-                } else if (rainbow_1_next[xy] == (rainbow_tone[xy]+2) % COLORS) {
-                    display_color(xy, ((rainbow_1_next[xy] + COLORS-1) % COLORS) + MAKE_DARKER);
-                } else {
-                    display_color(xy, 19 + MAKE_DARKER);
-                }
-                /**/
-                
-                /*
-                if (hanabi_next[xy].orth > 0) {
-                    display_color(xy, hanabi_next[xy].color);
-                } else {
-                    display_color(xy, 15);
-                }
-                /**/
                 
             }
             
@@ -303,7 +278,7 @@ int main(int argc, char *argv[]) {
         gettimeofday(&drawn, NULL);
         
         if (epoch > INITIALIZATION_EPOCHS) {
-            display_flush();
+            display_flush(epoch);
             
             gettimeofday(&refreshed, NULL);
             
