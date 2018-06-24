@@ -111,20 +111,6 @@ int main(int argc, char *argv[]) {
                         control_orth[xy] = HIBERNATION_TICKS;
                     }
                 }
-                if (control_orth[xy] < HIBERNATION_TICKS
-                    && control_directive_0[xy] != control_directive_1[xy]
-                    && RAND_SECONDARY_TRANSITION
-                ) {
-                    control_directive_0[xy] = control_directive_1[xy];
-                    control_orth[xy] = HIBERNATION_TICKS + SECONDARY_TRANSITION_TICKS;
-                }
-                if (control_orth[xy] == 0
-                    && control_directive_0[xy] != PATTERN_BASE
-                    && RAND_SECONDARY_TRANSITION
-                ) {
-                    control_directive_0[xy] = control_directive_1[xy] = PATTERN_BASE;
-                    control_orth[xy] = SECONDARY_TRANSITION_TICKS;
-                }
                 compute_decay(
                     control_orth, control_diag,
                     control_orth_next, control_diag_next,
@@ -132,6 +118,25 @@ int main(int argc, char *argv[]) {
                     control_directive_0_next, control_directive_1_next,
                     xy
                 );
+                
+                // revert to control_directive_1
+                if (control_orth_next[xy] < HIBERNATION_TICKS
+                    && control_orth_next[xy] < control_orth[xy]
+                    && control_directive_0_next[xy] != control_directive_1_next[xy]
+                    && RAND_SECONDARY_TRANSITION
+                ) {
+                    control_directive_0_next[xy] = control_directive_1_next[xy];
+                    control_orth_next[xy] = HIBERNATION_TICKS + SECONDARY_TRANSITION_TICKS;
+                }
+                
+                // revert to hibernation
+                if (control_orth_next[xy] == 0
+                    && control_directive_0_next[xy] != PATTERN_BASE
+                    && RAND_SECONDARY_TRANSITION
+                ) {
+                    control_directive_0_next[xy] = control_directive_1_next[xy] = PATTERN_BASE;
+                    control_orth_next[xy] = SECONDARY_TRANSITION_TICKS;
+                }
                 
                 // evolve waves_(orth|diag)
                 compute_decay(
