@@ -11,13 +11,22 @@ DEPS := $(OBJS:.o=.d)
 INC_DIRS := $(shell find $(SRC_DIRS) -type d)
 INC_FLAGS := $(addprefix -I,$(INC_DIRS))
 
-CFLAGS ?= -std=c99 -D _BSD_SOURCE
+CFLAGS ?= -Wall -Ofast -std=c99 -D _BSD_SOURCE -Wno-unused-result
 CPPFLAGS ?= $(INC_FLAGS) -MMD -MP
+CXXFLAGS ?=  -Wall -Ofast -std=c++11
 
-LDFLAGS=-lncurses
+PP_LIBDIR=lib/pp-server/lib
+PP_LIBRARY_NAME=pixel-push-server
+PP_LIBRARY=$(PP_LIBDIR)/lib$(PP_LIBRARY_NAME).a
 
-$(BIN_DIR)/$(TARGET_EXEC): $(OBJS)
+LDFLAGS=-lncurses -L$(PP_LIBDIR) -l$(PP_LIBRARY_NAME) -lstdc++ -lrt -lm -lpthread
+
+$(BIN_DIR)/$(TARGET_EXEC): $(OBJS) $(PP_LIBRARY)
 	$(CC) $(OBJS) -o $@ $(LDFLAGS)
+
+# pp-server
+$(PP_LIBRARY): FORCE
+	$(MAKE) -C $(PP_LIBDIR)
 
 # assembly
 $(BUILD_DIR)/%.s.o: %.s
@@ -43,3 +52,6 @@ clean:
 -include $(DEPS)
 
 MKDIR_P ?= mkdir -p
+
+FORCE:
+.PHONY: FORCE

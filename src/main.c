@@ -54,7 +54,7 @@ int main(int argc, char *argv[]) {
     hanabi_cell hanabi_next[ROWS * COLS];
     int hanabi_seed_color[ROWS * COLS];
     
-    int in_chr;
+    int in_chr = 0;
     
     for (int xy = 0; xy < ROWS * COLS; ++xy) {
         scratch[xy] = 0;
@@ -175,7 +175,7 @@ int main(int argc, char *argv[]) {
         
         // drive waves_(orth|diag)'s top row
         waves_base_z_orig += 17;
-        for (int x = 0; x < COLS; ++x) {
+        for (int x = 0; x < FLOOR_COLS; ++x) {
             waves_orth_next[x+COLS*PETAL_ROWS] = waves_diag_next[x+COLS*PETAL_ROWS] = waves_base[x+WAVES_BASE_X_ORIG] + waves_base_z_orig;
         }
         

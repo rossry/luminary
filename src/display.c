@@ -4,6 +4,7 @@
 
 #include "constants.h"
 #include "gifenc.h"
+#include "pp-server-luminary.h"
 
 int display_current[ROWS * COLS];
 ge_GIF *gif;
@@ -117,6 +118,9 @@ void display_init() {
         0               /* infinite loop */
     );
     #endif /* OUTPUT_GIF */
+    
+    pp_server_start();
+    pp_server_shutdown();
     
     // CR rrheingans-yoo for ntarleton: dancefloor initialization, as necessary
 }

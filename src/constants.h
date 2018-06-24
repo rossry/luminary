@@ -9,7 +9,7 @@
 #define MILLION  1000000
 
 // physical dimensions
-//#define PETALS_ACTIVE
+#define PETALS_ACTIVE
 
 #define FLOOR_COLS 64
 #define FLOOR_ROWS 48
