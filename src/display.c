@@ -111,7 +111,7 @@ void display_init() {
     
     #ifdef OUTPUT_GIF
     gif = ge_new_gif(
-        "demo/example.gif",
+        "demo/example2.gif",
         COLS * GIF_ZOOM, ROWS * GIF_ZOOM,
         gif_palette,
         7,              /* palette depth == log2(# of colors) */
@@ -181,13 +181,12 @@ void display_flush(int epoch) {
                     gif->frame[y*COLS*GIF_ZOOM*GIF_ZOOM + yi*COLS*GIF_ZOOM + x*GIF_ZOOM + xi] = (char)display_current[xy];
                 }
             }
-            //gif->frame[xy] = (char)display_current[xy];
         }
         
         ge_add_frame(gif, 10);
     }
     
-    if (epoch == INITIALIZATION_EPOCHS) {
+    if (epoch == INITIALIZATION_EPOCHS + GIF_EPOCHS) {
         ge_close_gif(gif);
     }
     #endif /* OUTPUT_GIF */

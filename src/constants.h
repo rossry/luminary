@@ -88,7 +88,7 @@
 #define HIBERNATION_TICKS          70000 // 70000 ticks ~ 103 seconds
 #define INITIALIZATION_EPOCHS      ( 200 * WILDFIRE_SPEEDUP ) // run this many epochs on startup
 #define PRESSURE_DELAY_EPOCHS      30
-#define PRESSURE_RADIUS_TICKS      76
+#define PRESSURE_RADIUS_TICKS      150//76
 
 // gif output
 //#define OUTPUT_GIF
@@ -118,6 +118,7 @@
 #define PATTERN_BASE 0
 #define PATTERN_RAINBOW_SPOTLIGHTS_ON_GREY 1
 #define PATTERN_RAINBOW_SPOTLIGHTS_ON_TWO_TONES 2
+#define TWO_TONES 3
 #define PATTERN_FULL_RAINBOW 10
 
 #define max(a,b) \

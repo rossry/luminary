@@ -13,6 +13,8 @@ double usec_time_elapsed(struct timeval *from, struct timeval *to) {
 int main(int argc, char *argv[]) {
     display_init();
     
+    srand(5);
+    
     int epoch = 0;
     
     int scratch[ROWS * COLS];
@@ -105,7 +107,7 @@ int main(int argc, char *argv[]) {
                 ) {
                     if (control_orth[xy] == 0) {
                         control_directive_0[xy] = PATTERN_FULL_RAINBOW;
-                        control_directive_1[xy] = PATTERN_RAINBOW_SPOTLIGHTS_ON_TWO_TONES;
+                        control_directive_1[xy] = TWO_TONES;
                         control_orth[xy] = HIBERNATION_TICKS + TRANSITION_TICKS;
                     } else if (control_orth[xy] < HIBERNATION_TICKS) {
                         control_orth[xy] = HIBERNATION_TICKS;
@@ -174,6 +176,9 @@ int main(int argc, char *argv[]) {
                     if ((waves_orth_next[xy] / 17) % 480 < 12) {
                         hanabi_next[xy].orth = hanabi_next[xy].diag = 0;
                     }
+                } else if (rand() % PRESSURE_RADIUS_TICKS < pressure_orth[xy]) {
+                    // evolve rainbow_0
+                    rainbow_0_next[xy] = compute_cyclic(rainbow_0, impatience_0, xy);
                 }
             }
         }
@@ -219,21 +224,23 @@ int main(int argc, char *argv[]) {
                 case PATTERN_RAINBOW_SPOTLIGHTS_ON_TWO_TONES:
                     if (rainbow_1_next[xy] == -1) {
                         display_color(xy, rainbow_0_next[xy]);
-                    } else {
-                        switch ((rainbow_0_next[xy] - rainbow_tone[xy] + COLORS) % COLORS) {
-                        case -1 + COLORS:
-                            display_color(xy, ((rainbow_0_next[xy] + 1) % COLORS) + MAKE_DARKER);
-                            break;
-                        case 0:
-                        case 1:
-                            display_color(xy, rainbow_0_next[xy]);
-                            break;
-                        case 2:
-                            display_color(xy, ((rainbow_0_next[xy] - 1 + COLORS) % COLORS) + MAKE_DARKER);
-                            break;
-                        default:
-                            display_color(xy, -1 + MAKE_GREY + MAKE_DARKER);
-                        }
+                        break;
+                    }
+                    // else fall through to TWO_TONES
+                case TWO_TONES:
+                    switch ((rainbow_0_next[xy] - rainbow_tone[xy] + COLORS) % COLORS) {
+                    case -1 + COLORS:
+                        display_color(xy, ((rainbow_0_next[xy] + 1) % COLORS) + MAKE_DARKER);
+                        break;
+                    case 0:
+                    case 1:
+                        display_color(xy, rainbow_0_next[xy]);
+                        break;
+                    case 2:
+                        display_color(xy, ((rainbow_0_next[xy] - 1 + COLORS) % COLORS) + MAKE_DARKER);
+                        break;
+                    default:
+                        display_color(xy, -1 + MAKE_GREY + MAKE_DARKER);
                     }
                     break;
                 
@@ -298,9 +305,9 @@ int main(int argc, char *argv[]) {
             if (in_chr > 0 && in_chr < 256) {
                 mvprintw(ROWS+0, 0, "input: %c", in_chr);
                 // CR rrheingans-yoo: do something!
-                int xy = COLS*(ROWS-1) + COLS/2;
+                int xy = COLS*(ROWS-1) + FLOOR_COLS/2;
                 control_directive_0[xy] = PATTERN_FULL_RAINBOW;
-                control_directive_1[xy] = PATTERN_RAINBOW_SPOTLIGHTS_ON_TWO_TONES;
+                control_directive_1[xy] = TWO_TONES;
                 control_orth[xy] = HIBERNATION_TICKS + TRANSITION_TICKS;
             }
             
