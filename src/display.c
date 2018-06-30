@@ -111,7 +111,7 @@ void display_init() {
     
     #ifdef OUTPUT_GIF
     gif = ge_new_gif(
-        "demo/example2.gif",
+        "demo/example3.gif",
         COLS * GIF_ZOOM, ROWS * GIF_ZOOM,
         gif_palette,
         7,              /* palette depth == log2(# of colors) */

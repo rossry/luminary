@@ -38,11 +38,20 @@ int* get_offset_array(int x, int y) {
     ((i) < 6 \
     || ((i) < 9 && (((y) < PETAL_ROWS && (y) > PETAL_ROWS_SEPARATED) || ((x) < COLS-1 && ((y) > PETAL_ROWS_SEPARATED || (x) % 32 < 31)))))
 
-void max_equals(int* x, int y, int* t0, int* t1, int s0, int s1) {
+void max_equals(int* x, int y, int* t0, int s0, int* t1, int s1) {
     if (y > *x) {
         *x = y;
         *t0 = s0;
         *t1 = s1;
+    }
+}
+
+void max_equals3(int* x, int y, int* t0, int s0, int* t1, int s1, int* t2, int s2) {
+    if (y > *x) {
+        *x = y;
+        *t0 = s0;
+        *t1 = s1;
+        *t2 = s2;
     }
 }
 
@@ -165,13 +174,13 @@ void compute_decay(
             
             max_equals(
                 &orth_next[xy], min(orth[xy]+max_increment_orth,z_for_orth),
-                &directive_0_next[xy], &directive_1_next[xy],
-                directive_0[xy+offset[i]], directive_1[xy+offset[i]]
+                &directive_0_next[xy], directive_0[xy+offset[i]],
+                &directive_1_next[xy], directive_1[xy+offset[i]]
             );
             max_equals(
-                &diag_next[xy], min(orth[xy]+max_increment_diag,z_for_diag),
-                &directive_0_next[xy], &directive_1_next[xy],
-                directive_0[xy+offset[i]], directive_1[xy+offset[i]]
+                &diag_next[xy], min(diag[xy]+max_increment_diag,z_for_diag),
+                &directive_0_next[xy], directive_0[xy+offset[i]],
+                &directive_1_next[xy], directive_1[xy+offset[i]]
             );
         }
     }
@@ -217,13 +226,13 @@ void compute_hanabi(hanabi_cell* grid, hanabi_cell* grid_next, int xy) {
                     }
                     max_equals(
                         &grid_next[xy].orth, z_for_orth,
-                        &grid_next[xy].color, &scratch,
-                        grid[xy+offset[i]].color, scratch
+                        &grid_next[xy].color, grid[xy+offset[i]].color,
+                        &scratch, scratch
                     );
                     max_equals(
                         &grid_next[xy].diag, z_for_diag,
-                        &grid_next[xy].color, &scratch,
-                        grid[xy+offset[i]].color, scratch
+                        &grid_next[xy].color, grid[xy+offset[i]].color,
+                        &scratch, scratch
                     );
                     ++live_neighbors;
                 }
@@ -242,7 +251,7 @@ void run_hanabi_spark(hanabi_cell* grid, int xy, int color) {
     int y = xy / COLS;
     int* offset = get_offset_array(x,y);
     
-    for (int i = x > 0 ? 0 : 3; i < 6 || (i < 9 && x < COLS-1); ++i) {
+    for (int i = X_INIT(x,y); X_CONTINUE(x,y,i); ++i) {
         grid[xy+offset[i]].orth = grid[xy+offset[i]].diag = 170 * (rand() % 3 ? 1 : 0); // CR rrheingans-yoo: tune this
         grid[xy+offset[i]].color = color;
     }
