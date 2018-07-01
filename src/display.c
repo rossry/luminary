@@ -150,7 +150,7 @@ void display_init() {
     for (int xi = 0; xi < CAIRO_ZOOM; ++xi) {
         for (int yi = 0; yi < CAIRO_ZOOM; ++yi) {
             switch (yi*CAIRO_ZOOM + xi) {
-            #if CAIRO_ZOOM == 15
+            #if CAIRO_ZOOM == 15 && CAIRO_BLUR_WIDTH == 4
                 case 1:
                 case 3:
                 case 5:
@@ -382,7 +382,7 @@ void display_flush(int epoch) {
                     int my_color;
                     #ifdef GIF_BLUR
                         switch (yi*GIF_ZOOM + xi) {
-                        #if GIF_ZOOM == 15
+                        #if GIF_ZOOM == 15 && GIF_BLUR_WIDTH == 4
                             case 1:
                             case 3:
                             case 5:
@@ -535,12 +535,8 @@ void display_flush(int epoch) {
         for (int xy = 0; xy < ROWS * COLS; ++xy) {
             int x = xy % COLS;
             int y = xy / COLS;
-            for (int xi = 0; xi < CAIRO_ZOOM; ++xi) {
-                for (int yi = 0; yi < CAIRO_ZOOM; ++yi) {
-                    cairo_set_source_luminary(display_current[xy]);
-                    cairo_mask_surface(cairo_cr, cairo_blur, -CAIRO_BLUR_WIDTH + x * CAIRO_ZOOM, -CAIRO_BLUR_WIDTH + y * CAIRO_ZOOM);
-                }
-            }
+            cairo_set_source_luminary(display_current[xy]);
+            cairo_mask_surface(cairo_cr, cairo_blur, -CAIRO_BLUR_WIDTH + x * CAIRO_ZOOM, -CAIRO_BLUR_WIDTH + y * CAIRO_ZOOM);
         }
         
         cairo_destroy(cairo_cr);
