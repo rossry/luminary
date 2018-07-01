@@ -5,7 +5,7 @@
 extern "C" {
 #endif
     
-    void pp_server_start();
+    void pp_server_start(int* display_current);
     void pp_server_shutdown();
 
 #ifdef __cplusplus

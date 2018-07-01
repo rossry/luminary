@@ -9,7 +9,7 @@
 #define MILLION  1000000
 
 // physical dimensions
-#define PETALS_ACTIVE
+//#define PETALS_ACTIVE
 
 #define FLOOR_COLS 64
 #define FLOOR_ROWS 48
@@ -92,7 +92,8 @@
 
 // gif output
 //#define OUTPUT_GIF
-#define GIF_ZOOM 10
+//#define GIF_BLUR
+#define GIF_ZOOM 15
 #define GIF_EPOCHS 1200 * WILDFIRE_SPEEDUP
 
 // other constants (probably don't mess with these)

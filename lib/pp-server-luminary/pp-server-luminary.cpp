@@ -13,7 +13,7 @@
 // CR rrheingans-yoo: implement pixelpusher server
 
 extern "C" {
-    void pp_server_start() {
+    void pp_server_start(int* display_current) {
         // CR rrheingans-yoo: start up pixelpusher server
         return;
     }

@@ -13,11 +13,11 @@ char gif_palette[128 * 3];
 void display_init_color(int id, int xterm, char r, char g, char b) {
     init_pair(id+1, xterm, xterm);
     
-    #ifdef OUTPUT_GIF
+    //#ifdef OUTPUT_GIF
     gif_palette[id * 3 + 0] = r;
     gif_palette[id * 3 + 1] = g;
     gif_palette[id * 3 + 2] = b;
-    #endif /* OUTPUT_GIF */
+    //#endif /* OUTPUT_GIF */
 }
 
 void display_init() {
@@ -119,7 +119,7 @@ void display_init() {
     );
     #endif /* OUTPUT_GIF */
     
-    pp_server_start();
+    pp_server_start(display_current);
     pp_server_shutdown();
     
     // CR rrheingans-yoo for ntarleton: dancefloor initialization, as necessary
@@ -178,7 +178,119 @@ void display_flush(int epoch) {
             int y = xy / COLS;
             for (int xi = 0; xi < GIF_ZOOM; ++xi) {
                 for (int yi = 0; yi < GIF_ZOOM; ++yi) {
-                    gif->frame[y*COLS*GIF_ZOOM*GIF_ZOOM + yi*COLS*GIF_ZOOM + x*GIF_ZOOM + xi] = (char)display_current[xy];
+                    int my_color;
+                    #ifdef GIF_BLUR
+                        switch (yi*GIF_ZOOM + xi) {
+                        case 1:
+                        case 3:
+                        case 5:
+                        case 7:
+                        case 9:
+                        case 11:
+                        case 13:
+                        case GIF_ZOOM+2:
+                        case GIF_ZOOM+4:
+                        case GIF_ZOOM+6:
+                        case GIF_ZOOM+8:
+                        case GIF_ZOOM+10:
+                        case GIF_ZOOM+12:
+                        case 2*GIF_ZOOM+3:
+                        case 2*GIF_ZOOM+5:
+                        case 2*GIF_ZOOM+7:
+                        case 2*GIF_ZOOM+9:
+                        case 2*GIF_ZOOM+11:
+                        case 3*GIF_ZOOM+4:
+                        case 3*GIF_ZOOM+6:
+                        case 3*GIF_ZOOM+8:
+                        case 3*GIF_ZOOM+10:
+                            // up edge
+                            my_color = display_current[xy-COLS];
+                            break;
+                        case 1*GIF_ZOOM:
+                        case 3*GIF_ZOOM:
+                        case 5*GIF_ZOOM:
+                        case 7*GIF_ZOOM:
+                        case 9*GIF_ZOOM:
+                        case 11*GIF_ZOOM:
+                        case 13*GIF_ZOOM:
+                        case 1+2*GIF_ZOOM:
+                        case 1+4*GIF_ZOOM:
+                        case 1+6*GIF_ZOOM:
+                        case 1+8*GIF_ZOOM:
+                        case 1+10*GIF_ZOOM:
+                        case 1+12*GIF_ZOOM:
+                        case 2+3*GIF_ZOOM:
+                        case 2+5*GIF_ZOOM:
+                        case 2+7*GIF_ZOOM:
+                        case 2+9*GIF_ZOOM:
+                        case 2+11*GIF_ZOOM:
+                        case 3+4*GIF_ZOOM:
+                        case 3+6*GIF_ZOOM:
+                        case 3+8*GIF_ZOOM:
+                        case 3+10*GIF_ZOOM:
+                            // left edge
+                            my_color = display_current[xy-1];
+                            break;
+                        
+                        case GIF_ZOOM*(GIF_ZOOM-1)+1:
+                        case GIF_ZOOM*(GIF_ZOOM-1)+3:
+                        case GIF_ZOOM*(GIF_ZOOM-1)+5:
+                        case GIF_ZOOM*(GIF_ZOOM-1)+7:
+                        case GIF_ZOOM*(GIF_ZOOM-1)+9:
+                        case GIF_ZOOM*(GIF_ZOOM-1)+11:
+                        case GIF_ZOOM*(GIF_ZOOM-1)+13:
+                        case GIF_ZOOM*(GIF_ZOOM-2)+2:
+                        case GIF_ZOOM*(GIF_ZOOM-2)+4:
+                        case GIF_ZOOM*(GIF_ZOOM-2)+6:
+                        case GIF_ZOOM*(GIF_ZOOM-2)+8:
+                        case GIF_ZOOM*(GIF_ZOOM-2)+10:
+                        case GIF_ZOOM*(GIF_ZOOM-2)+12:
+                        case GIF_ZOOM*(GIF_ZOOM-3)+3:
+                        case GIF_ZOOM*(GIF_ZOOM-3)+5:
+                        case GIF_ZOOM*(GIF_ZOOM-3)+7:
+                        case GIF_ZOOM*(GIF_ZOOM-3)+9:
+                        case GIF_ZOOM*(GIF_ZOOM-3)+11:
+                        case GIF_ZOOM*(GIF_ZOOM-4)+4:
+                        case GIF_ZOOM*(GIF_ZOOM-4)+6:
+                        case GIF_ZOOM*(GIF_ZOOM-4)+8:
+                        case GIF_ZOOM*(GIF_ZOOM-4)+10:
+                            // down edge
+                            my_color = display_current[xy+COLS];
+                            break;
+                        case (GIF_ZOOM-1)+1*GIF_ZOOM:
+                        case (GIF_ZOOM-1)+3*GIF_ZOOM:
+                        case (GIF_ZOOM-1)+5*GIF_ZOOM:
+                        case (GIF_ZOOM-1)+7*GIF_ZOOM:
+                        case (GIF_ZOOM-1)+9*GIF_ZOOM:
+                        case (GIF_ZOOM-1)+11*GIF_ZOOM:
+                        case (GIF_ZOOM-1)+13*GIF_ZOOM:
+                        case (GIF_ZOOM-2)+2*GIF_ZOOM:
+                        case (GIF_ZOOM-2)+4*GIF_ZOOM:
+                        case (GIF_ZOOM-2)+6*GIF_ZOOM:
+                        case (GIF_ZOOM-2)+8*GIF_ZOOM:
+                        case (GIF_ZOOM-2)+10*GIF_ZOOM:
+                        case (GIF_ZOOM-2)+12*GIF_ZOOM:
+                        case (GIF_ZOOM-3)+3*GIF_ZOOM:
+                        case (GIF_ZOOM-3)+5*GIF_ZOOM:
+                        case (GIF_ZOOM-3)+7*GIF_ZOOM:
+                        case (GIF_ZOOM-3)+9*GIF_ZOOM:
+                        case (GIF_ZOOM-3)+11*GIF_ZOOM:
+                        case (GIF_ZOOM-4)+4*GIF_ZOOM:
+                        case (GIF_ZOOM-4)+6*GIF_ZOOM:
+                        case (GIF_ZOOM-4)+8*GIF_ZOOM:
+                        case (GIF_ZOOM-4)+10*GIF_ZOOM:
+                            // right edge
+                            my_color = display_current[xy+1];
+                            break;
+                        
+                        default:
+                            my_color = display_current[xy];
+                        }
+                    #else /* GIF_BLUR */
+                        my_color = display_current[xy];
+                    #endif /* GIF_BLUR */
+                    
+                    gif->frame[y*COLS*GIF_ZOOM*GIF_ZOOM + yi*COLS*GIF_ZOOM + x*GIF_ZOOM + xi] = (char)my_color;
                 }
             }
         }
