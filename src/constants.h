@@ -23,7 +23,7 @@
 #define COLS (5 * PETAL_COLS)
 #define ROWS (FLOOR_ROWS + PETAL_ROWS)
 
-#define DIAGNOSTIC_SAMPLING_RATE 2
+#define DIAGNOSTIC_SAMPLING_RATE 1
 #else /*PETALS_ACTIVE*/
 #define PETAL_COLS 32 // per petal
 #define PETAL_ROWS 0
@@ -33,7 +33,7 @@
 #define COLS FLOOR_COLS
 #define ROWS (FLOOR_ROWS + PETAL_ROWS)
 
-#define DIAGNOSTIC_SAMPLING_RATE 2
+#define DIAGNOSTIC_SAMPLING_RATE 1
 #endif /*PETALS_ACTIVE*/
 
 #define DIAGNOSTIC_COLS (COLS / DIAGNOSTIC_SAMPLING_RATE)
@@ -93,8 +93,17 @@
 // gif output
 //#define OUTPUT_GIF
 //#define GIF_BLUR
+#define GIF_BLUR_WIDTH 4
 #define GIF_ZOOM 15
 #define GIF_EPOCHS 1200 * WILDFIRE_SPEEDUP
+
+// cairo output
+#define OUTPUT_CAIRO
+#define CAIRO_BLUR
+#define CAIRO_BLUR
+#define CAIRO_BLUR_WIDTH 4
+#define CAIRO_ZOOM 15
+#define CAIRO_SNAPSHOT_EPOCH 850
 
 // other constants (probably don't mess with these)
 #define COLORS      12

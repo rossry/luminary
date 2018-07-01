@@ -9,7 +9,7 @@ OBJS := $(SRCS:%=$(BUILD_DIR)/%.o)
 DEPS := $(OBJS:.o=.d)
 
 INC_DIRS := $(shell find $(SRC_DIRS) -type d)
-INC_FLAGS := $(addprefix -I,$(INC_DIRS))
+INC_FLAGS := $(addprefix -I,$(INC_DIRS)) -I/usr/include/cairo
 
 CFLAGS ?= -Wall -Ofast -std=c99 -D _BSD_SOURCE -Wno-unused-result
 CPPFLAGS ?= $(INC_FLAGS) -MMD -MP
@@ -19,7 +19,7 @@ PP_LIBDIR=lib/pp-server/lib
 PP_LIBRARY_NAME=pixel-push-server
 PP_LIBRARY=$(PP_LIBDIR)/lib$(PP_LIBRARY_NAME).a
 
-LDFLAGS=-lncurses -L$(PP_LIBDIR) -l$(PP_LIBRARY_NAME) -lstdc++ -lrt -lm -lpthread
+LDFLAGS=-lncurses -L$(PP_LIBDIR) -l$(PP_LIBRARY_NAME) -lstdc++ -lrt -lm -lpthread -lcairo
 
 $(BIN_DIR)/$(TARGET_EXEC): $(OBJS) $(PP_LIBRARY)
 	$(CC) $(OBJS) -o $@ $(LDFLAGS)
