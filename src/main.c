@@ -226,8 +226,9 @@ int main(int argc, char *argv[]) {
                         display_color(xy, rainbow_0_next[xy]);
                         break;
                     }
-                    // else fall through to TWO_TONES
+                    // fall through to TWO_TONES
                 case TWO_TONES:
+                case PATTERN_BASE:
                     switch ((rainbow_0_next[xy] - rainbow_tone[xy] + COLORS) % COLORS) {
                     case -1 + COLORS:
                         display_color(xy, ((rainbow_0_next[xy] + 1) % COLORS) + MAKE_DARKER);
@@ -247,8 +248,8 @@ int main(int argc, char *argv[]) {
                 case PATTERN_FULL_RAINBOW:
                     display_color(xy, rainbow_0_next[xy]);
                     break;
-                
-                case PATTERN_BASE:
+
+                case PATTERN_HANABI:
                     zz = (waves_orth_next[xy] / 17) % 480;
                     zz = min(zz, COLORS-zz);
                     
@@ -263,8 +264,10 @@ int main(int argc, char *argv[]) {
                     if (hanabi_next[xy].orth > 0) {
                         display_color(xy, hanabi_next[xy].color);
                     }
+
+                    default:
+                        display_color(xy, xy % COLORS);
                 }
-                
             }
             
             // increment all states
