@@ -44,7 +44,7 @@ int main(int argc, char *argv[]) {
     int pressure_diag_next[ROWS * COLS];
     
     // hand-tuned to radiate from a center 84 cells above the midpoint of the top side
-    int waves_base[] = WAVES_BASE_ARRAY;
+    //int waves_base[] = WAVES_BASE_ARRAY;
     
     int waves_base_z_orig = 0;
     int waves_orth[ROWS * COLS];
@@ -56,7 +56,7 @@ int main(int argc, char *argv[]) {
     hanabi_cell hanabi_next[ROWS * COLS];
     int hanabi_seed_color[ROWS * COLS];
     
-    int in_chr = 0;
+    //int in_chr = 0;
     
     for (int xy = 0; xy < ROWS * COLS; ++xy) {
         scratch[xy] = 0;
@@ -98,9 +98,20 @@ int main(int argc, char *argv[]) {
         for (int xy = 0; xy < ROWS * COLS; ++xy) {
             int x = xy % COLS;
             int y = xy / COLS;
-            if (y < PETAL_ROWS || x < FLOOR_COLS) {
+            //if (y < PETAL_ROWS || x < FLOOR_COLS) {
+            //if ((y >= 21 && y < ROWS - 21) || (x >= 21 && x < COLS - 21)) {
+            if ((1
+                    && x + y > BEVEL_RADIUS-2
+                    && (COLS-1-x + y > BEVEL_RADIUS-2)
+                    && (x + ROWS-1-y > BEVEL_RADIUS-2)
+                    && (COLS-1-x + ROWS-1-y > BEVEL_RADIUS-2)
+                )
+                || x == BEVEL_RADIUS-2 || ROWS-1-x == BEVEL_RADIUS-2
+                || y == BEVEL_RADIUS-2 || ROWS-1-y == BEVEL_RADIUS-2
+            ) {
                 // evolve control_directive_(1|2), control_(orth|diag)
                 // CR rrheingans-yoo: move these overrides to the post-processing segment below
+                /*
                 if (xy == COLS*(ROWS-1) + FLOOR_COLS/2 // CR rrheingans-yoo for ntarleton: this should instead be pressure_switch_depressed(xy)
                     && ((epoch + 5000) / 6000) % 2 == 0 // CR rrheingans-yoo for ntarleton: remove me
                     && epoch > INITIALIZATION_EPOCHS + 1 // CR rrheingans-yoo for ntarleton: remove me
@@ -113,6 +124,7 @@ int main(int argc, char *argv[]) {
                         control_orth[xy] = HIBERNATION_TICKS;
                     }
                 }
+                */
                 compute_decay(
                     control_orth, control_diag,
                     control_orth_next, control_diag_next,
@@ -121,6 +133,7 @@ int main(int argc, char *argv[]) {
                     xy
                 );
                 
+                /*
                 // revert to control_directive_1
                 if (control_orth_next[xy] < HIBERNATION_TICKS
                     && control_orth_next[xy] < control_orth[xy]
@@ -139,6 +152,7 @@ int main(int argc, char *argv[]) {
                     control_directive_0_next[xy] = control_directive_1_next[xy] = PATTERN_BASE;
                     control_orth_next[xy] = SECONDARY_TRANSITION_TICKS;
                 }
+                */
                 
                 // evolve waves_(orth|diag)
                 compute_decay(
@@ -183,33 +197,47 @@ int main(int argc, char *argv[]) {
             }
         }
         
-        // drive waves_(orth|diag)'s top row
-        waves_base_z_orig += 17;
-        for (int x = 0; x < FLOOR_COLS; ++x) {
-            waves_orth_next[x+COLS*PETAL_ROWS] = waves_diag_next[x+COLS*PETAL_ROWS] = waves_base[x+WAVES_BASE_X_ORIG] + waves_base_z_orig;
+        if (epoch % WILDFIRE_SPEEDUP == 0) {
+            // drive waves_(orth|diag)'s top row
+            waves_base_z_orig += 17;
+            /*
+            for (int x = 0; x < FLOOR_COLS; ++x) {
+                waves_orth_next[x+COLS*PETAL_ROWS] = waves_diag_next[x+COLS*PETAL_ROWS] = waves_base[x+WAVES_BASE_X_ORIG] + waves_base_z_orig;
+            }
+            */
+            waves_orth_next[COLS*(ROWS/2)+COLS/2] =
+            waves_orth_next[COLS*(ROWS/2)+COLS/2 - 1] =
+            waves_orth_next[COLS*(ROWS/2)+COLS/2 - COLS] =
+            waves_orth_next[COLS*(ROWS/2)+COLS/2 - COLS - 1] =
+                waves_base_z_orig;
         }
         
         for (int xy = 0; xy < ROWS * COLS; ++xy) {
             int x = xy % COLS;
             int y = xy / COLS;
+            /*
             if ((y > PETAL_ROWS && x < FLOOR_COLS) // CR rrheingans-yoo for ntarleton: this should instead be pressure_switch_depressed(xy)
-                && rand() % (FLOOR_ROWS * FLOOR_COLS * 100) == 0 // CR rrheingans-yoo for ntarleton: remove me
+                && rand() % (FLOOR_ROWS * FLOOR_COLS * 15) == 0 // CR rrheingans-yoo for ntarleton: remove me
             ) { 
                 if (pressure_self[xy] < PRESSURE_DELAY_EPOCHS) {
                     run_hanabi_spark(hanabi_next, xy, hanabi_seed_color[xy]);
                 }
                 pressure_self[xy] = PRESSURE_DELAY_EPOCHS;
             }
+            */
             
             if (rainbow_0_next[xy] != rainbow_0[xy]) {
                 rainbow_tone[xy] = ((waves_orth_next[xy] / 17) / 120) % COLORS;
             }
         }
         
+        
         gettimeofday(&computed, NULL);
         
         int zz;
         for (int xy = 0; xy < ROWS * COLS; ++xy) {
+            int x = xy % COLS;
+            int y = xy / COLS;
             if (epoch > INITIALIZATION_EPOCHS) {
                 switch (control_directive_0_next[xy]) {
                 
@@ -229,6 +257,18 @@ int main(int argc, char *argv[]) {
                     // fall through to TWO_TONES
                 case TWO_TONES:
                 case PATTERN_BASE:
+                    //if (!((y > 21 && y < ROWS - 21) || (x > 21 && x < COLS - 21))) {
+                    
+                    if (0
+                        || x + y < BEVEL_RADIUS-1
+                        || (COLS-1-x + y < BEVEL_RADIUS-1)
+                        || (x + ROWS-1-y < BEVEL_RADIUS-1)
+                        || (COLS-1-x + ROWS-1-y < BEVEL_RADIUS-1)
+                    ) {
+                        display_color(xy, COLOR_CLEAR);
+                        break;
+                    }
+                    
                     switch ((rainbow_0_next[xy] - rainbow_tone[xy] + COLORS) % COLORS) {
                     case -1 + COLORS:
                         display_color(xy, ((rainbow_0_next[xy] + 1) % COLORS) + MAKE_DARKER);
@@ -302,9 +342,10 @@ int main(int argc, char *argv[]) {
                 mvprintw(DIAGNOSTIC_ROWS+1, 2*DIAGNOSTIC_COLS-57, "usable:%7.1f", USABLE_MSEC_PER_EPOCH);
                 mvprintw(DIAGNOSTIC_ROWS+2, 2*DIAGNOSTIC_COLS-57, "used:  %7.1f", usec_time_elapsed(&start, &refreshed) / THOUSAND);
                 mvprintw(DIAGNOSTIC_ROWS+2, 2*DIAGNOSTIC_COLS-37, "target:%7.1f", USABLE_MSEC_PER_EPOCH - usec_time_elapsed(&start, &refreshed) / THOUSAND);
-                in_chr = getch();
+                //in_chr = getch();
             }
             
+            /*
             if (in_chr > 0 && in_chr < 256) {
                 mvprintw(ROWS+0, 0, "input: %c", in_chr);
                 // CR rrheingans-yoo: do something!
@@ -313,6 +354,7 @@ int main(int argc, char *argv[]) {
                 control_directive_1[xy] = TWO_TONES;
                 control_orth[xy] = HIBERNATION_TICKS + TRANSITION_TICKS;
             }
+            */
             
             gettimeofday(&handled, NULL);
             

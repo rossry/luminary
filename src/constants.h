@@ -11,8 +11,10 @@
 // physical dimensions
 //#define PETALS_ACTIVE
 
-#define FLOOR_COLS 64
-#define FLOOR_ROWS 48
+#define FLOOR_COLS 106
+#define FLOOR_ROWS 106
+
+#define BEVEL_RADIUS 31
 
 #ifdef PETALS_ACTIVE
 #define PETAL_COLS 32 // per petal
@@ -20,7 +22,11 @@
 #define PETAL_ROWS_CONNECTED 8
 #define PETAL_ROWS_SEPARATED (PETAL_ROWS - PETAL_ROWS_CONNECTED)
 
-#define COLS (5 * PETAL_COLS)
+#if FLOOR_COLS > 5 * PETAL_COLS
+    #define COLS FLOOR_COLS
+#else
+    #define COLS (5 * PETAL_COLS)
+#endif
 #define ROWS (FLOOR_ROWS + PETAL_ROWS)
 
 #define DIAGNOSTIC_SAMPLING_RATE 2
@@ -33,7 +39,7 @@
 #define COLS FLOOR_COLS
 #define ROWS (FLOOR_ROWS + PETAL_ROWS)
 
-#define DIAGNOSTIC_SAMPLING_RATE 2
+#define DIAGNOSTIC_SAMPLING_RATE 1
 #endif /*PETALS_ACTIVE*/
 
 #define DIAGNOSTIC_COLS (COLS / DIAGNOSTIC_SAMPLING_RATE)
@@ -87,7 +93,7 @@
 #define RAND_SECONDARY_TRANSITION  ( rand() % (ROWS * COLS) == 0 )
 #define HIBERNATION_TICKS          70000 // 70000 ticks ~ 103 seconds
 #define INITIALIZATION_EPOCHS      ( 200 * WILDFIRE_SPEEDUP ) // run this many epochs on startup
-#define PRESSURE_DELAY_EPOCHS      30
+#define PRESSURE_DELAY_EPOCHS      10
 #define PRESSURE_RADIUS_TICKS      150//76
 
 // gif output
@@ -109,6 +115,7 @@
 // other constants (probably don't mess with these)
 #define COLORS      12
 #define RAND_COLOR  ( rand() % COLORS )
+#define COLOR_CLEAR 18
 #define MAKE_GREY   20
 #define MAKE_DARKER 40
 

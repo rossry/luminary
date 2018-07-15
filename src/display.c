@@ -47,7 +47,7 @@ void display_init_color(int id, int xterm, uint8_t r, uint8_t g, uint8_t b) {
 
 void display_init() {
     for (int xy = 0; xy < ROWS * COLS; ++xy) {
-        display_current[xy] = -1 + MAKE_GREY + MAKE_DARKER;
+        display_current[xy] = COLOR_CLEAR;
     }
     
     // ncurses initialization
@@ -87,6 +87,8 @@ void display_init() {
     display_init_color(10, RAINBOW_10, 0x2f, 0x96, 0xdf);
     display_init_color(11, RAINBOW_11, 0x53, 0x65, 0xd6);
     display_init_color(12, RAINBOW_00, 0x63, 0x3f, 0xa9);
+    
+    display_init_color(COLOR_CLEAR, 16, 0x00, 0x00, 0x00);
     
     display_init_color( 0+MAKE_DARKER, RAINBOW_40, 0x38, 0x27, 0x79);
     display_init_color( 1+MAKE_DARKER, RAINBOW_41, 0x57, 0x28, 0x87);
@@ -375,6 +377,7 @@ void display_init() {
 void display_color(int xy, int color) {
     int x = xy % COLS;
     int y = xy / COLS;
+    
     if (display_current[xy] != color) {
         // ncurses drawing
         if (y % DIAGNOSTIC_SAMPLING_RATE == 0
@@ -402,6 +405,7 @@ void display_color(int xy, int color) {
             y % DIAGNOSTIC_SAMPLING_RATE == 0
             && x % DIAGNOSTIC_SAMPLING_RATE == 0
             && (y < PETAL_ROWS || x < FLOOR_COLS)
+            && (color != COLOR_CLEAR)
             && (rand() % 100 == 0
                 || xy == COLS * (ROWS-1) + FLOOR_COLS - 1
             )

@@ -10,6 +10,9 @@ int y_wrap_x_cols_minus_one[] = {-1-COLS, -1, -1+COLS, -COLS, 0, COLS, 1-2*COLS,
 int y_rows_minus_one[] = {-1-COLS, -1, 0, -COLS, 0, 0, 1-COLS, 1, 0};
 int y_else[] = {-1-COLS, -1, -1+COLS, -COLS, 0, COLS, 1-COLS, 1, 1+COLS};
 
+int y_northeast[] = {-1-COLS, -1, -COLS, -1+COLS, 0, 1-COLS, COLS, 1, 1+COLS};
+int y_northwest[] = {-1-COLS, -1, -1+COLS, -COLS, 0, COLS, 1-COLS, 1, 1+COLS};
+
 int* get_offset_array(int x, int y) {
     switch (y) {
     case 0 :
@@ -17,26 +20,56 @@ int* get_offset_array(int x, int y) {
     case ROWS-1 : 
         return y_rows_minus_one;
     default :
-        if (y < PETAL_ROWS && y > 24) {
-            if (x == 0) {
-                return y_wrap_x_zero;
-            } else if (x == COLS - 1) {
-                return y_wrap_x_cols_minus_one;
+        
+        if ((x == 0 || x == COLS-1)){
+            if (y == BEVEL_RADIUS-2) {
+                return y_zero;
             }
-        } else if (y == PETAL_ROWS -1 && x > FLOOR_COLS) {
-            return y_rows_minus_one;
+            if (COLS-1-y == BEVEL_RADIUS-2) {
+                return y_rows_minus_one;
+            }
+            return y_else;
         }
+        
+        if (0
+            || x + y == BEVEL_RADIUS-1
+            || x + y == BEVEL_RADIUS
+            || COLS-1-x + ROWS-1-y == BEVEL_RADIUS-1
+            || COLS-1-x + ROWS-1-y == BEVEL_RADIUS
+        ) {
+            return y_northeast;
+        }
+        if (0
+            || COLS-1-x + y == BEVEL_RADIUS-1
+            || COLS-1-x + y == BEVEL_RADIUS
+            || x + ROWS-1-y == BEVEL_RADIUS-1
+            || x + ROWS-1-y == BEVEL_RADIUS
+        ) {
+            return y_northwest;
+        }
+        
+        
         return y_else;
     }
 }
 
 #define X_INIT(x,y) \
-    (((y) < PETAL_ROWS && (y) > PETAL_ROWS_SEPARATED) \
-    || ((x) > 0 && ((y) > PETAL_ROWS_SEPARATED || (x) % 32 > 0)) \
-    ? 0 : 3)
+    ((x) == 0 ? 3 : ( \
+    (x) == COLS-1 ? 0 : ( \
+    (y) == 0 || (y) == ROWS-1 ? ((x) == BEVEL_RADIUS-2 ? 3 : 0) : ( \
+    (x) + (y) == BEVEL_RADIUS || COLS-1-(x) + (y) == BEVEL_RADIUS ? 1 : ( \
+    (x) + (y) == BEVEL_RADIUS-1 || COLS-1-(x) + (y) == BEVEL_RADIUS-1 ? 3 : \
+    0)))))
+
 #define X_CONTINUE(x,y,i) \
-    ((i) < 6 \
-    || ((i) < 9 && (((y) < PETAL_ROWS && (y) > PETAL_ROWS_SEPARATED) || ((x) < COLS-1 && ((y) > PETAL_ROWS_SEPARATED || (x) % 32 < 31)))))
+    ((i) < ( \
+    (x) == 0 ? 9 : ( \
+    (x) == COLS-1 ? 6 : (\
+    (y) == 0 || (y) == ROWS-1 ? (COLS-1-(x) == BEVEL_RADIUS-2 ? 6 : 9) : ( \
+    x + ROWS-1-(y) == BEVEL_RADIUS || COLS-1-(x) + ROWS-1-(y) == BEVEL_RADIUS ? 8 : ( \
+    x + ROWS-1-(y) == BEVEL_RADIUS-1 || COLS-1-(x) + ROWS-1-(y) == BEVEL_RADIUS-1 ? 6 : \
+    9))))))
+
 
 void max_equals(int* x, int y, int* t0, int s0, int* t1, int s1) {
     if (y > *x) {
@@ -67,7 +100,7 @@ int maybe_increment(int* grid, int xy, int target, int inc, int neighbors[COLORS
     if (inc == 2) {
         return inc;
     }
-    if (grid[target] == (grid[xy] + 2) % COLORS && rand() < 0.2*RAND_MAX) {
+    if (grid[target] == (grid[xy] + 2) % COLORS && rand() < 0.25*RAND_MAX) {
         return 2;
     }
     if (grid[target] == (grid[xy] + 1) % COLORS) {
@@ -129,7 +162,8 @@ int compute_cyclic(int* grid, int* impatience, int xy) {
         }
         
         /* precipitate re-shuffle */
-        if (impatience[xy] > 100) {
+        //if (impatience[xy] > 100) {
+        if (impatience[xy] > 200) {
             return RAND_COLOR;
         }
     }
