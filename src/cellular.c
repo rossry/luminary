@@ -11,7 +11,8 @@ int y_rows_minus_one[] = {-1-COLS, -1, 0, -COLS, 0, 0, 1-COLS, 1, 0};
 int y_else[] = {-1-COLS, -1, -1+COLS, -COLS, 0, COLS, 1-COLS, 1, 1+COLS};
 
 int y_northeast[] = {-1-COLS, -1, -COLS, -1+COLS, 0, 1-COLS, COLS, 1, 1+COLS};
-int y_northwest[] = {-1-COLS, -1, -1+COLS, -COLS, 0, COLS, 1-COLS, 1, 1+COLS};
+//int y_northwest[] = {-1-COLS, -1, -1+COLS, -COLS, 0, COLS, 1-COLS, 1, 1+COLS};
+int y_northwest[] = {1-COLS, 1, -COLS, 1+COLS, 0, -1-COLS, COLS, -1, -1+COLS};
 
 int* get_offset_array(int x, int y) {
     switch (y) {

@@ -213,9 +213,9 @@ int main(int argc, char *argv[]) {
         }
         
         for (int xy = 0; xy < ROWS * COLS; ++xy) {
+            /*
             int x = xy % COLS;
             int y = xy / COLS;
-            /*
             if ((y > PETAL_ROWS && x < FLOOR_COLS) // CR rrheingans-yoo for ntarleton: this should instead be pressure_switch_depressed(xy)
                 && rand() % (FLOOR_ROWS * FLOOR_COLS * 15) == 0 // CR rrheingans-yoo for ntarleton: remove me
             ) { 
@@ -257,8 +257,6 @@ int main(int argc, char *argv[]) {
                     // fall through to TWO_TONES
                 case TWO_TONES:
                 case PATTERN_BASE:
-                    //if (!((y > 21 && y < ROWS - 21) || (x > 21 && x < COLS - 21))) {
-                    
                     if (0
                         || x + y < BEVEL_RADIUS-1
                         || (COLS-1-x + y < BEVEL_RADIUS-1)

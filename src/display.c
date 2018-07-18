@@ -393,16 +393,16 @@ void display_color(int xy, int color) {
         }
 
         #ifdef OUTPUT_CAIRO_FULLSCREEN
-            cairo_set_source_luminary(color);
-            cairo_mask_surface(cairo_cr, cairo_blur, -CAIRO_BLUR_WIDTH + x * CAIRO_ZOOM, -CAIRO_BLUR_WIDTH + y * CAIRO_ZOOM);
+            //cairo_set_source_luminary(color);
+            cairo_mask_surface(cairo_cr, cairo_blur, -CAIRO_BLUR_WIDTH + x * CAIRO_ZOOM, -200 -CAIRO_BLUR_WIDTH + y * CAIRO_ZOOM);
         #endif /* OUTPUT_CAIRO_FULLSCREEN */
 
         display_current[xy] = color;
         
         // CR rrheingans-yoo for ntarleton: get ready to set cell xy to color color
     } else {
-        if (
-            y % DIAGNOSTIC_SAMPLING_RATE == 0
+        if (0
+            && y % DIAGNOSTIC_SAMPLING_RATE == 0
             && x % DIAGNOSTIC_SAMPLING_RATE == 0
             && (y < PETAL_ROWS || x < FLOOR_COLS)
             && (color != COLOR_CLEAR)
