@@ -375,8 +375,8 @@ void display_init() {
 
 int petal_mapping_pixel(x_p,y) {
     for (int ii = 0; ii < PETAL_MAPPING_PIXELS; ++ii) {
-        if (x_p == petal_mapping[ii * 2] && y == petal_mapping[ii * 2 + 1]) {
-            return ii+1;
+        if (x_p == petal_mapping[ii * 3] && y == petal_mapping[ii * 3 + 1]) {
+            return petal_mapping[ii * 3 + 2];
         }
     }
     return 0;

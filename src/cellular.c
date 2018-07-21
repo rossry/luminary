@@ -126,13 +126,13 @@ int compute_cyclic(int* grid, int* impatience, int xy) {
         /* propagate re-shuffle */
         if (inc) {
             impatience[xy] /= 2;
-            if (impatience[xy] > 35) {
+            if (impatience[xy] > 50) {
                 return RAND_COLOR;
             }
         }
         
         /* precipitate re-shuffle */
-        if (impatience[xy] > 100) {
+        if (impatience[xy] > 200) {
             return RAND_COLOR;
         }
     }

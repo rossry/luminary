@@ -184,6 +184,7 @@ int main(int argc, char *argv[]) {
         }
         
         // drive waves_(orth|diag)'s top row
+        // CR rrheingans-yoo drive with floor base
         waves_base_z_orig += 17;
         for (int x = 0; x < FLOOR_COLS; ++x) {
             waves_orth_next[x+COLS*PETAL_ROWS] = waves_diag_next[x+COLS*PETAL_ROWS] = waves_base[x+WAVES_BASE_X_ORIG] + waves_base_z_orig;
@@ -318,6 +319,13 @@ int main(int argc, char *argv[]) {
                         xy = (PETAL_ROWS+2)*COLS + x;
                         control_directive_0[xy] = PATTERN_FULL_RAINBOW;
                         control_orth[xy] = HIBERNATION_TICKS + TRANSITION_TICKS;
+                    }
+                    break;
+                case 'F' :
+                    for (int x = 0; x < COLS; ++x) {
+                        xy = (PETAL_ROWS+2)*COLS + x;
+                        control_directive_0[xy] = PATTERN_FULL_RAINBOW;
+                        control_orth[xy] = HIBERNATION_TICKS + TRANSITION_TICKS + 10000;
                     }
                     break;
                 case '1' :
