@@ -4,7 +4,12 @@ interactive cellular automata art
 ## quickstart demo
 
 ```
-~/luminary $ make && bin/a.out
+~ $ git clone https://github.com/rossry/luminary.git
+~ $ cd luminary
+~/luminary $ git submodule update --init
+~/luminary $ sudo apt-get install libcairo2-dev
+~/luminary $ make
+~/luminary $ bin/a.out
 ```
 
 launches an ncurses-based simulator.
