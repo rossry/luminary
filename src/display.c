@@ -9,6 +9,7 @@
 #include "pp-server-luminary.h"
 
 int display_current[ROWS * COLS];
+int petal_mapping[] = PETAL_MAPPING;
 
 // gifenc
 ge_GIF *gif;
@@ -88,6 +89,8 @@ void display_init() {
     display_init_color(11, RAINBOW_11, 0x53, 0x65, 0xd6);
     display_init_color(12, RAINBOW_00, 0x63, 0x3f, 0xa9);
     
+    display_init_color(15, 16, 0x00, 0x00, 0x00);
+    
     display_init_color( 0+MAKE_DARKER, RAINBOW_40, 0x38, 0x27, 0x79);
     display_init_color( 1+MAKE_DARKER, RAINBOW_41, 0x57, 0x28, 0x87);
     display_init_color( 2+MAKE_DARKER, RAINBOW_42, 0x76, 0x2b, 0x79);
@@ -101,8 +104,6 @@ void display_init() {
     display_init_color(10+MAKE_DARKER, RAINBOW_50, 0x22, 0x50, 0x70);
     display_init_color(11+MAKE_DARKER, RAINBOW_51, 0x31, 0x38, 0x66);
     display_init_color(12+MAKE_DARKER, RAINBOW_40, 0x38, 0x27, 0x79);
-    
-    //display_init_color(15, 0, 0x00, 0x00, 0x00);
     
     display_init_color(-1+MAKE_GREY, GREY_0, 0x00, 0x00, 0x00);
     display_init_color( 0+MAKE_GREY, GREY_6, 0x00, 0x00, 0x00);
@@ -372,6 +373,15 @@ void display_init() {
     // CR rrheingans-yoo for ntarleton: dancefloor initialization, as necessary
 }
 
+int petal_mapping_pixel(x_p,y) {
+    for (int ii = 0; ii < PETAL_MAPPING_PIXELS; ++ii) {
+        if (x_p == petal_mapping[ii * 2] && y == petal_mapping[ii * 2 + 1]) {
+            return ii+1;
+        }
+    }
+    return 0;
+}
+
 void display_color(int xy, int color) {
     int x = xy % COLS;
     int y = xy / COLS;
@@ -379,13 +389,36 @@ void display_color(int xy, int color) {
         // ncurses drawing
         if (y % DIAGNOSTIC_SAMPLING_RATE == 0
             && x % DIAGNOSTIC_SAMPLING_RATE == 0
-            && (y < PETAL_ROWS || x < FLOOR_COLS)) {
-            attron(COLOR_PAIR(1+color));
-            mvprintw(
-                xy/COLS/DIAGNOSTIC_SAMPLING_RATE,
-                2*(xy%COLS)/DIAGNOSTIC_SAMPLING_RATE,
-                " ."
-            );
+            && (y < PETAL_ROWS || x < FLOOR_COLS)
+            #ifdef DISPLAY_PETALS_MODE
+                #ifndef DISPLAY_FLOOR_ALSO
+                    && y < PETAL_ROWS
+                #endif /* DISPLAY_FLOOR_ALSO */
+            #endif /* DISPLAY_PETALS_MODE */
+        ) {
+            #ifdef DISPLAY_PETALS_MODE
+                if (petal_mapping_pixel(x%PETAL_COLS,y)) {
+                    attron(COLOR_PAIR(1+color));
+                } else if (y > PETAL_ROWS) {
+                    attron(COLOR_PAIR(1+color + (color < COLORS ? MAKE_DARKER : 0)));
+                } else {
+                    attron(COLOR_PAIR(1+15));
+                }
+                mvprintw(
+                    ((y/DIAGNOSTIC_SAMPLING_RATE + (y > PETAL_ROWS ? 8 + PETAL_ROWS : 0)) / (y > PETAL_ROWS ? 2 : 1)),
+                    2*x/DIAGNOSTIC_SAMPLING_RATE + ((x / PETAL_COLS) * 6)
+                    ,
+                    " ."
+                );
+            #else /* DISPLAY_PETALS_MODE */
+                attron(COLOR_PAIR(1+color));
+                mvprintw(
+                    y/DIAGNOSTIC_SAMPLING_RATE,
+                    2*x/DIAGNOSTIC_SAMPLING_RATE
+                    ,
+                    " ."
+                );
+            #endif /* DISPLAY_PETALS_MODE */
             attroff(COLOR_PAIR(1+color));
         }
 
@@ -402,14 +435,18 @@ void display_color(int xy, int color) {
             y % DIAGNOSTIC_SAMPLING_RATE == 0
             && x % DIAGNOSTIC_SAMPLING_RATE == 0
             && (y < PETAL_ROWS || x < FLOOR_COLS)
-            && (rand() % 100 == 0
+            && (rand() % 100 == 100
                 || xy == COLS * (ROWS-1) + FLOOR_COLS - 1
             )
+            #ifdef DISPLAY_PETALS_MODE
+                && 0
+            #endif /* DISPLAY_PETALS_MODE */
         ) {
             attron(COLOR_PAIR(1+color));
             mvprintw(
-                xy/COLS/DIAGNOSTIC_SAMPLING_RATE,
-                2*(xy%COLS)/DIAGNOSTIC_SAMPLING_RATE,
+                y/DIAGNOSTIC_SAMPLING_RATE,
+                2*x/DIAGNOSTIC_SAMPLING_RATE
+                ,
                 " ,"
             );
             attroff(COLOR_PAIR(1+color));

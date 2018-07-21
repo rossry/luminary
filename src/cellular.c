@@ -32,11 +32,14 @@ int* get_offset_array(int x, int y) {
 
 #define X_INIT(x,y) \
     (((y) < PETAL_ROWS && (y) > PETAL_ROWS_SEPARATED) \
-    || ((x) > 0 && ((y) > PETAL_ROWS_SEPARATED || (x) % 32 > 0)) \
-    ? 0 : 3)
+        || ((x) > 0 && ((y) > PETAL_ROWS_SEPARATED || (x) % 32 > 0)) \
+        ? 0 : \
+    3)
 #define X_CONTINUE(x,y,i) \
-    ((i) < 6 \
-    || ((i) < 9 && (((y) < PETAL_ROWS && (y) > PETAL_ROWS_SEPARATED) || ((x) < COLS-1 && ((y) > PETAL_ROWS_SEPARATED || (x) % 32 < 31)))))
+    ((i) < (\
+        (((y) < PETAL_ROWS + 3 && (y) > PETAL_ROWS_SEPARATED) \
+            || ((x) < COLS-1 && ((y) > PETAL_ROWS_SEPARATED || (x) % 32 < 31))) ? 9 : \
+        6))
 
 void max_equals(int* x, int y, int* t0, int s0, int* t1, int s1) {
     if (y > *x) {
