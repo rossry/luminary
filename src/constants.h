@@ -25,7 +25,7 @@
     
     #define DIAGNOSTIC_SAMPLING_RATE 1
     #define DISPLAY_PETALS_MODE
-    //#define DISPLAY_FLOOR_ALSO
+    #define DISPLAY_FLOOR_ALSO
 #else /*PETALS_ACTIVE*/
     #define PETAL_COLS 32 // per petal
     #define PETAL_ROWS 0

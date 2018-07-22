@@ -385,7 +385,10 @@ int petal_mapping_pixel(x_p,y) {
 void display_color(int xy, int color) {
     int x = xy % COLS;
     int y = xy / COLS;
-    if (display_current[xy] != color) {
+    if (display_current[xy] != color
+        || rand() % 100 == 100
+        || xy == COLS * (ROWS-1) + FLOOR_COLS - 1
+    ) {
         // ncurses drawing
         if (y % DIAGNOSTIC_SAMPLING_RATE == 0
             && x % DIAGNOSTIC_SAMPLING_RATE == 0
@@ -406,9 +409,8 @@ void display_color(int xy, int color) {
                 }
                 mvprintw(
                     ((y/DIAGNOSTIC_SAMPLING_RATE + (y > PETAL_ROWS ? 8 + PETAL_ROWS : 0)) / (y > PETAL_ROWS ? 2 : 1)),
-                    2*x/DIAGNOSTIC_SAMPLING_RATE + ((x / PETAL_COLS) * 6)
-                    ,
-                    " ."
+                    2*x/DIAGNOSTIC_SAMPLING_RATE + ((x / PETAL_COLS) * 6),
+                    (display_current[xy] == color ?  " ," : " .")
                 );
             #else /* DISPLAY_PETALS_MODE */
                 attron(COLOR_PAIR(1+color));
@@ -430,27 +432,6 @@ void display_color(int xy, int color) {
         display_current[xy] = color;
         
         // CR rrheingans-yoo for ntarleton: get ready to set cell xy to color color
-    } else {
-        if (
-            y % DIAGNOSTIC_SAMPLING_RATE == 0
-            && x % DIAGNOSTIC_SAMPLING_RATE == 0
-            && (y < PETAL_ROWS || x < FLOOR_COLS)
-            && (rand() % 100 == 100
-                || xy == COLS * (ROWS-1) + FLOOR_COLS - 1
-            )
-            #ifdef DISPLAY_PETALS_MODE
-                && 0
-            #endif /* DISPLAY_PETALS_MODE */
-        ) {
-            attron(COLOR_PAIR(1+color));
-            mvprintw(
-                y/DIAGNOSTIC_SAMPLING_RATE,
-                2*x/DIAGNOSTIC_SAMPLING_RATE
-                ,
-                " ,"
-            );
-            attroff(COLOR_PAIR(1+color));
-        }
     }
 }
 

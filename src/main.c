@@ -101,6 +101,7 @@ int main(int argc, char *argv[]) {
             if (y < PETAL_ROWS || x < FLOOR_COLS) {
                 // evolve control_directive_(1|2), control_(orth|diag)
                 // CR rrheingans-yoo: move these overrides to the post-processing segment below
+                /*
                 if (xy == COLS*(ROWS-1) + FLOOR_COLS/2 // CR rrheingans-yoo for ntarleton: this should instead be pressure_switch_depressed(xy)
                     && ((epoch + 5000) / 6000) % 2 == 0 // CR rrheingans-yoo for ntarleton: remove me
                     && epoch > INITIALIZATION_EPOCHS + 1 // CR rrheingans-yoo for ntarleton: remove me
@@ -113,6 +114,7 @@ int main(int argc, char *argv[]) {
                         control_orth[xy] = HIBERNATION_TICKS;
                     }
                 }
+                */
                 compute_decay(
                     control_orth, control_diag,
                     control_orth_next, control_diag_next,
@@ -187,7 +189,8 @@ int main(int argc, char *argv[]) {
         // CR rrheingans-yoo drive with floor base
         waves_base_z_orig += 17;
         for (int x = 0; x < FLOOR_COLS; ++x) {
-            waves_orth_next[x+COLS*PETAL_ROWS] = waves_diag_next[x+COLS*PETAL_ROWS] = waves_base[x+WAVES_BASE_X_ORIG] + waves_base_z_orig;
+            //waves_orth_next[x+COLS*PETAL_ROWS] = waves_diag_next[x+COLS*PETAL_ROWS] = waves_base[x+WAVES_BASE_X_ORIG] + waves_base_z_orig;
+            waves_orth_next[(PETAL_ROWS+2)*COLS + x] = waves_diag_next[(PETAL_ROWS+2)*COLS + x] = waves_base_z_orig;
         }
         
         for (int xy = 0; xy < ROWS * COLS; ++xy) {
@@ -195,7 +198,7 @@ int main(int argc, char *argv[]) {
             int y = xy / COLS;
             
             if ((y > PETAL_ROWS && x < FLOOR_COLS) // CR-someday rrheingans-yoo for ntarleton: this should instead be pressure_switch_depressed(xy)
-                && rand() % (FLOOR_ROWS * FLOOR_COLS * 1000) == 0 // CR-someday rrheingans-yoo for ntarleton: remove me
+                && rand() % (FLOOR_ROWS * FLOOR_COLS * 100) == 0 // CR-someday rrheingans-yoo for ntarleton: remove me
             ) { 
                 if (pressure_self[xy] < PRESSURE_DELAY_EPOCHS) {
                     run_hanabi_spark(hanabi_next, xy, hanabi_seed_color[xy]);
