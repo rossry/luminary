@@ -127,6 +127,26 @@
 #define WAVES_BASE_ARRAY  {-331,-319,-307,-295,-283,-271,-260,-249,-237,-226,-215,-205,-194,-184,-173,-163,-154,-144,-135,-125,-116,-108,-99,-91,-83,-75,-68,-61,-54,-47,-41,-35,-29,-24,-18,-14,-9,-5,-1,2,4,6,6,7,8,8,9,9,9,9,9,8,8,7,6,6,4,2,-1,-5,-9,-14,-18,-24,-29,-35,-41,-47,-54,-61,-68,-75,-83,-91,-99,-108,-116,-125,-135,-144,-154,-163,-173,-184,-194,-205,-215,-226,-237,-249,-260,-271,-283,-295,-307,-319,-331}
 #define WAVES_BASE_X_ORIG 16
 
+#define PETAL_PIXEL_PATTERN P1_PER_TRIANGLE
+
+#if PETAL_PIXEL_PATTERN == P1_PER_TRIANGLE
+#define PETAL_MAPPING { \
+         	         	         	         	         	         	         	 7, 8, 1,	         	 9, 8, 1,	         	         	         	         	         	         	         	\
+         	         	         	         	         	         	         	         	         	         	         	         	         	         	         	         	         	\
+         	         	         	         	         	         	 6, 10, 1,	         	         	         	10, 10, 1,	         	         	         	         	         	         	\
+         	         	         	         	 4, 11, 1,	         	         	         	 8, 11, 1,	         	         	         	12, 11, 1,	         	         	         	         	\
+         	         	         	         	         	         	         	         	         	         	         	         	         	         	         	         	         	\
+         	         	         	         	 4, 13, 1,	         	         	         	 8, 13, 1,	         	         	         	12, 13, 1,	         	         	         	         	\
+         	         	         	         	         	         	 6, 14, 1,	         	         	         	10, 14, 1,	         	         	         	         	         	         	\
+         	         	         	 3, 15, 1,	         	         	         	         	         	         	         	         	         	13, 15, 1,	         	         	         	\
+         	         	         	         	         	         	 6, 16, 1,	         	         	         	10, 16, 1,	         	         	         	         	         	         	\
+         	         	         	         	 4, 17, 1,	         	         	         	 8, 17, 1,	         	         	         	12, 17, 1,	         	         	         	         	\
+         	         	         	         	         	         	         	         	         	         	         	         	         	         	         	         	         	\
+         	         	         	         	 4, 19, 1,	         	         	         	 8, 19, 1,	         	         	         	12, 19, 1,	         	         	         	         	\
+         	         	         	         	         	         	 6, 20, 1,	         	         	         	10, 20, 1,	         	         	         	         	         	         	\
+}
+#define PETAL_MAPPING_PIXELS 24
+#elif PETAL_PIXEL_PATTERN == P3_PER_TRIANGLE
 #define PETAL_MAPPING { \
          	         	         	         	         	         	         	 7, 0, 1,	         	 9, 0, 1,	         	         	         	         	         	         	         	\
          	         	         	         	         	         	         	         	         	         	         	         	         	         	         	         	         	\
@@ -153,6 +173,10 @@
          	         	         	         	 4,22, 1,	         	 6,22, 1,	         	         	         	10,22, 1,	         	12,22, 1,	         	         	         	         	\
 }
 #define PETAL_MAPPING_PIXELS 72
+#else /* PETAL_PIXEL_PATTERN == ? */
+#define PETAL_MAPPING {}
+#define PETAL_MAPPING_PIXELS 0
+#endif /* PETAL_PIXEL_PATTERN == ? */
 
 // derived constants
 #define USEC_PER_EPOCH        ( MILLION / BASE_HZ / WILDFIRE_SPEEDUP )
