@@ -11,11 +11,11 @@
 // physical dimensions
 #define PETALS_ACTIVE
 
-#define FLOOR_COLS 85
+#define FLOOR_COLS 155
 #define FLOOR_ROWS 43
 
 #ifdef PETALS_ACTIVE
-    #define PETAL_COLS 17 // per petal
+    #define PETAL_COLS 31 // per petal
     #define PETAL_ROWS 23
     #define PETAL_ROWS_CONNECTED 6
     #define PETAL_ROWS_SEPARATED (PETAL_ROWS - PETAL_ROWS_CONNECTED)
@@ -25,7 +25,7 @@
     
     #define DIAGNOSTIC_SAMPLING_RATE 1
     #define DISPLAY_PETALS_MODE
-    #define DISPLAY_FLOOR_ALSO
+    //#define DISPLAY_FLOOR_ALSO
 #else /*PETALS_ACTIVE*/
     #define PETAL_COLS 32 // per petal
     #define PETAL_ROWS 0
@@ -94,7 +94,7 @@
 // speeds, times, distances
 #define BASE_HZ                    10
 #define WILDFIRE_SPEEDUP           4 // wildfire effects propagate at this multiple of BASE_HZ
-#define TRANSITION_TICKS           400
+#define TRANSITION_TICKS           800
 #define SECONDARY_TRANSITION_TICKS 300
 #define RAND_SECONDARY_TRANSITION  ( rand() % (ROWS * COLS) == 0 )
 #define HIBERNATION_TICKS          70000 // 70000 ticks ~ 103 seconds
@@ -127,7 +127,7 @@
 #define WAVES_BASE_ARRAY  {-331,-319,-307,-295,-283,-271,-260,-249,-237,-226,-215,-205,-194,-184,-173,-163,-154,-144,-135,-125,-116,-108,-99,-91,-83,-75,-68,-61,-54,-47,-41,-35,-29,-24,-18,-14,-9,-5,-1,2,4,6,6,7,8,8,9,9,9,9,9,8,8,7,6,6,4,2,-1,-5,-9,-14,-18,-24,-29,-35,-41,-47,-54,-61,-68,-75,-83,-91,-99,-108,-116,-125,-135,-144,-154,-163,-173,-184,-194,-205,-215,-226,-237,-249,-260,-271,-283,-295,-307,-319,-331}
 #define WAVES_BASE_X_ORIG 16
 
-#define PETAL_PIXEL_PATTERN 11
+#define PETAL_PIXEL_PATTERN 21
 
 #if PETAL_PIXEL_PATTERN == 1
     #define PETAL_MAPPING { \
@@ -227,6 +227,33 @@
              	         	         	         	 4, 22, 1,	         	         	         	         	         	         	         	12, 22, 1,	         	         	         	         	\
     }
     #define PETAL_MAPPING_PIXELS 82
+#elif PETAL_PIXEL_PATTERN == 21
+    #define PETAL_MAPPING { \
+             	         	         	         	         	         	         	         	         	         	         	13, 0, 1,	14, 0, 1,	15, 0, 1,	16, 0, 1,	17, 0, 1,	         	         	         	         	         	         	         	         	         	         	         	\
+             	         	         	         	         	         	         	         	10, 1, 1,	11, 1, 1,	12, 1, 1,	         	         	         	         	         	18, 1, 1,	19, 1, 1,	20, 1, 1,	         	         	         	         	         	         	         	         	\
+             	         	         	         	         	         	 8, 2, 1,	 9, 2, 1,	         	         	         	         	         	         	         	         	         	         	         	21, 2, 1,	22, 2, 1,	         	         	         	         	         	         	\
+             	         	         	         	         	 7, 3, 1,	         	         	         	         	         	         	         	         	         	         	         	         	         	         	         	23, 3, 1,	         	         	         	         	         	\
+             	         	         	         	 6, 4, 1,	         	         	         	         	         	         	         	         	         	         	         	         	         	         	         	         	         	24, 4, 1,	         	         	         	         	\
+             	         	         	 5, 5, 1,	         	 7, 5, 1,	         	         	         	         	         	         	         	         	         	         	         	         	         	         	         	23, 5, 1,	         	25, 5, 1,	         	         	         	\
+             	         	 4, 6, 1,	         	         	         	 8, 6, 1,	         	         	         	         	         	         	         	         	         	         	         	         	         	22, 6, 1,	         	         	         	26, 6, 1,	         	         	\
+             	         	 4, 7, 1,	         	         	         	         	 9, 7, 1,	         	         	         	         	         	         	         	         	         	         	         	21, 7, 1,	         	         	         	         	26, 7, 1,	         	         	\
+             	 3, 8, 1,	         	         	         	         	         	         	10, 8, 1,	         	         	         	         	         	         	         	         	         	20, 8, 1,	         	         	         	         	         	         	27, 8, 1,	         	\
+             	 3, 9, 1,	         	         	         	         	         	         	         	11, 9, 1,	         	         	         	         	         	         	         	19, 9, 1,	         	         	         	         	         	         	         	27, 9, 1,	         	\
+             	 3, 10, 1,	         	         	         	         	         	         	         	         	12, 10, 1,	         	         	         	         	         	18, 10, 1,	         	         	         	         	         	         	         	         	27, 10, 1,	         	\
+     2, 11, 1,	         	         	         	         	         	         	         	         	         	         	13, 11, 1,	         	         	         	17, 11, 1,	         	         	         	         	         	         	         	         	         	         	28, 11, 1,	\
+     2, 12, 1,	         	         	         	         	         	         	         	         	         	         	         	14, 12, 1,	         	16, 12, 1,	         	         	         	         	         	         	         	         	         	         	         	28, 12, 1,	\
+     2, 13, 1,	         	         	         	         	         	         	         	         	         	         	         	         	15, 13, 1,	         	         	         	         	         	         	         	         	         	         	         	         	28, 13, 1,	\
+     2, 14, 1,	         	         	         	         	         	         	         	         	         	         	         	14, 14, 1,	         	16, 14, 1,	         	         	         	         	         	         	         	         	         	         	         	28, 14, 1,	\
+     2, 15, 1,	         	         	         	         	         	         	         	         	         	         	13, 15, 1,	         	         	         	17, 15, 1,	         	         	         	         	         	         	         	         	         	         	28, 15, 1,	\
+             	 3, 16, 1,	         	         	         	         	         	         	         	         	12, 16, 1,	         	         	         	         	         	18, 16, 1,	         	         	         	         	         	         	         	         	27, 16, 1,	         	\
+             	 3, 17, 1,	         	         	         	         	         	         	         	11, 17, 1,	         	         	         	         	         	         	         	19, 17, 1,	         	         	         	         	         	         	         	27, 17, 1,	         	\
+             	 3, 18, 1,	         	         	         	         	         	         	10, 18, 1,	         	         	         	         	         	         	         	         	         	20, 18, 1,	         	         	         	         	         	         	27, 18, 1,	         	\
+             	         	 4, 19, 1,	         	         	         	         	 9, 19, 1,	         	         	         	         	         	         	         	         	         	         	         	21, 19, 1,	         	         	         	         	26, 19, 1,	         	         	\
+             	         	 4, 20, 1,	         	         	         	 8, 20, 1,	         	         	         	         	         	         	         	         	         	         	         	         	         	22, 20, 1,	         	         	         	26, 20, 1,	         	         	\
+             	         	         	 5, 21, 1,	         	 7, 21, 1,	         	         	         	         	         	         	         	         	         	         	         	         	         	         	         	23, 21, 1,	         	25, 21, 1,	         	         	         	\
+             	         	         	         	 6, 22, 1,	         	         	         	         	         	         	         	         	         	         	         	         	         	         	         	         	         	24, 22, 1,	         	         	         	         	\
+    }
+    #define PETAL_MAPPING_PIXELS 88
 #else /* PETAL_PIXEL_PATTERN == ? */
 #define PETAL_MAPPING {}
 #define PETAL_MAPPING_PIXELS 0
@@ -249,6 +276,7 @@
 #define TWO_TONES 3
 #define PATTERN_HANABI 4
 #define PATTERN_FULL_RAINBOW 10
+#define TWO_TONES_EXTENDED 31
 
 #define max(a,b) \
     ({ __typeof__ (a) _a = (a); \

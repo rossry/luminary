@@ -234,7 +234,6 @@ int main(int argc, char *argv[]) {
                     }
                     // fall through to TWO_TONES
                 case TWO_TONES:
-                case PATTERN_BASE:
                     switch ((rainbow_0_next[xy] - rainbow_tone[xy] + COLORS) % COLORS) {
                     case -1 + COLORS:
                         display_color(xy, ((rainbow_0_next[xy] + 1) % COLORS) + MAKE_DARKER);
@@ -244,6 +243,26 @@ int main(int argc, char *argv[]) {
                         display_color(xy, rainbow_0_next[xy]);
                         break;
                     case 2:
+                        display_color(xy, ((rainbow_0_next[xy] - 1 + COLORS) % COLORS) + MAKE_DARKER);
+                        break;
+                    default:
+                        display_color(xy, -1 + MAKE_GREY + MAKE_DARKER);
+                    }
+                    break;
+                
+                case TWO_TONES_EXTENDED:
+                case PATTERN_BASE:
+                    switch ((rainbow_0_next[xy] - rainbow_tone[xy] + COLORS) % COLORS) {
+                    case -1 + COLORS:
+                        display_color(xy, ((rainbow_0_next[xy] + 1) % COLORS) + MAKE_DARKER);
+                        break;
+                    case 0:
+                    case 1:
+                    case 2:
+                        display_color(xy, rainbow_0_next[xy]);
+                        break;
+                        break;
+                    case 3:
                         display_color(xy, ((rainbow_0_next[xy] - 1 + COLORS) % COLORS) + MAKE_DARKER);
                         break;
                     default:
