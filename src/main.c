@@ -190,7 +190,8 @@ int main(int argc, char *argv[]) {
         waves_base_z_orig += 17;
         for (int x = 0; x < FLOOR_COLS; ++x) {
             //waves_orth_next[x+COLS*PETAL_ROWS] = waves_diag_next[x+COLS*PETAL_ROWS] = waves_base[x+WAVES_BASE_X_ORIG] + waves_base_z_orig;
-            waves_orth_next[(PETAL_ROWS+2)*COLS + x] = waves_diag_next[(PETAL_ROWS+2)*COLS + x] = waves_base_z_orig;
+            //waves_orth_next[(PETAL_ROWS+2)*COLS + x] = waves_diag_next[(PETAL_ROWS+2)*COLS + x] = waves_base_z_orig;
+            waves_orth_next[(PETAL_ROWS+2)*COLS + x] = waves_diag_next[(PETAL_ROWS+2)*COLS + x] = waves_orth_next[(PETAL_ROWS+2)*COLS + x] + 17;
         }
         
         for (int xy = 0; xy < ROWS * COLS; ++xy) {
@@ -293,6 +294,7 @@ int main(int argc, char *argv[]) {
                     default:
                         display_color(xy, xy % COLORS);
                 }
+                //display_color(xy, rainbow_tone[xy]);
             }
             
             // increment all states
@@ -341,6 +343,7 @@ int main(int argc, char *argv[]) {
                         xy = (PETAL_ROWS+2)*COLS + x;
                         control_directive_0[xy] = PATTERN_FULL_RAINBOW;
                         control_orth[xy] = HIBERNATION_TICKS + TRANSITION_TICKS;
+                        waves_orth[xy] += 14330;
                     }
                     break;
                 case 'F' :
@@ -348,32 +351,46 @@ int main(int argc, char *argv[]) {
                         xy = (PETAL_ROWS+2)*COLS + x;
                         control_directive_0[xy] = PATTERN_FULL_RAINBOW;
                         control_orth[xy] = HIBERNATION_TICKS + TRANSITION_TICKS + 10000;
+                        waves_orth[xy] += 14330;
                     }
                     break;
+                /*
+                case 'c' :
+                    for (int x = 0; x < COLS; ++x) {
+                        xy = (PETAL_ROWS+2)*COLS + x;
+                        waves_orth[xy] += 14330;
+                    }
+                    break;
+                */
                 case '1' :
                     xy = (PETAL_ROWS+2)*COLS + (PETAL_COLS * 0) + (PETAL_COLS + 1) / 2;
                     control_directive_0[xy] = PATTERN_FULL_RAINBOW;
                     control_orth[xy] = HIBERNATION_TICKS + TRANSITION_TICKS;
+                    waves_orth[xy] += 14330;
                     break;
                 case '2' :
                     xy = (PETAL_ROWS+2)*COLS + (PETAL_COLS * 1) + (PETAL_COLS + 1) / 2;
                     control_directive_0[xy] = PATTERN_FULL_RAINBOW;
                     control_orth[xy] = HIBERNATION_TICKS + TRANSITION_TICKS;
+                    waves_orth[xy] += 14330;
                     break;
                 case '3' :
                     xy = (PETAL_ROWS+2)*COLS + (PETAL_COLS * 2) + (PETAL_COLS + 1) / 2;
                     control_directive_0[xy] = PATTERN_FULL_RAINBOW;
                     control_orth[xy] = HIBERNATION_TICKS + TRANSITION_TICKS;
+                    waves_orth[xy] += 14330;
                     break;
                 case '4' :
                     xy = (PETAL_ROWS+2)*COLS + (PETAL_COLS * 3) + (PETAL_COLS + 1) / 2;
                     control_directive_0[xy] = PATTERN_FULL_RAINBOW;
                     control_orth[xy] = HIBERNATION_TICKS + TRANSITION_TICKS;
+                    waves_orth[xy] += 14330;
                     break;
                 case '5' :
                     xy = (PETAL_ROWS+2)*COLS + (PETAL_COLS * 4) + (PETAL_COLS + 1) / 2;
                     control_directive_0[xy] = PATTERN_FULL_RAINBOW;
                     control_orth[xy] = HIBERNATION_TICKS + TRANSITION_TICKS;
+                    waves_orth[xy] += 14330;
                     break;
                 //default:
                 }
