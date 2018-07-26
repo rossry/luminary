@@ -48,7 +48,7 @@ void display_init_color(int id, int xterm, uint8_t r, uint8_t g, uint8_t b) {
 
 void display_init() {
     for (int xy = 0; xy < ROWS * COLS; ++xy) {
-        display_current[xy] = -1 + MAKE_GREY + MAKE_DARKER;
+        display_current[xy] = BLACK;
     }
     
     // ncurses initialization
@@ -89,7 +89,7 @@ void display_init() {
     display_init_color(11, RAINBOW_11, 0x53, 0x65, 0xd6);
     display_init_color(12, RAINBOW_00, 0x63, 0x3f, 0xa9);
     
-    display_init_color(15, 16, 0x00, 0x00, 0x00);
+    display_init_color(BLACK, 16, 0x00, 0x00, 0x00);
     
     display_init_color( 0+MAKE_DARKER, RAINBOW_40, 0x38, 0x27, 0x79);
     display_init_color( 1+MAKE_DARKER, RAINBOW_41, 0x57, 0x28, 0x87);
@@ -433,6 +433,10 @@ void display_color(int xy, int color) {
         
         // CR rrheingans-yoo for ntarleton: get ready to set cell xy to color color
     }
+}
+
+void display_light(int id, int color) {
+    // CR rrheingans-yoo for ntarleton: set light id to color color
 }
 
 void display_flush(int epoch) {

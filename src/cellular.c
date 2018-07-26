@@ -169,10 +169,16 @@ void compute_decay(
                 max_increment_orth = z_for_orth; // unbounded increment
                 max_increment_diag = z_for_diag; // unbounded increment
             } else { // diagonal neighbor
+                
                 z_for_orth = diag[xy+offset[i]] - 21;
                 z_for_diag = diag[xy+offset[i]] - 24;
-                max_increment_orth = 150;
-                max_increment_diag = 55;
+                #ifdef DECAY_SQUARE
+                    max_increment_orth = z_for_orth; // unbounded increment
+                    max_increment_diag = z_for_diag; // unbounded increment
+                #else /* DECAY_SQUARE */
+                    max_increment_orth = 150;
+                    max_increment_diag = 55;
+                #endif /* DECAY_SQUARE */
             }
             
             max_equals(

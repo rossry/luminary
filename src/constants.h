@@ -101,6 +101,9 @@
 #define INITIALIZATION_EPOCHS      ( 200 * WILDFIRE_SPEEDUP ) // run this many epochs on startup
 #define PRESSURE_DELAY_EPOCHS      30
 #define PRESSURE_RADIUS_TICKS      150//76
+#define RAINBOW_TONE_EPOCHS         1200
+
+#define DECAY_SQUARE // make decay/waves effects square rather than round
 
 // gif output
 //#define OUTPUT_GIF
@@ -123,6 +126,7 @@
 #define RAND_COLOR  ( rand() % COLORS )
 #define MAKE_GREY   20
 #define MAKE_DARKER 40
+#define BLACK       15
 
 #define WAVES_BASE_ARRAY  {-331,-319,-307,-295,-283,-271,-260,-249,-237,-226,-215,-205,-194,-184,-173,-163,-154,-144,-135,-125,-116,-108,-99,-91,-83,-75,-68,-61,-54,-47,-41,-35,-29,-24,-18,-14,-9,-5,-1,2,4,6,6,7,8,8,9,9,9,9,9,8,8,7,6,6,4,2,-1,-5,-9,-14,-18,-24,-29,-35,-41,-47,-54,-61,-68,-75,-83,-91,-99,-108,-116,-125,-135,-144,-154,-163,-173,-184,-194,-205,-215,-226,-237,-249,-260,-271,-283,-295,-307,-319,-331}
 #define WAVES_BASE_X_ORIG 16
@@ -276,7 +280,7 @@
 #define TWO_TONES 3
 #define PATTERN_HANABI 4
 #define PATTERN_FULL_RAINBOW 10
-#define TWO_TONES_EXTENDED 31
+#define N_TONES 30
 
 #define max(a,b) \
     ({ __typeof__ (a) _a = (a); \
