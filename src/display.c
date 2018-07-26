@@ -407,11 +407,23 @@ void display_color(int xy, int color) {
                 } else {
                     attron(COLOR_PAIR(1+15));
                 }
+                #ifndef DISPLAY_FLOOR_ALSO
+                    if (x < 3*PETAL_COLS) {
+                #endif /* DISPLAY_FLOOR_ALSO */
                 mvprintw(
                     ((y/DIAGNOSTIC_SAMPLING_RATE + (y > PETAL_ROWS ? 8 + PETAL_ROWS : 0)) / (y > PETAL_ROWS ? 2 : 1)),
                     2*x/DIAGNOSTIC_SAMPLING_RATE + ((x / PETAL_COLS) * 6),
                     (display_current[xy] == color ?  " ," : " .")
                 );
+                #ifndef DISPLAY_FLOOR_ALSO
+                    } else {
+                        mvprintw(
+                            2 + PETAL_ROWS/DIAGNOSTIC_SAMPLING_RATE + (((PETAL_ROWS-1-y)/DIAGNOSTIC_SAMPLING_RATE + ((PETAL_ROWS-1-y) > PETAL_ROWS ? 8 + PETAL_ROWS : 0)) / ((PETAL_ROWS-1-y) > PETAL_ROWS ? 2 : 1)),
+                            PETAL_COLS + 2*(COLS-1-x)/DIAGNOSTIC_SAMPLING_RATE + (((COLS-1-x) / PETAL_COLS) * 6),
+                            (display_current[xy] == color ?  " ," : " .")
+                        );
+                    }
+                #endif /* DISPLAY_FLOOR_ALSO */
             #else /* DISPLAY_PETALS_MODE */
                 attron(COLOR_PAIR(1+color));
                 mvprintw(

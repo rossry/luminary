@@ -208,7 +208,8 @@ int main(int argc, char *argv[]) {
             }
             
             
-            if (rainbow_0_next[xy] != rainbow_0[xy]) {
+            if (control_directive_0 == PATTERN_FULL_RAINBOW
+                || rainbow_0_next[xy] != rainbow_0[xy]) {
                 rainbow_tone[xy] = ((waves_orth_next[xy] / 17) / RAINBOW_TONE_EPOCHS) % COLORS;
             }
         }
@@ -220,6 +221,10 @@ int main(int argc, char *argv[]) {
         for (int xy = 0; xy < ROWS * COLS; ++xy) {
             if (epoch > INITIALIZATION_EPOCHS) {
                 switch (control_directive_0_next[xy]) {
+                
+                case PATTERN_FULL_RAINBOW:
+                    display_color(xy, rainbow_0_next[xy]);
+                    break;
                 
                 case PATTERN_RAINBOW_SPOTLIGHTS_ON_GREY:
                     if (rainbow_1_next[xy] == -1) {
@@ -293,10 +298,6 @@ int main(int argc, char *argv[]) {
                         display_color(xy, -1 + MAKE_GREY + MAKE_DARKER);
                     }
                     break;
-                
-                case PATTERN_FULL_RAINBOW:
-                    display_color(xy, rainbow_0_next[xy]);
-                    break;
 
                 case PATTERN_HANABI:
                     zz = (waves_orth_next[xy] / 17) % 480;
@@ -349,9 +350,6 @@ int main(int argc, char *argv[]) {
             
             if (usec_time_elapsed(&start, &refreshed) < USABLE_USEC_PER_EPOCH) {
                 timeout(USABLE_MSEC_PER_EPOCH - usec_time_elapsed(&start, &refreshed) / THOUSAND);
-                mvprintw(DIAGNOSTIC_ROWS+1, 2*DIAGNOSTIC_COLS-57, "usable:%7.1f", USABLE_MSEC_PER_EPOCH);
-                mvprintw(DIAGNOSTIC_ROWS+2, 2*DIAGNOSTIC_COLS-57, "used:  %7.1f", usec_time_elapsed(&start, &refreshed) / THOUSAND);
-                mvprintw(DIAGNOSTIC_ROWS+2, 2*DIAGNOSTIC_COLS-37, "target:%7.1f", USABLE_MSEC_PER_EPOCH - usec_time_elapsed(&start, &refreshed) / THOUSAND);
                 in_chr = getch();
             }
             
@@ -365,7 +363,7 @@ int main(int argc, char *argv[]) {
                     for (int x = 0; x < COLS; ++x) {
                         xy = (PETAL_ROWS+2)*COLS + x;
                         control_directive_0[xy] = PATTERN_FULL_RAINBOW;
-                        control_directive_1[xy] = N_TONES+2-1;//(rand()%3);
+                        control_directive_1[xy] = RAND_N_TONES;
                         control_orth[xy] = HIBERNATION_TICKS + TRANSITION_TICKS;
                         waves_orth[xy] += 10.5 * RAINBOW_TONE_EPOCHS * COLORS;
                     }
@@ -374,42 +372,19 @@ int main(int argc, char *argv[]) {
                     for (int x = 0; x < COLS; ++x) {
                         xy = (PETAL_ROWS+2)*COLS + x;
                         control_directive_0[xy] = PATTERN_FULL_RAINBOW;
+                        control_directive_1[xy] = RAND_N_TONES;
                         control_orth[xy] = HIBERNATION_TICKS + TRANSITION_TICKS + 10000;
                         waves_orth[xy] += 10.5 * RAINBOW_TONE_EPOCHS * COLORS;
                     }
                     break;
                 case '1' :
-                    xy = (PETAL_ROWS+2)*COLS + (PETAL_COLS * 0) + PETAL_COLS/2;
-                    control_directive_0[xy] = PATTERN_FULL_RAINBOW;
-                    control_directive_1[xy] = N_TONES+4;
-                    control_orth[xy] = HIBERNATION_TICKS + TRANSITION_TICKS;
-                    waves_orth[xy] += 10.5 * RAINBOW_TONE_EPOCHS * COLORS;
-                    break;
                 case '2' :
-                    xy = (PETAL_ROWS+2)*COLS + (PETAL_COLS * 1) + PETAL_COLS/2;
-                    control_directive_0[xy] = PATTERN_FULL_RAINBOW;
-                    control_directive_1[xy] = N_TONES+4;
-                    control_orth[xy] = HIBERNATION_TICKS + TRANSITION_TICKS;
-                    waves_orth[xy] += 10.5 * RAINBOW_TONE_EPOCHS * COLORS;
-                    break;
                 case '3' :
-                    xy = (PETAL_ROWS+2)*COLS + (PETAL_COLS * 2) + PETAL_COLS/2;
-                    control_directive_0[xy] = PATTERN_FULL_RAINBOW;
-                    control_directive_1[xy] = N_TONES+4;
-                    control_orth[xy] = HIBERNATION_TICKS + TRANSITION_TICKS;
-                    waves_orth[xy] += 10.5 * RAINBOW_TONE_EPOCHS * COLORS;
-                    break;
                 case '4' :
-                    xy = (PETAL_ROWS+2)*COLS + (PETAL_COLS * 3) + PETAL_COLS/2;
-                    control_directive_0[xy] = PATTERN_FULL_RAINBOW;
-                    control_directive_1[xy] = N_TONES+4;
-                    control_orth[xy] = HIBERNATION_TICKS + TRANSITION_TICKS;
-                    waves_orth[xy] += 10.5 * RAINBOW_TONE_EPOCHS * COLORS;
-                    break;
                 case '5' :
-                    xy = (PETAL_ROWS+2)*COLS + (PETAL_COLS * 4) + PETAL_COLS/2;
+                    xy = (PETAL_ROWS+2)*COLS + (PETAL_COLS * (in_chr-'1')) + PETAL_COLS/2;
                     control_directive_0[xy] = PATTERN_FULL_RAINBOW;
-                    control_directive_1[xy] = N_TONES+4;
+                    control_directive_1[xy] = RAND_N_TONES;
                     control_orth[xy] = HIBERNATION_TICKS + TRANSITION_TICKS;
                     waves_orth[xy] += 10.5 * RAINBOW_TONE_EPOCHS * COLORS;
                     break;
@@ -448,10 +423,12 @@ int main(int argc, char *argv[]) {
         mvprintw(DIAGNOSTIC_ROWS+3, 2*DIAGNOSTIC_COLS-15, "wait:   %5.1fms", wait_avg / THOUSAND);
         mvprintw(DIAGNOSTIC_ROWS+4, 2*DIAGNOSTIC_COLS-15, "sleep:  %5.1fms", sleep_avg / THOUSAND);
         mvprintw(DIAGNOSTIC_ROWS+0, 2*DIAGNOSTIC_COLS-37, "epoch: %7d", epoch);
-        mvprintw(DIAGNOSTIC_ROWS+1, 2*DIAGNOSTIC_COLS-37, "Hz:    %7.1f", 1 / (total_avg / MILLION));
+        mvprintw(DIAGNOSTIC_ROWS+1, 2*DIAGNOSTIC_COLS-37, "Hz:  %7.1f/%d  ", 1 / (total_avg / MILLION), WILDFIRE_SPEEDUP);
+        mvprintw(DIAGNOSTIC_ROWS+2, 2*DIAGNOSTIC_COLS-37, "usable:%5.1fms  ", USABLE_MSEC_PER_EPOCH);
+        mvprintw(DIAGNOSTIC_ROWS+3, 2*DIAGNOSTIC_COLS-37, "used:  %5.1fms  ", usec_time_elapsed(&start, &refreshed) / THOUSAND);
         if (DIAGNOSTIC_SAMPLING_RATE != 1) {
-            mvprintw(DIAGNOSTIC_ROWS+4, 2*DIAGNOSTIC_COLS-37, "downsampling: %d", DIAGNOSTIC_SAMPLING_RATE);
-            mvprintw(DIAGNOSTIC_ROWS+3, 2*DIAGNOSTIC_COLS-37, "terminal_display_");
+            mvprintw(DIAGNOSTIC_ROWS+5, 2*DIAGNOSTIC_COLS-37, "terminal_display_");
+            mvprintw(DIAGNOSTIC_ROWS+6, 2*DIAGNOSTIC_COLS-37, "downsampling: %d", DIAGNOSTIC_SAMPLING_RATE);
         }
         /*
         mvprintw(DIAGNOSTIC_ROWS+1, 1, "control_orth[0] = %7d", control_orth[0]);
