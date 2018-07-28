@@ -419,7 +419,7 @@ void display_color(int xy, int color) {
                     } else {
                         mvprintw(
                             2 + PETAL_ROWS/DIAGNOSTIC_SAMPLING_RATE + (((PETAL_ROWS-1-y)/DIAGNOSTIC_SAMPLING_RATE + ((PETAL_ROWS-1-y) > PETAL_ROWS ? 8 + PETAL_ROWS : 0)) / ((PETAL_ROWS-1-y) > PETAL_ROWS ? 2 : 1)),
-                            PETAL_COLS + 2*(COLS-1-x)/DIAGNOSTIC_SAMPLING_RATE + (((COLS-1-x) / PETAL_COLS) * 6),
+                            PETAL_COLS + 3 + 2*(COLS-1-x)/DIAGNOSTIC_SAMPLING_RATE + (((COLS-1-x) / PETAL_COLS) * 6),
                             (display_current[xy] == color ?  " ," : " .")
                         );
                     }
@@ -428,8 +428,7 @@ void display_color(int xy, int color) {
                 attron(COLOR_PAIR(1+color));
                 mvprintw(
                     y/DIAGNOSTIC_SAMPLING_RATE,
-                    2*x/DIAGNOSTIC_SAMPLING_RATE
-                    ,
+                    2*x/DIAGNOSTIC_SAMPLING_RATE,
                     " ."
                 );
             #endif /* DISPLAY_PETALS_MODE */

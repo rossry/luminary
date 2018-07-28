@@ -95,7 +95,7 @@
 // speeds, times, distances
 #define BASE_HZ                    10
 #define WILDFIRE_SPEEDUP           4 // wildfire effects propagate at this multiple of BASE_HZ
-#define TRANSITION_TICKS           800
+#define TRANSITION_TICKS           400
 #define SECONDARY_TRANSITION_TICKS 300
 #define RAND_SECONDARY_TRANSITION  ( rand() % (ROWS * COLS) == 0 )
 #define HIBERNATION_TICKS          70000 // 70000 ticks ~ 103 seconds
@@ -281,8 +281,17 @@
 #define TWO_TONES 3
 #define PATTERN_HANABI 4
 #define PATTERN_FULL_RAINBOW 10
-#define N_TONES 30
-#define RAND_N_TONES (N_TONES+2+(rand()%3))
+#define PATTERN_SOLID 20
+#define PATTERN_N_TONES 30
+#define PATTERN_RAND_N_TONES (PATTERN_N_TONES+2+(rand()%3))
+#define AGGRESSIVE_REVERSION 100
+
+#define SCENE_BASE 0
+#define SCENE_NO_HIBERNATION 1
+#define SCENE_CIRCLING_RAINBOWS 10
+
+#define MENU_ACTIONS 1000
+#define MENU_SCENES  2000
 
 #define max(a,b) \
     ({ __typeof__ (a) _a = (a); \

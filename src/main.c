@@ -16,6 +16,9 @@ int main(int argc, char *argv[]) {
     srand(5);
     
     int epoch = 0;
+    int scene = SCENE_BASE;
+    
+    int menu_context = MENU_ACTIONS;
     
     int scratch[ROWS * COLS];
     
@@ -127,10 +130,10 @@ int main(int argc, char *argv[]) {
                 if (control_orth_next[xy] < HIBERNATION_TICKS
                     && control_orth_next[xy] < control_orth[xy]
                     && control_directive_0_next[xy] != control_directive_1_next[xy]
-                    && RAND_SECONDARY_TRANSITION
+                    && (RAND_SECONDARY_TRANSITION || control_directive_0_next[xy] > AGGRESSIVE_REVERSION)
                 ) {
                     control_directive_0_next[xy] = control_directive_1_next[xy];
-                    control_orth_next[xy] = HIBERNATION_TICKS + SECONDARY_TRANSITION_TICKS;
+                    control_orth_next[xy] += SECONDARY_TRANSITION_TICKS;
                 }
                 
                 // revert to hibernation
@@ -188,11 +191,27 @@ int main(int argc, char *argv[]) {
         // drive waves_(orth|diag)'s top row
         waves_base_z_orig += 17;
         for (int x = 0; x < FLOOR_COLS; ++x) {
+            int xy = (PETAL_ROWS+2)*COLS + x;
             //waves_orth_next[x+COLS*PETAL_ROWS] = waves_diag_next[x+COLS*PETAL_ROWS] = waves_base[x+WAVES_BASE_X_ORIG] + waves_base_z_orig;
             //waves_orth_next[(PETAL_ROWS+2)*COLS + x] = waves_diag_next[(PETAL_ROWS+2)*COLS + x] = waves_base_z_orig;
-            waves_orth_next[(PETAL_ROWS+2)*COLS + x] = waves_diag_next[(PETAL_ROWS+2)*COLS + x] = max(waves_orth_next[(PETAL_ROWS+2)*COLS + x],waves_orth[(PETAL_ROWS+2)*COLS + x]) + 17;
+            waves_orth_next[xy] = waves_diag_next[xy] = max(waves_orth_next[xy],waves_orth[xy]) + 17;
+            switch (control_directive_0_next[xy]) {
+            case PATTERN_N_TONES+2: case PATTERN_N_TONES+3: case PATTERN_N_TONES+4:
+                control_directive_0_next[xy] = control_directive_1_next[xy] = PATTERN_N_TONES + 2 + (2*rainbow_tone[xy] + ((waves_orth_next[xy] / 17) / RAINBOW_TONE_EPOCHS) / COLORS) % 3;
+                if (control_directive_0_next[xy] != control_directive_0[xy]) {
+                    control_orth_next[xy] += 18;
+                }
+            // default: pass
+            }
+            
+            if (scene == SCENE_CIRCLING_RAINBOWS && x == epoch % COLS) {
+                xy = (PETAL_ROWS+2)*COLS + x;
+                control_directive_0_next[xy] = PATTERN_FULL_RAINBOW + AGGRESSIVE_REVERSION;
+                control_directive_1_next[xy] = TWO_TONES;
+                control_orth_next[xy] = HIBERNATION_TICKS + TRANSITION_TICKS;
+            }
         }
-        // CR rrheingans-yoo: change between N_TONES
+        // CR rrheingans-yoo: change between PATTERN_N_TONES
         
         for (int xy = 0; xy < ROWS * COLS; ++xy) {
             int x = xy % COLS;
@@ -220,10 +239,14 @@ int main(int argc, char *argv[]) {
         int aa;
         for (int xy = 0; xy < ROWS * COLS; ++xy) {
             if (epoch > INITIALIZATION_EPOCHS) {
-                switch (control_directive_0_next[xy]) {
+                switch (control_directive_0_next[xy] % AGGRESSIVE_REVERSION) {
                 
                 case PATTERN_FULL_RAINBOW:
                     display_color(xy, rainbow_0_next[xy]);
+                    break;
+                
+                case PATTERN_SOLID:
+                    display_color(xy, (rainbow_tone[xy]+1)%COLORS);
                     break;
                 
                 case PATTERN_RAINBOW_SPOTLIGHTS_ON_GREY:
@@ -257,10 +280,10 @@ int main(int argc, char *argv[]) {
                     }
                     break;
                 
-                case N_TONES+1: case N_TONES+2: case N_TONES+3: case N_TONES+4:
+                case PATTERN_N_TONES+1: case PATTERN_N_TONES+2: case PATTERN_N_TONES+3: case PATTERN_N_TONES+4:
                     zz = aa = (rainbow_0_next[xy] - rainbow_tone[xy] + COLORS) % COLORS;
                     
-                    switch (control_directive_0_next[xy]-N_TONES) {
+                    switch (control_directive_0_next[xy]-PATTERN_N_TONES) {
                     case 1:
                         if (zz > 1) { aa -= 1; }
                     case 2:
@@ -288,7 +311,7 @@ int main(int argc, char *argv[]) {
                     break;
                     
                 case PATTERN_BASE:
-                case N_TONES:
+                case PATTERN_N_TONES:
                     switch ((rainbow_0_next[xy] - rainbow_tone[xy] + COLORS) % COLORS) {
                     case -1 + COLORS:
                     case 0:
@@ -354,42 +377,78 @@ int main(int argc, char *argv[]) {
             }
             
             if (in_chr > 0 && in_chr < 256) {
-                mvprintw(DIAGNOSTIC_ROWS+0, 0, "input: %c", in_chr);
+                mvprintw(DIAGNOSTIC_ROWS+1, 50, "input: %c                                         ", in_chr);
                 
                 // CR rrheingans-yoo: do something!
                 int xy;
-                switch (in_chr) {
-                case 'f' :
+                switch (in_chr + menu_context) {
+                case 'a'+MENU_ACTIONS: case 'a'+MENU_SCENES: case 'A'+MENU_ACTIONS: case 'A'+MENU_SCENES:
+                    menu_context = MENU_ACTIONS;
+                    mvprintw(DIAGNOSTIC_ROWS+1, 59, "-> Menu: Actions");
+                    break;
+                    
+                case 's'+MENU_ACTIONS: case 's'+MENU_SCENES: case 'S'+MENU_ACTIONS: case 'S'+MENU_SCENES:
+                    menu_context = MENU_SCENES;
+                    mvprintw(DIAGNOSTIC_ROWS+1, 59, "-> Menu: Scenes");
+                    break;
+                    
+                case 'c'+MENU_ACTIONS: case 'C'+MENU_ACTIONS:
+                    for (int x = 0; x < COLS; ++x) {
+                        xy = (PETAL_ROWS+2)*COLS + x;
+                        waves_orth[xy] += 10.5 * RAINBOW_TONE_EPOCHS * COLORS;
+                    }
+                    mvprintw(DIAGNOSTIC_ROWS+1, 59, "-> Action: change color");
+                    break;
+                    
+                case 'f'+MENU_ACTIONS:
+                case 'F'+MENU_ACTIONS:
                     for (int x = 0; x < COLS; ++x) {
                         xy = (PETAL_ROWS+2)*COLS + x;
                         control_directive_0[xy] = PATTERN_FULL_RAINBOW;
-                        control_directive_1[xy] = RAND_N_TONES;
-                        control_orth[xy] = HIBERNATION_TICKS + TRANSITION_TICKS;
+                        control_directive_1[xy] = PATTERN_N_TONES+2;
+                        control_orth[xy] = HIBERNATION_TICKS + TRANSITION_TICKS + (in_chr == 'F' || control_orth[xy] == 0 ? 10000 : 0);
                         waves_orth[xy] += 10.5 * RAINBOW_TONE_EPOCHS * COLORS;
                     }
-                    break;
-                case 'F' :
-                    for (int x = 0; x < COLS; ++x) {
-                        xy = (PETAL_ROWS+2)*COLS + x;
-                        control_directive_0[xy] = PATTERN_FULL_RAINBOW;
-                        control_directive_1[xy] = RAND_N_TONES;
-                        control_orth[xy] = HIBERNATION_TICKS + TRANSITION_TICKS + 10000;
-                        waves_orth[xy] += 10.5 * RAINBOW_TONE_EPOCHS * COLORS;
+                    if (in_chr == 'F') {
+                        mvprintw(DIAGNOSTIC_ROWS+1, 59, "-> Action: centered rainbow + duration");
+                    } else {
+                        mvprintw(DIAGNOSTIC_ROWS+1, 59, "-> Action: centered rainbow");
                     }
                     break;
-                case '1' :
-                case '2' :
-                case '3' :
-                case '4' :
-                case '5' :
+                    
+                case '1'+MENU_ACTIONS:
+                case '2'+MENU_ACTIONS:
+                case '3'+MENU_ACTIONS:
+                case '4'+MENU_ACTIONS:
+                case '5'+MENU_ACTIONS:
                     xy = (PETAL_ROWS+2)*COLS + (PETAL_COLS * (in_chr-'1')) + PETAL_COLS/2;
                     control_directive_0[xy] = PATTERN_FULL_RAINBOW;
-                    control_directive_1[xy] = RAND_N_TONES;
+                    control_directive_1[xy] = PATTERN_N_TONES+2;
                     control_orth[xy] = HIBERNATION_TICKS + TRANSITION_TICKS;
                     waves_orth[xy] += 10.5 * RAINBOW_TONE_EPOCHS * COLORS;
+                    mvprintw(DIAGNOSTIC_ROWS+1, 59, "-> Action: rainbow on petal %d", (in_chr-'1')+1);
                     break;
-                //default:
+                
+                case '0'+MENU_SCENES:
+                    scene = SCENE_BASE;
+                    break;
+                    
+                case '1'+MENU_SCENES:
+                    scene = SCENE_NO_HIBERNATION;
+                    break;
+                    
+                case '2'+MENU_SCENES:
+                    scene = SCENE_CIRCLING_RAINBOWS;
+                    break;
+                    
+                default:
+                    mvprintw(DIAGNOSTIC_ROWS+1, 59, "-> (nothing)");
                 }
+            }
+            
+            if (scene == SCENE_NO_HIBERNATION) {
+                int xy = (PETAL_ROWS+2)*COLS + (PETAL_COLS * (2)) + PETAL_COLS/2;
+                control_orth[xy] = max(control_orth[xy], 10000);
             }
             
             gettimeofday(&handled, NULL);
@@ -430,42 +489,68 @@ int main(int argc, char *argv[]) {
             mvprintw(DIAGNOSTIC_ROWS+5, 2*DIAGNOSTIC_COLS-37, "terminal_display_");
             mvprintw(DIAGNOSTIC_ROWS+6, 2*DIAGNOSTIC_COLS-37, "downsampling: %d", DIAGNOSTIC_SAMPLING_RATE);
         }
-        /*
-        mvprintw(DIAGNOSTIC_ROWS+1, 1, "control_orth[0] = %7d", control_orth[0]);
-        mvprintw(DIAGNOSTIC_ROWS+2, 1, "control_directive_0[0] = %2d", control_directive_0[0]);
-        mvprintw(DIAGNOSTIC_ROWS+3, 1, "control_directive_1[0] = %2d", control_directive_1[0]);
-        */
-        // ((waves_orth_next[xy] / 17) / 120) % COLORS
+        switch (scene) {
+            case SCENE_BASE:
+                mvprintw(DIAGNOSTIC_ROWS+0, 0, "scene: Default               ", scene);
+                break;
+            case SCENE_NO_HIBERNATION:
+                mvprintw(DIAGNOSTIC_ROWS+0, 0, "scene: Default+No_hibernation", scene);
+                break;
+            case SCENE_CIRCLING_RAINBOWS:
+                mvprintw(DIAGNOSTIC_ROWS+0, 0, "scene: Circling_rainbows     ", scene);
+                break;
+            default:
+                mvprintw(DIAGNOSTIC_ROWS+0, 0, "scene: ? (#%03d)             ", scene);
+        }
         for (int ii=0; ii<5; ++ii) {
-            display_light(ii*2, ((waves_orth_next[PETAL_ROWS*COLS + (PETAL_COLS * ii) + 8] / 17) / RAINBOW_TONE_EPOCHS) % COLORS);
-            mvprintw(DIAGNOSTIC_ROWS+(2*ii + 1), 0, "%03d: %05d.  %02d.%04d.%02d (%02d:%06d|%02d)",
+            int xy = 8*COLS + (PETAL_COLS * ii) + 8;
+            display_light(ii*2, ((waves_orth_next[xy] / 17) / RAINBOW_TONE_EPOCHS) % COLORS);
+            mvprintw(DIAGNOSTIC_ROWS+(2*ii + 1), 0, "%03d: %05d.  %02d.%04d.%02d (%3d:%06d|%3d)",
                 520 + ii*2,
-                ((waves_orth_next[PETAL_ROWS*COLS + (PETAL_COLS * ii) + 8] / 17) / RAINBOW_TONE_EPOCHS) / COLORS,
-                ((waves_orth_next[PETAL_ROWS*COLS + (PETAL_COLS * ii) + 8] / 17) / RAINBOW_TONE_EPOCHS) % COLORS,
-                ((waves_orth_next[PETAL_ROWS*COLS + (PETAL_COLS * ii) + 8] / 17) % RAINBOW_TONE_EPOCHS),
-                ((waves_orth_next[PETAL_ROWS*COLS + (PETAL_COLS * ii) + 8] % 17)),
-                control_directive_0[PETAL_ROWS*COLS + (PETAL_COLS * ii) + 8],
-                control_orth[PETAL_ROWS*COLS + (PETAL_COLS * ii) + 8],
-                control_directive_1[PETAL_ROWS*COLS + (PETAL_COLS * ii) + 8]
+                ((waves_orth_next[xy] / 17) / RAINBOW_TONE_EPOCHS) / COLORS,
+                ((waves_orth_next[xy] / 17) / RAINBOW_TONE_EPOCHS) % COLORS,
+                ((waves_orth_next[xy] / 17) % RAINBOW_TONE_EPOCHS),
+                ((waves_orth_next[xy] % 17)),
+                control_directive_0[xy],
+                control_orth[xy],
+                control_directive_1[xy]
             );
-            attron(COLOR_PAIR(1+((waves_orth_next[PETAL_ROWS*COLS + (PETAL_COLS * ii) + 8] / 17) / RAINBOW_TONE_EPOCHS) % COLORS));
+            attron(COLOR_PAIR(1 + (rainbow_tone[xy]+1) % COLORS));
             mvprintw(DIAGNOSTIC_ROWS+(2*ii + 1),11," .");
-            attroff(COLOR_PAIR(1+((waves_orth_next[PETAL_ROWS*COLS + (PETAL_COLS * ii) + 8] / 17) / RAINBOW_TONE_EPOCHS) % COLORS));
+            attroff(COLOR_PAIR(1 + (rainbow_tone[xy]+1) % COLORS));
             
-            display_light(ii*2+1, ((waves_orth_next[PETAL_ROWS*COLS + (PETAL_COLS * ii) + 22] / 17) / RAINBOW_TONE_EPOCHS) % COLORS);
-            mvprintw(DIAGNOSTIC_ROWS+(2*ii + 2), 0, "%03d: %05d.  %02d.%04d.%02d (%02d:%06d|%02d)",
+            xy = 8*COLS + (PETAL_COLS * ii) + 22;
+            display_light(ii*2+1, ((waves_orth_next[xy] / 17) / RAINBOW_TONE_EPOCHS) % COLORS);
+            mvprintw(DIAGNOSTIC_ROWS+(2*ii + 2), 0, "%03d: %05d.  %02d.%04d.%02d (%3d:%06d|%3d)",
                 520 + ii*2 + 1,
-                ((waves_orth_next[PETAL_ROWS*COLS + (PETAL_COLS * ii) + 22] / 17) / RAINBOW_TONE_EPOCHS) / COLORS,
-                ((waves_orth_next[PETAL_ROWS*COLS + (PETAL_COLS * ii) + 22] / 17) / RAINBOW_TONE_EPOCHS) % COLORS,
-                ((waves_orth_next[PETAL_ROWS*COLS + (PETAL_COLS * ii) + 22] / 17) % RAINBOW_TONE_EPOCHS),
-                ((waves_orth_next[PETAL_ROWS*COLS + (PETAL_COLS * ii) + 22] % 17)),
-                control_directive_0[PETAL_ROWS*COLS + (PETAL_COLS * ii) + 22],
-                control_orth[PETAL_ROWS*COLS + (PETAL_COLS * ii) + 22],
-                control_directive_1[PETAL_ROWS*COLS + (PETAL_COLS * ii) + 22]
+                ((waves_orth_next[xy] / 17) / RAINBOW_TONE_EPOCHS) / COLORS,
+                ((waves_orth_next[xy] / 17) / RAINBOW_TONE_EPOCHS) % COLORS,
+                ((waves_orth_next[xy] / 17) % RAINBOW_TONE_EPOCHS),
+                ((waves_orth_next[xy] % 17)),
+                control_directive_0[xy],
+                control_orth[xy],
+                control_directive_1[xy]
             );
-            attron(COLOR_PAIR(1+((waves_orth_next[PETAL_ROWS*COLS + (PETAL_COLS * ii) + 22] / 17) / RAINBOW_TONE_EPOCHS) % COLORS));
+            attron(COLOR_PAIR(1 + (rainbow_tone[xy]+1) % COLORS));
             mvprintw(DIAGNOSTIC_ROWS+(2*ii + 2),11," .");
-            attroff(COLOR_PAIR(1+((waves_orth_next[PETAL_ROWS*COLS + (PETAL_COLS * ii) + 22] / 17) / RAINBOW_TONE_EPOCHS) % COLORS));
+            attroff(COLOR_PAIR(1 + (rainbow_tone[xy]+1) % COLORS));
+        }
+        
+        switch (menu_context) {
+        case MENU_ACTIONS:
+            mvprintw(DIAGNOSTIC_ROWS+0, 50, "menu: Actions | S)cenes                  ");
+            mvprintw(DIAGNOSTIC_ROWS+2, 50, "c) change color                         ");
+            mvprintw(DIAGNOSTIC_ROWS+3, 50, "f) centered effect                         ");
+            mvprintw(DIAGNOSTIC_ROWS+4, 50, "1|2|3|4|5) effect on petal N              ");
+            break;
+        case MENU_SCENES:
+            mvprintw(DIAGNOSTIC_ROWS+0, 50, "menu: Scenes | A)ctions                            ");
+            mvprintw(DIAGNOSTIC_ROWS+2, 50, "0) Default (cycling n-tones)                         ");
+            mvprintw(DIAGNOSTIC_ROWS+3, 50, "1) Default + no_hibernation                         ");
+            mvprintw(DIAGNOSTIC_ROWS+4, 50, "2) Circling_rainbows                         ");
+            break;
+        default:
+            mvprintw(DIAGNOSTIC_ROWS+0, 50, "menu: ? (#%04d)", menu_context);
         }
         
         start = stop;
