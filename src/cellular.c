@@ -101,7 +101,7 @@ int maybe_increment(int* grid, int xy, int target, int inc, int neighbors[COLORS
     if (inc == 2) {
         return inc;
     }
-    if (grid[target] == (grid[xy] + 2) % COLORS && rand() < 0.25*RAND_MAX) {
+    if (grid[target] == (grid[xy] + 2) % COLORS && rand() < 0.22*RAND_MAX) {
         return 2;
     }
     if (grid[target] == (grid[xy] + 1) % COLORS) {

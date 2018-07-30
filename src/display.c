@@ -157,8 +157,8 @@ void display_init() {
                     DefaultRootWindow(cairo_x_display),
                     0,
                     0,
-                    COLS * CAIRO_ZOOM, // width
-                    ROWS * CAIRO_ZOOM, // height
+                    14 + COLS * CAIRO_ZOOM, // width
+                    14 + ROWS * CAIRO_ZOOM, // height
                     0,
                     CopyFromParent,
                     CopyFromParent,
@@ -179,16 +179,16 @@ void display_init() {
                     cairo_x_display,
                     cairo_x_window,
                     cairo_x_visual,
-                    COLS * CAIRO_ZOOM,
-                    ROWS * CAIRO_ZOOM
+                    14 + COLS * CAIRO_ZOOM,
+                    14 + ROWS * CAIRO_ZOOM
                 );
         #else /* OUTPUT_CAIRO_FULLSCREEN */
-            cairo_surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, COLS * CAIRO_ZOOM, ROWS * CAIRO_ZOOM);
+            cairo_surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 14 + COLS * CAIRO_ZOOM, 14 + ROWS * CAIRO_ZOOM);
         #endif
         cairo_cr = cairo_create(cairo_surface);
 
         cairo_set_source_rgb(cairo_cr, 0x00, 0x00, 0x00);
-        cairo_rectangle(cairo_cr, 0, 0, COLS * CAIRO_ZOOM, ROWS * CAIRO_ZOOM);
+        cairo_rectangle(cairo_cr, 0, 0, 14 + COLS * CAIRO_ZOOM, 14 + ROWS * CAIRO_ZOOM);
         cairo_fill(cairo_cr);
         
         cairo_blur = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, CAIRO_ZOOM + 2*CAIRO_BLUR_WIDTH, CAIRO_ZOOM + 2*CAIRO_BLUR_WIDTH);
@@ -393,8 +393,8 @@ void display_color(int xy, int color) {
         }
 
         #ifdef OUTPUT_CAIRO_FULLSCREEN
-            //cairo_set_source_luminary(color);
-            cairo_mask_surface(cairo_cr, cairo_blur, -CAIRO_BLUR_WIDTH + x * CAIRO_ZOOM, -200 -CAIRO_BLUR_WIDTH + y * CAIRO_ZOOM);
+            cairo_set_source_luminary(color);
+            cairo_mask_surface(cairo_cr, cairo_blur, 7 -CAIRO_BLUR_WIDTH + x * CAIRO_ZOOM, 7 -CAIRO_BLUR_WIDTH + y * CAIRO_ZOOM);
         #endif /* OUTPUT_CAIRO_FULLSCREEN */
 
         display_current[xy] = color;

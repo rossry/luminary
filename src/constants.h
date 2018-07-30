@@ -11,10 +11,10 @@
 // physical dimensions
 //#define PETALS_ACTIVE
 
-#define FLOOR_COLS 106
-#define FLOOR_ROWS 106
+#define FLOOR_COLS 71//106
+#define FLOOR_ROWS 71//106
 
-#define BEVEL_RADIUS 31
+#define BEVEL_RADIUS 21
 
 #ifdef PETALS_ACTIVE
 #define PETAL_COLS 32 // per petal
@@ -39,7 +39,7 @@
 #define COLS FLOOR_COLS
 #define ROWS (FLOOR_ROWS + PETAL_ROWS)
 
-#define DIAGNOSTIC_SAMPLING_RATE 2
+#define DIAGNOSTIC_SAMPLING_RATE 3
 #endif /*PETALS_ACTIVE*/
 
 #define DIAGNOSTIC_COLS (COLS / DIAGNOSTIC_SAMPLING_RATE)
