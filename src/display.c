@@ -586,20 +586,22 @@ void display_flush(int epoch) {
     #endif /* OUTPUT_GIF */
     
     #ifdef OUTPUT_CAIRO
-        #ifdef OUTPUT_CAIRO_FULLSCREEN
+        #ifdef OUTPUT_CAIRO_FULLSCREEN_X
             // pass
         #else /* OUTPUT_CAIRO_FULLSCREEN */
-            if (epoch == CAIRO_SNAPSHOT_EPOCH) {
+            if (epoch == CAIRO_SNAPSHOT_EPOCH || 1) {
                 for (int xy = 0; xy < ROWS * COLS; ++xy) {
                     int x = xy % COLS;
                     int y = xy / COLS;
                     cairo_set_source_luminary(display_current[xy]);
-                    cairo_mask_surface(cairo_cr, cairo_blur, -CAIRO_BLUR_WIDTH + x * CAIRO_ZOOM, -CAIRO_BLUR_WIDTH + y * CAIRO_ZOOM);
+                    cairo_mask_surface(cairo_cr, cairo_blur, 7 -CAIRO_BLUR_WIDTH + x * CAIRO_ZOOM, 7 -CAIRO_BLUR_WIDTH + y * CAIRO_ZOOM);
                 }
                 
-                cairo_destroy(cairo_cr);
-                cairo_surface_write_to_png(cairo_surface, "demo/cairo.png");
-                cairo_surface_destroy(cairo_surface);
+                char s[28];
+                sprintf(s, "/tmp/luminary/img%06d.png", epoch);
+                //cairo_destroy(cairo_cr);
+                cairo_surface_write_to_png(cairo_surface, s);
+                //cairo_surface_destroy(cairo_surface);
                 
                 mvprintw(DIAGNOSTIC_ROWS+4, 1, "wrote cairo (%d frames)", epoch);
             }
