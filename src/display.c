@@ -105,7 +105,7 @@ void display_init() {
     display_init_color(12+MAKE_DARKER, RAINBOW_40, 0x38, 0x27, 0x79);
     
     //display_init_color(15, 0, 0x00, 0x00, 0x00);
-    
+
     display_init_color(-1+MAKE_GREY, GREY_0, 0x00, 0x00, 0x00);
     display_init_color( 0+MAKE_GREY, GREY_6, 0x00, 0x00, 0x00);
     display_init_color( 1+MAKE_GREY, GREY_5, 0x00, 0x00, 0x00);
@@ -377,7 +377,6 @@ void display_init() {
 void display_color(int xy, int color) {
     int x = xy % COLS;
     int y = xy / COLS;
-    
     if (display_current[xy] != color) {
         // ncurses drawing
         if (y % DIAGNOSTIC_SAMPLING_RATE == 0

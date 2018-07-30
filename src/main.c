@@ -44,7 +44,11 @@ int main(int argc, char *argv[]) {
     int pressure_diag_next[ROWS * COLS];
     
     // hand-tuned to radiate from a center 84 cells above the midpoint of the top side
+<<<<<<< HEAD
     //int waves_base[] = WAVES_BASE_ARRAY;
+=======
+    int waves_base[] = WAVES_BASE_ARRAY;
+>>>>>>> a9b2f2a8eea640846bd9f82a0c26c73ce16cdd17
     
     int waves_base_z_orig = 0;
     int waves_orth[ROWS * COLS];
@@ -56,7 +60,11 @@ int main(int argc, char *argv[]) {
     hanabi_cell hanabi_next[ROWS * COLS];
     int hanabi_seed_color[ROWS * COLS];
     
+<<<<<<< HEAD
     //int in_chr = 0;
+=======
+    int in_chr = 0;
+>>>>>>> a9b2f2a8eea640846bd9f82a0c26c73ce16cdd17
     
     for (int xy = 0; xy < ROWS * COLS; ++xy) {
         scratch[xy] = 0;
@@ -98,6 +106,7 @@ int main(int argc, char *argv[]) {
         for (int xy = 0; xy < ROWS * COLS; ++xy) {
             int x = xy % COLS;
             int y = xy / COLS;
+<<<<<<< HEAD
             //if (y < PETAL_ROWS || x < FLOOR_COLS) {
             //if ((y >= 21 && y < ROWS - 21) || (x >= 21 && x < COLS - 21)) {
             if ((1
@@ -112,6 +121,11 @@ int main(int argc, char *argv[]) {
                 // evolve control_directive_(1|2), control_(orth|diag)
                 // CR rrheingans-yoo: move these overrides to the post-processing segment below
                 /*
+=======
+            if (y < PETAL_ROWS || x < FLOOR_COLS) {
+                // evolve control_directive_(1|2), control_(orth|diag)
+                // CR rrheingans-yoo: move these overrides to the post-processing segment below
+>>>>>>> a9b2f2a8eea640846bd9f82a0c26c73ce16cdd17
                 if (xy == COLS*(ROWS-1) + FLOOR_COLS/2 // CR rrheingans-yoo for ntarleton: this should instead be pressure_switch_depressed(xy)
                     && ((epoch + 5000) / 6000) % 2 == 0 // CR rrheingans-yoo for ntarleton: remove me
                     && epoch > INITIALIZATION_EPOCHS + 1 // CR rrheingans-yoo for ntarleton: remove me
@@ -124,7 +138,10 @@ int main(int argc, char *argv[]) {
                         control_orth[xy] = HIBERNATION_TICKS;
                     }
                 }
+<<<<<<< HEAD
                 */
+=======
+>>>>>>> a9b2f2a8eea640846bd9f82a0c26c73ce16cdd17
                 compute_decay(
                     control_orth, control_diag,
                     control_orth_next, control_diag_next,
@@ -133,7 +150,10 @@ int main(int argc, char *argv[]) {
                     xy
                 );
                 
+<<<<<<< HEAD
                 /*
+=======
+>>>>>>> a9b2f2a8eea640846bd9f82a0c26c73ce16cdd17
                 // revert to control_directive_1
                 if (control_orth_next[xy] < HIBERNATION_TICKS
                     && control_orth_next[xy] < control_orth[xy]
@@ -152,7 +172,10 @@ int main(int argc, char *argv[]) {
                     control_directive_0_next[xy] = control_directive_1_next[xy] = PATTERN_BASE;
                     control_orth_next[xy] = SECONDARY_TRANSITION_TICKS;
                 }
+<<<<<<< HEAD
                 */
+=======
+>>>>>>> a9b2f2a8eea640846bd9f82a0c26c73ce16cdd17
                 
                 // evolve waves_(orth|diag)
                 compute_decay(
@@ -197,6 +220,7 @@ int main(int argc, char *argv[]) {
             }
         }
         
+<<<<<<< HEAD
         if (epoch % WILDFIRE_SPEEDUP == 0) {
             // drive waves_(orth|diag)'s top row
             waves_base_z_orig += 17;
@@ -218,26 +242,51 @@ int main(int argc, char *argv[]) {
             int y = xy / COLS;
             if ((y > PETAL_ROWS && x < FLOOR_COLS) // CR rrheingans-yoo for ntarleton: this should instead be pressure_switch_depressed(xy)
                 && rand() % (FLOOR_ROWS * FLOOR_COLS * 15) == 0 // CR rrheingans-yoo for ntarleton: remove me
+=======
+        // drive waves_(orth|diag)'s top row
+        // CR rrheingans-yoo drive with floor base
+        waves_base_z_orig += 17;
+        for (int x = 0; x < FLOOR_COLS; ++x) {
+            waves_orth_next[x+COLS*PETAL_ROWS] = waves_diag_next[x+COLS*PETAL_ROWS] = waves_base[x+WAVES_BASE_X_ORIG] + waves_base_z_orig;
+        }
+        
+        for (int xy = 0; xy < ROWS * COLS; ++xy) {
+            int x = xy % COLS;
+            int y = xy / COLS;
+            
+            if ((y > PETAL_ROWS && x < FLOOR_COLS) // CR-someday rrheingans-yoo for ntarleton: this should instead be pressure_switch_depressed(xy)
+                && rand() % (FLOOR_ROWS * FLOOR_COLS * 1000) == 0 // CR-someday rrheingans-yoo for ntarleton: remove me
+>>>>>>> a9b2f2a8eea640846bd9f82a0c26c73ce16cdd17
             ) { 
                 if (pressure_self[xy] < PRESSURE_DELAY_EPOCHS) {
                     run_hanabi_spark(hanabi_next, xy, hanabi_seed_color[xy]);
                 }
                 pressure_self[xy] = PRESSURE_DELAY_EPOCHS;
             }
+<<<<<<< HEAD
             */
+=======
+            
+>>>>>>> a9b2f2a8eea640846bd9f82a0c26c73ce16cdd17
             
             if (rainbow_0_next[xy] != rainbow_0[xy]) {
                 rainbow_tone[xy] = ((waves_orth_next[xy] / 17) / 120) % COLORS;
             }
         }
         
+<<<<<<< HEAD
         
+=======
+>>>>>>> a9b2f2a8eea640846bd9f82a0c26c73ce16cdd17
         gettimeofday(&computed, NULL);
         
         int zz;
         for (int xy = 0; xy < ROWS * COLS; ++xy) {
+<<<<<<< HEAD
             int x = xy % COLS;
             int y = xy / COLS;
+=======
+>>>>>>> a9b2f2a8eea640846bd9f82a0c26c73ce16cdd17
             if (epoch > INITIALIZATION_EPOCHS) {
                 switch (control_directive_0_next[xy]) {
                 
@@ -257,6 +306,7 @@ int main(int argc, char *argv[]) {
                     // fall through to TWO_TONES
                 case TWO_TONES:
                 case PATTERN_BASE:
+<<<<<<< HEAD
                     if (0
                         || x + y < BEVEL_RADIUS-1
                         || (COLS-1-x + y < BEVEL_RADIUS-1)
@@ -267,6 +317,8 @@ int main(int argc, char *argv[]) {
                         break;
                     }
                     
+=======
+>>>>>>> a9b2f2a8eea640846bd9f82a0c26c73ce16cdd17
                     switch ((rainbow_0_next[xy] - rainbow_tone[xy] + COLORS) % COLORS) {
                     case -1 + COLORS:
                         display_color(xy, ((rainbow_0_next[xy] + 1) % COLORS) + MAKE_DARKER);
@@ -340,6 +392,7 @@ int main(int argc, char *argv[]) {
                 mvprintw(DIAGNOSTIC_ROWS+1, 2*DIAGNOSTIC_COLS-57, "usable:%7.1f", USABLE_MSEC_PER_EPOCH);
                 mvprintw(DIAGNOSTIC_ROWS+2, 2*DIAGNOSTIC_COLS-57, "used:  %7.1f", usec_time_elapsed(&start, &refreshed) / THOUSAND);
                 mvprintw(DIAGNOSTIC_ROWS+2, 2*DIAGNOSTIC_COLS-37, "target:%7.1f", USABLE_MSEC_PER_EPOCH - usec_time_elapsed(&start, &refreshed) / THOUSAND);
+<<<<<<< HEAD
                 //in_chr = getch();
             }
             
@@ -353,6 +406,59 @@ int main(int argc, char *argv[]) {
                 control_orth[xy] = HIBERNATION_TICKS + TRANSITION_TICKS;
             }
             */
+=======
+                in_chr = getch();
+            }
+            
+            if (in_chr > 0 && in_chr < 256) {
+                mvprintw(ROWS+0, 0, "input: %c", in_chr);
+                
+                // CR rrheingans-yoo: do something!
+                int xy;
+                switch (in_chr) {
+                case 'f' :
+                    for (int x = 0; x < COLS; ++x) {
+                        xy = (PETAL_ROWS+2)*COLS + x;
+                        control_directive_0[xy] = PATTERN_FULL_RAINBOW;
+                        control_orth[xy] = HIBERNATION_TICKS + TRANSITION_TICKS;
+                    }
+                    break;
+                case 'F' :
+                    for (int x = 0; x < COLS; ++x) {
+                        xy = (PETAL_ROWS+2)*COLS + x;
+                        control_directive_0[xy] = PATTERN_FULL_RAINBOW;
+                        control_orth[xy] = HIBERNATION_TICKS + TRANSITION_TICKS + 10000;
+                    }
+                    break;
+                case '1' :
+                    xy = (PETAL_ROWS+2)*COLS + (PETAL_COLS * 0) + (PETAL_COLS + 1) / 2;
+                    control_directive_0[xy] = PATTERN_FULL_RAINBOW;
+                    control_orth[xy] = HIBERNATION_TICKS + TRANSITION_TICKS;
+                    break;
+                case '2' :
+                    xy = (PETAL_ROWS+2)*COLS + (PETAL_COLS * 1) + (PETAL_COLS + 1) / 2;
+                    control_directive_0[xy] = PATTERN_FULL_RAINBOW;
+                    control_orth[xy] = HIBERNATION_TICKS + TRANSITION_TICKS;
+                    break;
+                case '3' :
+                    xy = (PETAL_ROWS+2)*COLS + (PETAL_COLS * 2) + (PETAL_COLS + 1) / 2;
+                    control_directive_0[xy] = PATTERN_FULL_RAINBOW;
+                    control_orth[xy] = HIBERNATION_TICKS + TRANSITION_TICKS;
+                    break;
+                case '4' :
+                    xy = (PETAL_ROWS+2)*COLS + (PETAL_COLS * 3) + (PETAL_COLS + 1) / 2;
+                    control_directive_0[xy] = PATTERN_FULL_RAINBOW;
+                    control_orth[xy] = HIBERNATION_TICKS + TRANSITION_TICKS;
+                    break;
+                case '5' :
+                    xy = (PETAL_ROWS+2)*COLS + (PETAL_COLS * 4) + (PETAL_COLS + 1) / 2;
+                    control_directive_0[xy] = PATTERN_FULL_RAINBOW;
+                    control_orth[xy] = HIBERNATION_TICKS + TRANSITION_TICKS;
+                    break;
+                //default:
+                }
+            }
+>>>>>>> a9b2f2a8eea640846bd9f82a0c26c73ce16cdd17
             
             gettimeofday(&handled, NULL);
             

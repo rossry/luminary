@@ -21,7 +21,6 @@ int* get_offset_array(int x, int y) {
     case ROWS-1 : 
         return y_rows_minus_one;
     default :
-        
         if ((x == 0 || x == COLS-1)){
             if (y == BEVEL_RADIUS-2) {
                 return y_zero;
@@ -48,8 +47,6 @@ int* get_offset_array(int x, int y) {
         ) {
             return y_northwest;
         }
-        
-        
         return y_else;
     }
 }
@@ -70,7 +67,6 @@ int* get_offset_array(int x, int y) {
     x + ROWS-1-(y) == BEVEL_RADIUS || COLS-1-(x) + ROWS-1-(y) == BEVEL_RADIUS ? 8 : ( \
     x + ROWS-1-(y) == BEVEL_RADIUS-1 || COLS-1-(x) + ROWS-1-(y) == BEVEL_RADIUS-1 ? 6 : \
     9))))))
-
 
 void max_equals(int* x, int y, int* t0, int s0, int* t1, int s1) {
     if (y > *x) {
@@ -157,7 +153,7 @@ int compute_cyclic(int* grid, int* impatience, int xy) {
         /* propagate re-shuffle */
         if (inc) {
             impatience[xy] /= 2;
-            if (impatience[xy] > 35) {
+            if (impatience[xy] > 50) {
                 return RAND_COLOR;
             }
         }
