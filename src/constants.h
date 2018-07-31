@@ -86,7 +86,7 @@
 #define GREY_46 250
 
 // speeds, times, distances
-#define BASE_HZ                    10
+#define BASE_HZ                    100//10
 #define WILDFIRE_SPEEDUP           4 // wildfire effects propagate at this multiple of BASE_HZ
 #define TRANSITION_TICKS           3000 // 3000 ticks ~ 4.4 seconds
 #define SECONDARY_TRANSITION_TICKS 300

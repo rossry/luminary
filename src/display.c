@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <unistd.h>
 #include <cairo.h>
 #include <cairo-xlib.h>
 
@@ -589,7 +590,10 @@ void display_flush(int epoch) {
         #ifdef OUTPUT_CAIRO_FULLSCREEN_X
             // pass
         #else /* OUTPUT_CAIRO_FULLSCREEN */
-            if (epoch == CAIRO_SNAPSHOT_EPOCH || 1) {
+            char s[30];
+            sprintf(s, "/tmp/luminary-5/img%06d.png", epoch);
+            if (access( s, F_OK ) == -1) {
+                sprintf(s, "/tmp/luminary-5/img%06d.png", epoch);
                 for (int xy = 0; xy < ROWS * COLS; ++xy) {
                     int x = xy % COLS;
                     int y = xy / COLS;
@@ -597,8 +601,6 @@ void display_flush(int epoch) {
                     cairo_mask_surface(cairo_cr, cairo_blur, 7 -CAIRO_BLUR_WIDTH + x * CAIRO_ZOOM, 7 -CAIRO_BLUR_WIDTH + y * CAIRO_ZOOM);
                 }
                 
-                char s[28];
-                sprintf(s, "/tmp/luminary/img%06d.png", epoch);
                 //cairo_destroy(cairo_cr);
                 cairo_surface_write_to_png(cairo_surface, s);
                 //cairo_surface_destroy(cairo_surface);
