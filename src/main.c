@@ -192,8 +192,7 @@ int main(int argc, char *argv[]) {
         waves_base_z_orig += 17;
         for (int x = 0; x < FLOOR_COLS; ++x) {
             int xy = (PETAL_ROWS+2)*COLS + x;
-            //waves_orth_next[x+COLS*PETAL_ROWS] = waves_diag_next[x+COLS*PETAL_ROWS] = waves_base[x+WAVES_BASE_X_ORIG] + waves_base_z_orig;
-            //waves_orth_next[(PETAL_ROWS+2)*COLS + x] = waves_diag_next[(PETAL_ROWS+2)*COLS + x] = waves_base_z_orig;
+            
             waves_orth_next[xy] = waves_diag_next[xy] = max(waves_orth_next[xy],waves_orth[xy]) + 17;
             switch (control_directive_0_next[xy]) {
             case PATTERN_N_TONES+2: case PATTERN_N_TONES+3: case PATTERN_N_TONES+4:
@@ -204,11 +203,19 @@ int main(int argc, char *argv[]) {
             // default: pass
             }
             
-            if (scene == SCENE_CIRCLING_RAINBOWS && x == epoch % COLS) {
+            if (x == epoch % COLS && scene == SCENE_CIRCLING_RAINBOWS) {
                 xy = (PETAL_ROWS+2)*COLS + x;
                 control_directive_0_next[xy] = PATTERN_FULL_RAINBOW + AGGRESSIVE_REVERSION;
                 control_directive_1_next[xy] = TWO_TONES;
                 control_orth_next[xy] = HIBERNATION_TICKS + TRANSITION_TICKS;
+            }
+            
+            if (scene == SCENE_Q2) {
+                xy = (PETAL_ROWS+1)*COLS + x;
+                control_directive_0_next[xy] = control_directive_1_next[xy] = PATTERN_Q2;
+                if (control_directive_0_next[xy] != control_directive_0[xy]) {
+                    control_orth_next[xy] += 18;
+                }
             }
         }
         // CR rrheingans-yoo: change between PATTERN_N_TONES
@@ -321,7 +328,17 @@ int main(int argc, char *argv[]) {
                         display_color(xy, -1 + MAKE_GREY + MAKE_DARKER);
                     }
                     break;
-
+                    
+                case PATTERN_Q2:
+                    if (rainbow_1_next[xy] < 4) {
+                        display_color(xy, rainbow_0_next[xy]);
+                    } else if (rainbow_1_next[xy] < 6 || rainbow_1_next[xy] > 9) {
+                        display_color(xy, rainbow_0_next[xy] + MAKE_DARKER);
+                    } else {
+                        display_color(xy, -1 + MAKE_GREY + MAKE_DARKER);
+                    }
+                    break;
+                    
                 case PATTERN_HANABI:
                     zz = (waves_orth_next[xy] / 17) % 480;
                     zz = min(zz, COLORS-zz);
@@ -441,6 +458,10 @@ int main(int argc, char *argv[]) {
                     scene = SCENE_CIRCLING_RAINBOWS;
                     break;
                     
+                case '3'+MENU_SCENES:
+                    scene = SCENE_Q2;
+                    break;
+                    
                 default:
                     mvprintw(DIAGNOSTIC_ROWS+1, 59, "-> (nothing)");
                 }
@@ -542,12 +563,14 @@ int main(int argc, char *argv[]) {
             mvprintw(DIAGNOSTIC_ROWS+2, 50, "c) change color                         ");
             mvprintw(DIAGNOSTIC_ROWS+3, 50, "f) centered effect                         ");
             mvprintw(DIAGNOSTIC_ROWS+4, 50, "1|2|3|4|5) effect on petal N              ");
+            mvprintw(DIAGNOSTIC_ROWS+5, 50, "                                          ");
             break;
         case MENU_SCENES:
             mvprintw(DIAGNOSTIC_ROWS+0, 50, "menu: Scenes | A)ctions                            ");
             mvprintw(DIAGNOSTIC_ROWS+2, 50, "0) Default (cycling n-tones)                         ");
             mvprintw(DIAGNOSTIC_ROWS+3, 50, "1) Default + no_hibernation                         ");
             mvprintw(DIAGNOSTIC_ROWS+4, 50, "2) Circling_rainbows                         ");
+            mvprintw(DIAGNOSTIC_ROWS+5, 50, "3) Q2 (experimental)                         ");
             break;
         default:
             mvprintw(DIAGNOSTIC_ROWS+0, 50, "menu: ? (#%04d)", menu_context);
