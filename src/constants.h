@@ -39,7 +39,7 @@
 #define COLS FLOOR_COLS
 #define ROWS (FLOOR_ROWS + PETAL_ROWS)
 
-#define DIAGNOSTIC_SAMPLING_RATE 3
+#define DIAGNOSTIC_SAMPLING_RATE 2
 #endif /*PETALS_ACTIVE*/
 
 #define DIAGNOSTIC_COLS ((COLS + 1) / DIAGNOSTIC_SAMPLING_RATE)
@@ -86,13 +86,13 @@
 #define GREY_46 250
 
 // speeds, times, distances
-#define BASE_HZ                    100//10
+#define BASE_HZ                    10000//10
 #define WILDFIRE_SPEEDUP           4 // wildfire effects propagate at this multiple of BASE_HZ
 #define TRANSITION_TICKS           3000 // 3000 ticks ~ 4.4 seconds
 #define SECONDARY_TRANSITION_TICKS 300
 #define RAND_SECONDARY_TRANSITION  ( rand() % (ROWS * COLS) == 0 )
 #define HIBERNATION_TICKS          70000 // 70000 ticks ~ 103 seconds
-#define INITIALIZATION_EPOCHS      ( 200 * WILDFIRE_SPEEDUP ) // run this many epochs on startup
+#define INITIALIZATION_EPOCHS      ( 140000 * WILDFIRE_SPEEDUP ) // run this many epochs on startup
 #define PRESSURE_DELAY_EPOCHS      10
 #define PRESSURE_RADIUS_TICKS      150//76
 
@@ -105,6 +105,7 @@
 
 // cairo output
 #define OUTPUT_CAIRO
+#define OUTPUT_CAIRO_VIDEO_FRAMES
 #define OUTPUT_CAIRO_FULLSCREEN
 #define CAIRO_BLUR
 #define CAIRO_BLUR

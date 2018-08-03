@@ -17,18 +17,29 @@ uint8_t gif_palette[128 * 3];
 
 #ifdef OUTPUT_CAIRO
 // cairo
-cairo_surface_t *cairo_surface;
-cairo_t *cairo_cr;
 cairo_surface_t *cairo_blur;
 cairo_t *cairo_blur_cr;
 
-Display *cairo_x_display;
-Window cairo_x_window;
-Visual *cairo_x_visual;
+#ifdef OUTPUT_CAIRO_FULLSCREEN
+    cairo_surface_t *cairo_x_surface;
+    cairo_t *cairo_x_cr;
 
-void cairo_set_source_luminary(int id) {
+    Display *cairo_x_display;
+    Window cairo_x_window;
+    Visual *cairo_x_visual;
+#endif /* OUTPUT_CAIRO_FULLSCREEN */
+
+#ifdef OUTPUT_CAIRO_VIDEO_FRAMES
+    cairo_surface_t *cairo_video_surface;
+    cairo_t *cairo_video_cr;
+
+    int cairo_video_started_yet;
+    int cairo_video_written_yet;
+#endif /* OUTPUT_CAIRO_VIDEO_FRAMES */
+
+void cairo_set_source_luminary(cairo_t* cr, int id) {
     cairo_set_source_rgb(
-        cairo_cr,
+        cr,
         (uint8_t)gif_palette[id * 3 + 0] / 255.0,
         (uint8_t)gif_palette[id * 3 + 1] / 255.0,
         (uint8_t)gif_palette[id * 3 + 2] / 255.0
@@ -175,7 +186,7 @@ void display_init() {
                     cairo_x_display,
                     DefaultScreen(cairo_x_display)
                 );
-            cairo_surface =
+            cairo_x_surface =
                 cairo_xlib_surface_create(
                     cairo_x_display,
                     cairo_x_window,
@@ -183,14 +194,23 @@ void display_init() {
                     14 + COLS * CAIRO_ZOOM,
                     14 + ROWS * CAIRO_ZOOM
                 );
-        #else /* OUTPUT_CAIRO_FULLSCREEN */
-            cairo_surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 14 + COLS * CAIRO_ZOOM, 14 + ROWS * CAIRO_ZOOM);
-        #endif
-        cairo_cr = cairo_create(cairo_surface);
+            cairo_x_cr = cairo_create(cairo_x_surface);
 
-        cairo_set_source_rgb(cairo_cr, 0x00, 0x00, 0x00);
-        cairo_rectangle(cairo_cr, 0, 0, 14 + COLS * CAIRO_ZOOM, 14 + ROWS * CAIRO_ZOOM);
-        cairo_fill(cairo_cr);
+            cairo_set_source_rgb(cairo_x_cr, 0x00, 0x00, 0x00);
+            cairo_rectangle(cairo_x_cr, 0, 0, 14 + COLS * CAIRO_ZOOM, 14 + ROWS * CAIRO_ZOOM);
+            cairo_fill(cairo_x_cr);
+        #endif /* OUTPUT_CAIRO_FULLSCREEN */
+        #ifdef OUTPUT_CAIRO_VIDEO_FRAMES
+            cairo_video_surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 14 + COLS * CAIRO_ZOOM, 14 + ROWS * CAIRO_ZOOM);
+            cairo_video_cr = cairo_create(cairo_video_surface);
+
+            cairo_set_source_rgb(cairo_video_cr, 0x00, 0x00, 0x00);
+            cairo_rectangle(cairo_video_cr, 0, 0, 14 + COLS * CAIRO_ZOOM, 14 + ROWS * CAIRO_ZOOM);
+            cairo_fill(cairo_video_cr);
+
+            cairo_video_started_yet = 1;
+            cairo_video_written_yet = 0;
+        #endif /* OUTPUT_CAIRO_VIDEO_FRAMES */
         
         cairo_blur = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, CAIRO_ZOOM + 2*CAIRO_BLUR_WIDTH, CAIRO_ZOOM + 2*CAIRO_BLUR_WIDTH);
         cairo_blur_cr = cairo_create(cairo_blur);
@@ -393,9 +413,13 @@ void display_color(int xy, int color) {
         }
 
         #ifdef OUTPUT_CAIRO_FULLSCREEN
-            cairo_set_source_luminary(color);
-            cairo_mask_surface(cairo_cr, cairo_blur, 7 -CAIRO_BLUR_WIDTH + x * CAIRO_ZOOM, 7 -CAIRO_BLUR_WIDTH + y * CAIRO_ZOOM);
+            cairo_set_source_luminary(cairo_x_cr, color);
+            cairo_mask_surface(cairo_x_cr, cairo_blur, 7 -CAIRO_BLUR_WIDTH + x * CAIRO_ZOOM, 7 -CAIRO_BLUR_WIDTH + y * CAIRO_ZOOM);
         #endif /* OUTPUT_CAIRO_FULLSCREEN */
+        #ifdef OUTPUT_CAIRO_VIDEO_FRAMES
+            cairo_set_source_luminary(cairo_video_cr, color);
+            cairo_mask_surface(cairo_video_cr, cairo_blur, 7 -CAIRO_BLUR_WIDTH + x * CAIRO_ZOOM, 7 -CAIRO_BLUR_WIDTH + y * CAIRO_ZOOM);
+        #endif /* OUTPUT_CAIRO_VIDEO_FRAMES */
 
         display_current[xy] = color;
         
@@ -587,27 +611,28 @@ void display_flush(int epoch) {
     #endif /* OUTPUT_GIF */
     
     #ifdef OUTPUT_CAIRO
-        #ifdef OUTPUT_CAIRO_FULLSCREEN_X
-            // pass
-        #else /* OUTPUT_CAIRO_FULLSCREEN */
-            char s[30];
-            sprintf(s, "/tmp/luminary-5/img%06d.png", epoch);
-            if (access( s, F_OK ) == -1) {
-                sprintf(s, "/tmp/luminary-5/img%06d.png", epoch);
-                for (int xy = 0; xy < ROWS * COLS; ++xy) {
-                    int x = xy % COLS;
-                    int y = xy / COLS;
-                    cairo_set_source_luminary(display_current[xy]);
-                    cairo_mask_surface(cairo_cr, cairo_blur, 7 -CAIRO_BLUR_WIDTH + x * CAIRO_ZOOM, 7 -CAIRO_BLUR_WIDTH + y * CAIRO_ZOOM);
+        #ifdef OUTPUT_CAIRO_VIDEO_FRAMES
+            if (epoch % WILDFIRE_SPEEDUP == 0) {
+                char s[37];
+                sprintf(s, "/tmp/luminary-5/img%08d.png", epoch/WILDFIRE_SPEEDUP);
+                if (access( s, F_OK ) == -1) {
+                    /*
+                    for (int xy = 0; xy < ROWS * COLS; ++xy) {
+                        int x = xy % COLS;
+                        int y = xy / COLS;
+                        cairo_set_source_luminary(cairo_cr, display_current[xy]);
+                        cairo_mask_surface(cairo_cr, cairo_blur, 7 -CAIRO_BLUR_WIDTH + x * CAIRO_ZOOM, 7 -CAIRO_BLUR_WIDTH + y * CAIRO_ZOOM);
+                    }
+                    */
+                    
+                    cairo_surface_write_to_png(cairo_video_surface, s);
+                    
+                    mvprintw(DIAGNOSTIC_ROWS+4, 1, "wrote cairo (%d frames)", epoch/WILDFIRE_SPEEDUP);
+                } else {
+                    mvprintw(DIAGNOSTIC_ROWS+4, 1, "skip cairo (%d frames)", epoch/WILDFIRE_SPEEDUP);
                 }
-                
-                //cairo_destroy(cairo_cr);
-                cairo_surface_write_to_png(cairo_surface, s);
-                //cairo_surface_destroy(cairo_surface);
-                
-                mvprintw(DIAGNOSTIC_ROWS+4, 1, "wrote cairo (%d frames)", epoch);
             }
-        #endif /* OUTPUT_CAIRO_FULLSCREEN */
+        #endif /* OUTPUT_CAIRO_VIDEO_FRAMES */
     #endif /* OUTPUT_CAIRO */
     
     // CR rrheingans-yoo for ntarleton: set all cell colors at once
