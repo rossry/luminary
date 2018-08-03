@@ -6,7 +6,7 @@
 
 #include "constants.h"
 #include "gifenc.h"
-#include "pp-server-luminary.h"
+//#include "pp-server-luminary.h"
 
 int display_current[ROWS * COLS];
 int petal_mapping[] = PETAL_MAPPING;
@@ -367,13 +367,15 @@ void display_init() {
         cairo_fill(cairo_blur_cr);
     #endif /* OUTPUT_CAIRO */
     
+    /*
     pp_server_start(display_current);
     pp_server_shutdown();
+    */
     
     // CR rrheingans-yoo for ntarleton: dancefloor initialization, as necessary
 }
 
-int petal_mapping_pixel(x_p,y) {
+int petal_mapping_pixel(int x_p,int y) {
     for (int ii = 0; ii < PETAL_MAPPING_PIXELS; ++ii) {
         if (x_p == petal_mapping[ii * 3] && y == petal_mapping[ii * 3 + 1]) {
             return petal_mapping[ii * 3 + 2];

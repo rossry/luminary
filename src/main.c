@@ -47,7 +47,7 @@ int main(int argc, char *argv[]) {
     int pressure_diag_next[ROWS * COLS];
     
     // hand-tuned to radiate from a center 84 cells above the midpoint of the top side
-    int waves_base[] = WAVES_BASE_ARRAY;
+    //int waves_base[] = WAVES_BASE_ARRAY;
     
     int waves_base_z_orig = 0;
     int waves_orth[ROWS * COLS];
@@ -227,7 +227,7 @@ int main(int argc, char *argv[]) {
             }
             
             
-            if (control_directive_0 == PATTERN_FULL_RAINBOW
+            if (control_directive_0[xy] == PATTERN_FULL_RAINBOW
                 || rainbow_0_next[xy] != rainbow_0[xy]) {
                 rainbow_tone[xy] = ((waves_orth_next[xy] / 17) / RAINBOW_TONE_EPOCHS) % COLORS;
             }
