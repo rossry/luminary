@@ -6,6 +6,10 @@
 #include "cellular.h"
 #include "display.h"
 
+int sinusoid[] = { 6, 6, 6, 6, 6, 7, 7, 8, 8, 8, 9, 10, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 26, 27, 28, 29, 31, 32, 33, 35, 36, 37, 38, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 54, 55, 56, 56, 56, 57, 57, 58, 58, 58, 58, 58, 58, 58, 58, 58, 57, 57, 56, 56, 56, 55, 54, 54, 53, 52, 51, 50, 49, 48, 47, 46, 45, 44, 43, 42, 41, 40, 38, 37, 36, 35, 33, 32, 31, 29, 28, 27, 26, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 10, 9, 8, 8, 8, 7, 7, 6, 6, 6, 6};
+#define BOUNCE_ROWS(y) (sinusoid[(y) % 128])
+/*#define BOUNCE_ROWS_X(y) (((y) / ROWS) % 2 ? ROWS - (y) % ROWS : (y) % ROWS)*/
+
 double usec_time_elapsed(struct timeval *from, struct timeval *to) {
     return (double)(to->tv_usec - from->tv_usec) + (double)(to->tv_sec - from->tv_sec) * MILLION;
 }
@@ -15,7 +19,7 @@ int main(int argc, char *argv[]) {
     
     srand(5);
     
-    int epoch = 0;
+    int epoch = -1;
     
     int scratch[ROWS * COLS];
     
@@ -190,7 +194,10 @@ int main(int argc, char *argv[]) {
                     if ((waves_orth_next[xy] / 17) % 480 < 12) {
                         hanabi_next[xy].orth = hanabi_next[xy].diag = 0;
                     }
-                } else if (rand() % PRESSURE_RADIUS_TICKS < pressure_orth[xy]) {
+                } else if (
+                    rand() % PRESSURE_RADIUS_TICKS < pressure_orth[xy]
+                    && rand() % PRESSURE_RADIUS_TICKS < pressure_orth[xy]
+                ) {
                     // evolve rainbow_0
                     rainbow_0_next[xy] = compute_cyclic(rainbow_0, impatience_0, xy);
                 }
@@ -205,11 +212,22 @@ int main(int argc, char *argv[]) {
                 waves_orth_next[x+COLS*PETAL_ROWS] = waves_diag_next[x+COLS*PETAL_ROWS] = waves_base[x+WAVES_BASE_X_ORIG] + waves_base_z_orig;
             }
             */
-            waves_orth_next[COLS*(ROWS/2)+COLS/2] =
-            waves_orth_next[COLS*(ROWS/2)+COLS/2 - 1] =
-            waves_orth_next[COLS*(ROWS/2)+COLS/2 - COLS] =
-            waves_orth_next[COLS*(ROWS/2)+COLS/2 - COLS - 1] =
+            waves_orth_next[COLS*(ROWS/2) + (epoch*2/3) % COLS] =
                 waves_base_z_orig;
+            
+            pressure_self[COLS*BOUNCE_ROWS(epoch/3) + ((epoch/3+0) % COLS)] = PRESSURE_DELAY_EPOCHS;
+            pressure_self[COLS*BOUNCE_ROWS(epoch/3) + ((epoch/3+256) % COLS)] = PRESSURE_DELAY_EPOCHS;
+            pressure_self[COLS*BOUNCE_ROWS(epoch/3) + ((epoch/3+512) % COLS)] = PRESSURE_DELAY_EPOCHS;
+            pressure_self[COLS*BOUNCE_ROWS(epoch/3) + ((epoch/3+128) % COLS)] = PRESSURE_DELAY_EPOCHS;
+            pressure_self[COLS*BOUNCE_ROWS(epoch/3) + ((epoch/3+384) % COLS)] = PRESSURE_DELAY_EPOCHS;
+            pressure_self[COLS*BOUNCE_ROWS(epoch/3) + ((epoch/3+640) % COLS)] = PRESSURE_DELAY_EPOCHS;
+            
+            pressure_self[COLS*(ROWS-BOUNCE_ROWS(epoch/3)) + ((2*COLS-epoch/3-128) % COLS)] = PRESSURE_DELAY_EPOCHS;
+            pressure_self[COLS*(ROWS-BOUNCE_ROWS(epoch/3)) + ((2*COLS-epoch/3-128-256) % COLS)] = PRESSURE_DELAY_EPOCHS;
+            pressure_self[COLS*(ROWS-BOUNCE_ROWS(epoch/3)) + ((2*COLS-epoch/3-128-512) % COLS)] = PRESSURE_DELAY_EPOCHS;
+            pressure_self[COLS*(ROWS-BOUNCE_ROWS(epoch/3)) + ((2*COLS-epoch/3-128-128) % COLS)] = PRESSURE_DELAY_EPOCHS;
+            pressure_self[COLS*(ROWS-BOUNCE_ROWS(epoch/3)) + ((2*COLS-epoch/3-128-384) % COLS)] = PRESSURE_DELAY_EPOCHS;
+            pressure_self[COLS*(ROWS-BOUNCE_ROWS(epoch/3)) + ((2*COLS-epoch/3-128-640) % COLS)] = PRESSURE_DELAY_EPOCHS;
         }
         
         for (int xy = 0; xy < ROWS * COLS; ++xy) {
@@ -305,6 +323,11 @@ int main(int argc, char *argv[]) {
                     default:
                         display_color(xy, xy % COLORS);
                 }
+                /*
+                if (pressure_self[xy] > 0) {
+                    display_color(xy, 6);
+                }
+                */
             }
             
             // increment all states

@@ -11,10 +11,10 @@
 // physical dimensions
 //#define PETALS_ACTIVE
 
-#define FLOOR_COLS 71//106
-#define FLOOR_ROWS 71//106
+#define FLOOR_COLS 768
+#define FLOOR_ROWS 64
 
-#define BEVEL_RADIUS 21
+#define BEVEL_RADIUS 0
 
 #ifdef PETALS_ACTIVE
 #define PETAL_COLS 32 // per petal
@@ -42,7 +42,7 @@
 #define DIAGNOSTIC_SAMPLING_RATE 2
 #endif /*PETALS_ACTIVE*/
 
-#define DIAGNOSTIC_COLS ((COLS + 1) / DIAGNOSTIC_SAMPLING_RATE)
+#define DIAGNOSTIC_COLS (((COLS + 1) / DIAGNOSTIC_SAMPLING_RATE) < 100 ? ((COLS + 1) / DIAGNOSTIC_SAMPLING_RATE) : 100)
 #define DIAGNOSTIC_ROWS ((ROWS + 1) / DIAGNOSTIC_SAMPLING_RATE)
 
 // colors (for ncurses)
@@ -86,15 +86,15 @@
 #define GREY_46 250
 
 // speeds, times, distances
-#define BASE_HZ                    10000//10
-#define WILDFIRE_SPEEDUP           4 // wildfire effects propagate at this multiple of BASE_HZ
+#define BASE_HZ                    10
+#define WILDFIRE_SPEEDUP           3 // wildfire effects propagate at this multiple of BASE_HZ
 #define TRANSITION_TICKS           3000 // 3000 ticks ~ 4.4 seconds
 #define SECONDARY_TRANSITION_TICKS 300
 #define RAND_SECONDARY_TRANSITION  ( rand() % (ROWS * COLS) == 0 )
 #define HIBERNATION_TICKS          70000 // 70000 ticks ~ 103 seconds
-#define INITIALIZATION_EPOCHS      ( 140000 * WILDFIRE_SPEEDUP ) // run this many epochs on startup
-#define PRESSURE_DELAY_EPOCHS      10
-#define PRESSURE_RADIUS_TICKS      150//76
+#define INITIALIZATION_EPOCHS      ( 1 * WILDFIRE_SPEEDUP ) // run this many epochs on startup
+#define PRESSURE_DELAY_EPOCHS      4
+#define PRESSURE_RADIUS_TICKS      272
 
 // gif output
 //#define OUTPUT_GIF
@@ -106,7 +106,8 @@
 // cairo output
 #define OUTPUT_CAIRO
 #define OUTPUT_CAIRO_VIDEO_FRAMES
-#define OUTPUT_CAIRO_FULLSCREEN
+#define OUTPUT_CAIRO_IAMAI
+//#define OUTPUT_CAIRO_FULLSCREEN
 #define CAIRO_BLUR
 #define CAIRO_BLUR
 #define CAIRO_BLUR_WIDTH 4

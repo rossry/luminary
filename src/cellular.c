@@ -21,6 +21,7 @@ int* get_offset_array(int x, int y) {
     case ROWS-1 : 
         return y_rows_minus_one;
     default :
+        /*
         if ((x == 0 || x == COLS-1)){
             if (y == BEVEL_RADIUS-2) {
                 return y_zero;
@@ -47,19 +48,31 @@ int* get_offset_array(int x, int y) {
         ) {
             return y_northwest;
         }
+        */
+        switch (x) {
+        case 0 :
+            return y_wrap_x_zero;
+        case COLS-1 :
+            return y_wrap_x_cols_minus_one;
+        }
         return y_else;
     }
 }
 
 #define X_INIT(x,y) \
+    ((x) == 0 && (y) == 0 ? 3 : 0)
+    /*
     ((x) == 0 ? 3 : ( \
     (x) == COLS-1 ? 0 : ( \
     (y) == 0 || (y) == ROWS-1 ? ((x) == BEVEL_RADIUS-2 ? 3 : 0) : ( \
     (x) + (y) == BEVEL_RADIUS || COLS-1-(x) + (y) == BEVEL_RADIUS ? 1 : ( \
     (x) + (y) == BEVEL_RADIUS-1 || COLS-1-(x) + (y) == BEVEL_RADIUS-1 ? 3 : \
     0)))))
+    */
 
 #define X_CONTINUE(x,y,i) \
+    ((i) < ((x) == COLS-1 && (y) == ROWS-1 ? 6 : 9))
+    /*
     ((i) < ( \
     (x) == 0 ? 9 : ( \
     (x) == COLS-1 ? 6 : (\
@@ -67,6 +80,7 @@ int* get_offset_array(int x, int y) {
     x + ROWS-1-(y) == BEVEL_RADIUS || COLS-1-(x) + ROWS-1-(y) == BEVEL_RADIUS ? 8 : ( \
     x + ROWS-1-(y) == BEVEL_RADIUS-1 || COLS-1-(x) + ROWS-1-(y) == BEVEL_RADIUS-1 ? 6 : \
     9))))))
+    */
 
 void max_equals(int* x, int y, int* t0, int s0, int* t1, int s1) {
     if (y > *x) {
@@ -86,6 +100,7 @@ void max_equals3(int* x, int y, int* t0, int s0, int* t1, int s1, int* t2, int s
 }
 
 int maybe_increment(int* grid, int xy, int target, int inc, int neighbors[COLORS], int* n_neighbors) {
+    
     *n_neighbors += 1;
     
     if (grid[target] < 0) {
@@ -97,7 +112,7 @@ int maybe_increment(int* grid, int xy, int target, int inc, int neighbors[COLORS
     if (inc == 2) {
         return inc;
     }
-    if (grid[target] == (grid[xy] + 2) % COLORS && rand() < 0.22*RAND_MAX) {
+    if (grid[target] == (grid[xy] + 2) % COLORS && rand() < 0.24*RAND_MAX) {
         return 2;
     }
     if (grid[target] == (grid[xy] + 1) % COLORS) {
