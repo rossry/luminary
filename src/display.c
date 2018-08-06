@@ -239,6 +239,11 @@ void display_init() {
                     100 - te.y_bearing
                 );
                 cairo_show_text (cairo_video_cr, "all other rights reserved");
+                cairo_move_to (cairo_video_cr,
+                    100 - te.x_bearing,
+                    120 - te.y_bearing
+                );
+                cairo_show_text (cairo_video_cr, "audio: \"Behind Our Efforts, Let There Be Found Our Efforts\", (c) 2018 LG17, licensed CC BY 4.0");
             #else /* OUTPUT_CAIRO_IAMAI */
                 cairo_set_source_rgb(cairo_video_cr, 0x00, 0x00, 0x00);
                 cairo_rectangle(cairo_video_cr, 0, 0, 14 + COLS * CAIRO_ZOOM, 14 + ROWS * CAIRO_ZOOM);
@@ -668,7 +673,7 @@ void display_flush(int epoch) {
         #ifdef OUTPUT_CAIRO_VIDEO_FRAMES
             if (1 || epoch % WILDFIRE_SPEEDUP == 0) {
                 char s[37];
-                sprintf(s, "/tmp/luminary-360/img%08d.png", epoch);
+                sprintf(s, "/tmp/luminary-360-b/img%08d.png", epoch);
                 if (access( s, F_OK ) == -1) {
                     /*
                     for (int xy = 0; xy < ROWS * COLS; ++xy) {

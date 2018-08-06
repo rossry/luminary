@@ -328,6 +328,12 @@ int main(int argc, char *argv[]) {
                     display_color(xy, 6);
                 }
                 */
+                if (rand() % 270 < (epoch - 10244 - pressure_orth[xy]/2)) {
+                    if (rand() % 30 == 0) {
+                        rainbow_0_next[xy] = RAND_COLOR;
+                    }
+                    display_color(xy, -1 + MAKE_GREY + MAKE_DARKER);
+                }
             }
             
             // increment all states
