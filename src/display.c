@@ -666,10 +666,10 @@ void display_flush(int epoch) {
     
     #ifdef OUTPUT_CAIRO
         #ifdef OUTPUT_CAIRO_VIDEO_FRAMES
-            if (epoch % WILDFIRE_SPEEDUP == 0) {
+            if (1 || epoch % WILDFIRE_SPEEDUP == 0) {
                 char s[37];
-                sprintf(s, "/tmp/luminary-360/img%08d.png", epoch/WILDFIRE_SPEEDUP);
-                if (access( s, F_OK ) == -1 || 1) {
+                sprintf(s, "/tmp/luminary-360/img%08d.png", epoch);
+                if (access( s, F_OK ) == -1) {
                     /*
                     for (int xy = 0; xy < ROWS * COLS; ++xy) {
                         int x = xy % COLS;
@@ -679,13 +679,13 @@ void display_flush(int epoch) {
                     }
                     */
                     
-                    if (epoch == 90) {
+                    if (1 || epoch == 90) {
                         cairo_surface_write_to_png(cairo_video_surface, s);
                     }
                     
-                    mvprintw(DIAGNOSTIC_ROWS+4, 1, "wrote cairo (%d frames)", epoch/WILDFIRE_SPEEDUP);
+                    mvprintw(DIAGNOSTIC_ROWS+4, 1, "wrote cairo (%d frames)", epoch/*/WILDFIRE_SPEEDUP*/);
                 } else {
-                    mvprintw(DIAGNOSTIC_ROWS+4, 1, "skip cairo (%d frames)", epoch/WILDFIRE_SPEEDUP);
+                    mvprintw(DIAGNOSTIC_ROWS+4, 1, "skip cairo (%d frames)", epoch/*/WILDFIRE_SPEEDUP*/);
                 }
             }
         #endif /* OUTPUT_CAIRO_VIDEO_FRAMES */
