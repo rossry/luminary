@@ -6,6 +6,10 @@
 #include "cellular.h"
 #include "display.h"
 
+#ifdef SACN_SERVER
+    #include "sacn-server-luminary.h"
+#endif /* SACN_SERVER */
+
 double usec_time_elapsed(struct timeval *from, struct timeval *to) {
     return (double)(to->tv_usec - from->tv_usec) + (double)(to->tv_sec - from->tv_sec) * MILLION;
 }
@@ -88,6 +92,11 @@ int main(int argc, char *argv[]) {
         hanabi[xy].diag = 0;
         hanabi_seed_color[xy] = RAND_COLOR;
     }
+    
+    #ifdef SACN_SERVER
+        mvprintw(DIAGNOSTIC_ROWS+0, 90, "sACN server (dummy)");
+        sacn_server_start();
+    #endif /* SACN_SERVER */
     
     struct timeval start, computed, drawn, refreshed, handled, slept, stop;
     double compute_avg, draw_avg, refresh_avg, wait_avg, sleep_avg, total_avg;
@@ -467,6 +476,10 @@ int main(int argc, char *argv[]) {
                 }
             }
             
+            #ifdef SACN_SERVER
+                mvprintw(DIAGNOSTIC_ROWS+2, 90, "sACN poll: %d", sacn_server_poll());
+            #endif /* SACN_SERVER */
+            
             if (scene == SCENE_NO_HIBERNATION) {
                 int xy = (PETAL_ROWS+2)*COLS + (PETAL_COLS * (2)) + PETAL_COLS/2;
                 control_orth[xy] = max(control_orth[xy], 10000);
@@ -559,14 +572,14 @@ int main(int argc, char *argv[]) {
         
         switch (menu_context) {
         case MENU_ACTIONS:
-            mvprintw(DIAGNOSTIC_ROWS+0, 50, "menu: Actions | S)cenes                  ");
+            mvprintw(DIAGNOSTIC_ROWS+0, 50, "menu: Actions | S)cenes                 ");
             mvprintw(DIAGNOSTIC_ROWS+2, 50, "c) change color                         ");
             mvprintw(DIAGNOSTIC_ROWS+3, 50, "f) centered effect                         ");
             mvprintw(DIAGNOSTIC_ROWS+4, 50, "1|2|3|4|5) effect on petal N              ");
             mvprintw(DIAGNOSTIC_ROWS+5, 50, "                                          ");
             break;
         case MENU_SCENES:
-            mvprintw(DIAGNOSTIC_ROWS+0, 50, "menu: Scenes | A)ctions                            ");
+            mvprintw(DIAGNOSTIC_ROWS+0, 50, "menu: Scenes | A)ctions                 ");
             mvprintw(DIAGNOSTIC_ROWS+2, 50, "0) Default (cycling n-tones)                         ");
             mvprintw(DIAGNOSTIC_ROWS+3, 50, "1) Default + no_hibernation                         ");
             mvprintw(DIAGNOSTIC_ROWS+4, 50, "2) Circling_rainbows                         ");
