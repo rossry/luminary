@@ -113,19 +113,22 @@
 
 // gif output
 //#define OUTPUT_GIF
-#define GIF_BLUR
-#define GIF_BLUR_WIDTH 4
-#define GIF_ZOOM 15
-#define GIF_EPOCHS 1200 * WILDFIRE_SPEEDUP
+#ifdef OUTPUT_GIF
+    #define GIF_BLUR
+    #define GIF_BLUR_WIDTH 4
+    #define GIF_ZOOM 15
+    #define GIF_EPOCHS 1200 * WILDFIRE_SPEEDUP
+#endif /* OUTPUT_GIF */
 
 // cairo output
 //#define OUTPUT_CAIRO
-//#define OUTPUT_CAIRO_FULLSCREEN
-#define CAIRO_BLUR
-#define CAIRO_BLUR
-#define CAIRO_BLUR_WIDTH 4
-#define CAIRO_ZOOM 15
-#define CAIRO_SNAPSHOT_EPOCH 850
+#ifdef OUTPUT_CAIRO
+    //#define OUTPUT_CAIRO_FULLSCREEN
+    #define CAIRO_BLUR
+    #define CAIRO_BLUR_WIDTH 4
+    #define CAIRO_ZOOM 15
+    #define CAIRO_SNAPSHOT_EPOCH 850
+#endif /* OUTPUT_CAIRO */
 
 // other constants (probably don't mess with these)
 #define COLORS      12
@@ -265,8 +268,8 @@
     }
     #define PETAL_MAPPING_PIXELS 88
 #else /* PETAL_PIXEL_PATTERN == ? */
-#define PETAL_MAPPING {}
-#define PETAL_MAPPING_PIXELS 0
+    #define PETAL_MAPPING {}
+    #define PETAL_MAPPING_PIXELS 0
 #endif /* PETAL_PIXEL_PATTERN == ? */
 
 // derived constants
