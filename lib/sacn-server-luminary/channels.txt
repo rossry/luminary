@@ -1,0 +1,46 @@
+Channels are either "master-only", or "common" repeated six times (for the
+master and each petal). Common channels have their channel numbers listed in 
+order M, 1, 2, 3, 4, 5.
+
+## Mode (master-only) | Channel 1
+Sets how petals respond to sACN control.
+  0- 84 | ignore | No sACN control
+ 85-169 | master | sACN control using master channels
+170-255 | petals | sACN control using individual-petal channels
+
+## Intensity (common) | Channels 2, 6, 10, 14, 18, 22
+Sets intensity.
+  0-255 | (not yet implemented; plans to scale smoothly within range)
+
+## Color (common) | Channels 3, 7, 11, 15, 19, 23
+Sets base color, among 12 colors in a rainbow cycle.
+  0- 21 | color  0 | deep purple
+ 22- 43 | color  1 | pinkish purple
+ 44- 65 | color  2 | pink
+ 66- 87 | color  3 | salmon
+ 88-109 | color  4 | orange
+110-131 | color  5 | yellow
+132-153 | color  6 | lime
+154-175 | color  7 | green
+176-197 | color  8 | bluish green
+198-219 | color  9 | greenish blue
+220-241 | color 10 | blue
+242-255 | color 11 | purplish blue
+
+## Pattern (common) | Channels 4, 8, 12, 16, 20, 24
+Sets pattern, among 8 presets.
+  0- 31 | solid     | single, solid surface of base_color
+ 32- 63 | 1c waves  | waves of base_color
+ 64- 95 | 2c waves  | waves of base_color + 1 adjacent color
+ 96-127 | 3c waves  | waves of base_color + 2 adjacent colors
+128-159 | 4c waves  | waves of base_color + 3 adjacent colors
+160-191 | opposites | waves of base_color + complementary color
+192-223 | triads    | waves of base_color + 2 triad colors
+224-255 | rainbows  | waves of rainbows (ignore base_color)
+
+## Transition (common) | Channels 5, 9, 13, 17, 21, 25
+Sets transition mode, among 4 presets.
+  0- 63 | radiates | radiate from one petal base (currently hardcoded petal 3)
+ 64-127 | upwards  | sweep all petals bottom-to-top
+128-191 | fades    | give pixels some leeway to transition smoothly
+192-255 | jumps    | immediately set all pixels

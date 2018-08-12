@@ -14,7 +14,9 @@
     
     #ifdef SACN_TEST_CLIENT
         #include "sacn-test-client-luminary.h"
-        uint8_t sacn_test_client_channel_level = 0;
+        uint8_t sacn_test_client_color = 0;
+        uint8_t sacn_test_client_pattern = 0;
+        uint8_t sacn_test_client_transition = 0;
     #endif /* SACN_TEST_CLIENT */
 #endif /* SACN_SERVER */
 
@@ -104,10 +106,8 @@ int main(int argc, char *argv[]) {
     #ifdef SACN_SERVER
         #ifdef SACN_TEST_CLIENT
             sacn_test_client_start();
-        mvprintw(DIAGNOSTIC_ROWS+8, 90, "sACN test client start", sacn_server_get_port());
         #endif /* SACN_TEST_CLIENT */
         
-        mvprintw(DIAGNOSTIC_ROWS+0, 90, "sACN server (port %d)", sacn_server_get_port());
         sacn_server_start();
         
         #ifdef SACN_TEST_CLIENT
@@ -235,7 +235,7 @@ int main(int argc, char *argv[]) {
             if (x == epoch % COLS && scene == SCENE_CIRCLING_RAINBOWS) {
                 xy = (PETAL_ROWS+2)*COLS + x;
                 control_directive_0_next[xy] = PATTERN_FULL_RAINBOW + AGGRESSIVE_REVERSION;
-                control_directive_1_next[xy] = TWO_TONES;
+                control_directive_1_next[xy] = PATTERN_TWO_TONES;
                 control_orth_next[xy] = HIBERNATION_TICKS + TRANSITION_TICKS;
             }
             
@@ -262,11 +262,13 @@ int main(int argc, char *argv[]) {
             }
             
             
-            if (SACN_CONTROL(sacn_channels)) {
-                rainbow_tone[xy] = control_directive_0[xy] - PATTERN_SACN_COLOR;
-            } else {
-                if (control_directive_0[xy] == PATTERN_FULL_RAINBOW
-                    || rainbow_0_next[xy] != rainbow_0[xy]) {
+            
+            if (control_directive_0[xy] == PATTERN_FULL_RAINBOW
+                || rainbow_0_next[xy] != rainbow_0[xy]
+            ) {
+                if (SACN_CONTROL(sacn_channels)) {
+                    rainbow_tone[xy] = PATTERN_SACN_GET_COLOR(control_directive_0[xy]);
+                } else {
                     rainbow_tone[xy] = ((waves_orth_next[xy] / 17) / RAINBOW_TONE_EPOCHS) % COLORS;
                 }
             }
@@ -274,18 +276,46 @@ int main(int argc, char *argv[]) {
         
         gettimeofday(&computed, NULL);
         
-        int zz;
-        int aa;
         for (int xy = 0; xy < ROWS * COLS; ++xy) {
             if (epoch > INITIALIZATION_EPOCHS) {
-                switch (control_directive_0_next[xy] % AGGRESSIVE_REVERSION) {
+                int pattern;
+                int texture;
+                int height;
+                int color_offset;
                 
-                case PATTERN_FULL_RAINBOW:
-                    display_color(xy, rainbow_0_next[xy]);
-                    break;
+                if (PATTERN_IS_SACN(control_directive_0_next[xy])) {
+                    texture = PATTERN_SACN_GET_TEXTURE(control_directive_0_next[xy]);
+                    switch(texture) {
+                    case 0:
+                        pattern = PATTERN_SOLID;
+                        break;
+                    case 1: case 2: case 3: case 4:
+                        pattern = PATTERN_N_TONES + texture;
+                        break;
+                    case 5:
+                        pattern = PATTERN_OPPOSED_TONES;
+                        break;
+                    case 6:
+                        pattern = PATTERN_TRIAD_TONES;
+                        break;
+                    case 7:
+                        pattern = PATTERN_Q2;
+                        break;
+                    default:
+                        pattern = PATTERN_ERR;
+                    }
+                } else {
+                    pattern = control_directive_0_next[xy] % AGGRESSIVE_REVERSION;
+                }
+                
+                switch (pattern) {
                 
                 case PATTERN_SOLID:
                     display_color(xy, (rainbow_tone[xy]+1)%COLORS);
+                    break;
+                
+                case PATTERN_FULL_RAINBOW:
+                    display_color(xy, rainbow_0_next[xy]);
                     break;
                 
                 case PATTERN_RAINBOW_SPOTLIGHTS_ON_GREY:
@@ -302,11 +332,7 @@ int main(int argc, char *argv[]) {
                         break;
                     }
                     // fall through to TWO_TONES
-                case TWO_TONES:
-                case PATTERN_SACN_COLOR+0: case PATTERN_SACN_COLOR+1: case PATTERN_SACN_COLOR+2:
-                case PATTERN_SACN_COLOR+3: case PATTERN_SACN_COLOR+4: case PATTERN_SACN_COLOR+5:
-                case PATTERN_SACN_COLOR+6: case PATTERN_SACN_COLOR+7: case PATTERN_SACN_COLOR+8:
-                case PATTERN_SACN_COLOR+9: case PATTERN_SACN_COLOR+10: case PATTERN_SACN_COLOR+11:
+                case PATTERN_TWO_TONES:
                     switch ((rainbow_0_next[xy] - rainbow_tone[xy] + COLORS) % COLORS) {
                     case -1 + COLORS:
                         display_color(xy, rainbow_tone[xy] + MAKE_DARKER);
@@ -324,29 +350,88 @@ int main(int argc, char *argv[]) {
                     break;
                 
                 case PATTERN_N_TONES+1: case PATTERN_N_TONES+2: case PATTERN_N_TONES+3: case PATTERN_N_TONES+4:
-                    zz = aa = (rainbow_0_next[xy] - rainbow_tone[xy] + COLORS) % COLORS;
+                    height = color_offset = (rainbow_0_next[xy] - rainbow_tone[xy] + COLORS) % COLORS;
                     
-                    switch (control_directive_0_next[xy]-PATTERN_N_TONES) {
+                    switch (pattern-PATTERN_N_TONES) {
                     case 1:
-                        if (zz > 1) { aa -= 1; }
+                        if (height > 1) { color_offset -= 1; }
                     case 2:
-                        if (zz > 2) { aa -= 2; } else if (zz > 0) { aa -= 1; }
+                        if (height > 2) { color_offset -= 2; } else if (height > 0) { color_offset -= 1; }
                         break;
                     case 3:
-                        if (zz > 1) { aa -= 1; }
+                        if (height > 1) { color_offset -= 1; }
                         break;
                     // default: pass
                     }
                     
-                    switch (zz) {
+                    switch (height) {
                     case -1 + COLORS:
                         display_color(xy, rainbow_tone[xy] + MAKE_DARKER);
                         break;
                     case 0: case 1: case 2: case 3:
-                        display_color(xy, (rainbow_tone[xy] + aa) % COLORS);
+                        display_color(xy, (rainbow_tone[xy] + color_offset) % COLORS);
                         break;
                     case 4:
-                        display_color(xy, ((rainbow_tone[xy] + aa - 1) % COLORS) + MAKE_DARKER);
+                        display_color(xy, ((rainbow_tone[xy] + color_offset - 1) % COLORS) + MAKE_DARKER);
+                        break;
+                    default:
+                        display_color(xy, -1 + MAKE_GREY + MAKE_DARKER);
+                    }
+                    break;
+                
+                case PATTERN_OPPOSED_TONES:
+                    switch ((rainbow_0_next[xy] - rainbow_tone[xy] + COLORS) % COLORS) {
+                    case -1 + COLORS:
+                        display_color(xy, rainbow_tone[xy] + MAKE_DARKER);
+                        break;
+                    case 0:
+                        display_color(xy, rainbow_tone[xy]);
+                        break;
+                    case 1:
+                        display_color(xy, (rainbow_tone[xy]+1)%COLORS);
+                        break;
+                    case 5:
+                        display_color(xy, (rainbow_tone[xy]+6)%COLORS + MAKE_DARKER);
+                        break;
+                    case 6:
+                        display_color(xy, (rainbow_tone[xy]+6)%COLORS);
+                        break;
+                    case 7:
+                        display_color(xy, (rainbow_tone[xy]+7)%COLORS);
+                        break;
+                    default:
+                        display_color(xy, -1 + MAKE_GREY + MAKE_DARKER);
+                    }
+                    break;
+                
+                case PATTERN_TRIAD_TONES:
+                    switch ((rainbow_0_next[xy] - rainbow_tone[xy] + COLORS) % COLORS) {
+                    case -1 + COLORS:
+                        display_color(xy, rainbow_tone[xy] + MAKE_DARKER);
+                        break;
+                    case 0:
+                        display_color(xy, rainbow_tone[xy]);
+                        break;
+                    case 1:
+                        display_color(xy, rainbow_tone[xy] + MAKE_DARKER);
+                        break;
+                    case 3:
+                        display_color(xy, (rainbow_tone[xy]+4)%COLORS + MAKE_DARKER);
+                        break;
+                    case 4:
+                        display_color(xy, (rainbow_tone[xy]+4)%COLORS);
+                        break;
+                    case 5:
+                        display_color(xy, (rainbow_tone[xy]+4)%COLORS + MAKE_DARKER);
+                        break;
+                    case 7:
+                        display_color(xy, (rainbow_tone[xy]+8)%COLORS + MAKE_DARKER);
+                        break;
+                    case 8:
+                        display_color(xy, (rainbow_tone[xy]+8)%COLORS);
+                        break;
+                    case 9:
+                        display_color(xy, (rainbow_tone[xy]+8)%COLORS + MAKE_DARKER);
                         break;
                     default:
                         display_color(xy, -1 + MAKE_GREY + MAKE_DARKER);
@@ -376,14 +461,14 @@ int main(int argc, char *argv[]) {
                     break;
                     
                 case PATTERN_HANABI:
-                    zz = (waves_orth_next[xy] / 17) % 480;
-                    zz = min(zz, COLORS-zz);
+                    height = (waves_orth_next[xy] / 17) % 480;
+                    height = min(height, COLORS-height);
                     
                     display_color(xy,
                         max(6,
                             min(rainbow_1_next[xy],
                                 COLORS - rainbow_1_next[xy]
-                            ) + zz
+                            ) + height
                         ) + MAKE_GREY + MAKE_DARKER
                     );
                     
@@ -391,6 +476,7 @@ int main(int argc, char *argv[]) {
                         display_color(xy, hanabi_next[xy].color);
                     }
                     
+                case PATTERN_ERR:
                 default:
                     display_color(xy, xy % COLORS);
                 }
@@ -430,7 +516,7 @@ int main(int argc, char *argv[]) {
             }
             
             if (in_chr > 0 && in_chr < 256) {
-                mvprintw(DIAGNOSTIC_ROWS+1, 50, "input: %c                                         ", in_chr);
+                mvprintw(DIAGNOSTIC_ROWS+1, 50, "input: %c                                           ", in_chr);
                 
                 // CR rrheingans-yoo: do something!
                 int xy;
@@ -484,20 +570,48 @@ int main(int argc, char *argv[]) {
                 
                 #ifdef SACN_TEST_CLIENT
                     case '-'+MENU_ACTIONS:
-                        sacn_test_client_channel_level -= 5;
-                        mvprintw(DIAGNOSTIC_ROWS+1, 59, "-> sacn ch%d := %3d         ", CHANNEL_M_COLOR, sacn_test_client_channel_level);
-                        sacn_test_client_set_level(CHANNEL_M_COLOR, sacn_test_client_channel_level);
+                        sacn_test_client_color -= 5;
+                        mvprintw(DIAGNOSTIC_ROWS+1, 59, "-> sACN ch%d:=%3d         ", CHANNEL_M_COLOR, sacn_test_client_color);
+                        sacn_test_client_set_level(CHANNEL_M_COLOR, sacn_test_client_color);
                         break;
                     
                     case '='+MENU_ACTIONS:
-                        sacn_test_client_channel_level += 5;
-                        mvprintw(DIAGNOSTIC_ROWS+1, 59, "-> sacn ch%d := %3d         ", CHANNEL_M_COLOR, sacn_test_client_channel_level);
-                        sacn_test_client_set_level(CHANNEL_M_COLOR, sacn_test_client_channel_level);
+                        sacn_test_client_color += 5;
+                        mvprintw(DIAGNOSTIC_ROWS+1, 59, "-> sACN ch%d:=%3d         ", CHANNEL_M_COLOR, sacn_test_client_color);
+                        sacn_test_client_set_level(CHANNEL_M_COLOR, sacn_test_client_color);
+                        break;
+                    
+                    case '['+MENU_ACTIONS:
+                        sacn_test_client_pattern -= 5;
+                        mvprintw(DIAGNOSTIC_ROWS+1, 59, "-> sACN ch%d:=%3d         ", CHANNEL_M_PATTERN, sacn_test_client_pattern);
+                        sacn_test_client_set_level(CHANNEL_M_PATTERN, sacn_test_client_pattern);
+                        break;
+                    
+                    case ']'+MENU_ACTIONS:
+                        sacn_test_client_pattern += 5;
+                        mvprintw(DIAGNOSTIC_ROWS+1, 59, "-> sACN ch%d:=%3d         ", CHANNEL_M_PATTERN, sacn_test_client_pattern);
+                        sacn_test_client_set_level(CHANNEL_M_PATTERN, sacn_test_client_pattern);
+                    
+                    case ';'+MENU_ACTIONS:
+                        sacn_test_client_transition -= 5;
+                        mvprintw(DIAGNOSTIC_ROWS+1, 59, "-> sACN ch%d:=%3d         ", CHANNEL_M_TRANSITION, sacn_test_client_transition);
+                        sacn_test_client_set_level(CHANNEL_M_TRANSITION, sacn_test_client_transition);
+                        break;
+                    
+                    case '\''+MENU_ACTIONS:
+                        sacn_test_client_transition += 5;
+                        mvprintw(DIAGNOSTIC_ROWS+1, 59, "-> sACN ch%d:=%3d         ", CHANNEL_M_TRANSITION, sacn_test_client_transition);
+                        sacn_test_client_set_level(CHANNEL_M_TRANSITION, sacn_test_client_transition);
                         break;
                 #endif /* SACN_TEST_CLIENT */
                 
                 case '0'+MENU_SCENES:
                     scene = SCENE_BASE;
+                    #ifdef SACN_SERVER
+                        mvprintw(DIAGNOSTIC_ROWS+1, 59, "-> sACN control             ");
+                    #else /* SACN_SERVER */
+                        mvprintw(DIAGNOSTIC_ROWS+1, 59, "-> Scene: Default           ");
+                    #endif /* SACN_SERVER */
                     #ifdef SACN_TEST_CLIENT
                         sacn_test_client_set_level(CHANNEL_M_MODE, 128);
                     #endif /* SACN_TEST_CLIENT */
@@ -512,10 +626,12 @@ int main(int argc, char *argv[]) {
                     
                 case '2'+MENU_SCENES:
                     scene = SCENE_CIRCLING_RAINBOWS;
+                    mvprintw(DIAGNOSTIC_ROWS+1, 59, "-> Scene: Circling rainbows ");
                     break;
                     
                 case '3'+MENU_SCENES:
                     scene = SCENE_Q2;
+                    mvprintw(DIAGNOSTIC_ROWS+1, 59, "-> Scene: Q2                ");
                     break;
                     
                 default:
@@ -525,18 +641,42 @@ int main(int argc, char *argv[]) {
             
             #ifdef SACN_SERVER
                 sacn_server_poll(&sacn_channels);
-                //mvprintw(DIAGNOSTIC_ROWS+2, 90, "sACN poll: (%3d,%3d,%3d)", sacn_channels.raw.m_mode, sacn_channels.raw.m_intensity, sacn_channels.raw.m_color);
                 
                 if (SACN_CONTROL(sacn_channels)) {
-                    for (int ii=0; ii<5; ++ii) {
-                        int xy = PETAL_ROWS*COLS + ii*PETAL_COLS + PETAL_COLS/2;
-                        if (
-                            control_orth[xy] == 0
-                            || rainbow_tone[xy] != sacn_channels.logical.m_color
-                        ) {
-                            control_directive_0[xy] = control_directive_1[xy] = PATTERN_SACN_COLOR + sacn_channels.logical.m_color;
+                    int xy;
+                    int pattern_next = PATTERN_SACN(sacn_channels.logical.m.color, sacn_channels.logical.m.pattern, PATTERN_SACN_INTENSE);
+                    
+                    switch(sacn_channels.logical.m.transition) {
+                    case 0:
+                        xy = PETAL_ROWS*COLS + COLS/2;
+                        if (control_directive_0[xy] != pattern_next) {
+                            control_directive_0[xy] = control_directive_1[xy] = pattern_next;
                             control_orth[xy] = max(HIBERNATION_TICKS + TRANSITION_TICKS, control_orth[xy]) + 35;
                         }
+                        break;
+                    
+                    case 1:
+                        for (int ii=0; ii<5; ++ii) {
+                            xy = PETAL_ROWS*COLS + ii*PETAL_COLS + PETAL_COLS/2;
+                            if (control_directive_0[xy] != pattern_next) {
+                                control_directive_0[xy] = control_directive_1[xy] = pattern_next;
+                                control_orth[xy] = max(HIBERNATION_TICKS + TRANSITION_TICKS, control_orth[xy]) + 35;
+                            }
+                        }
+                        break;
+                    
+                    case 2:
+                        for (xy=0; xy<ROWS*COLS; ++xy) {
+                            control_directive_0[xy] = control_directive_1[xy] = pattern_next;
+                        }
+                        break;
+                    
+                    case 3:
+                        for (xy=0; xy<ROWS*COLS; ++xy) {
+                            control_directive_0[xy] = control_directive_1[xy] = pattern_next;
+                            rainbow_tone[xy] = PATTERN_SACN_GET_COLOR(control_directive_0[xy]);
+                        }
+                        break;
                     }
                 }
             #endif /* SACN_SERVER */
@@ -586,16 +726,24 @@ int main(int argc, char *argv[]) {
         }
         switch (scene) {
             case SCENE_BASE:
-                mvprintw(DIAGNOSTIC_ROWS+0, 0, "scene: Default               ", scene);
+                #ifdef SACN_SERVER
+                    if (SACN_CONTROL(sacn_channels)) {
+                        mvprintw(DIAGNOSTIC_ROWS+0, 0, "sACN control active                 ", scene);
+                    } else {
+                        mvprintw(DIAGNOSTIC_ROWS+0, 0, "sACN control inactive; drive default", scene);
+                    }
+                #else /* SACN_SERVER */
+                    mvprintw(DIAGNOSTIC_ROWS+0, 0, "scene: Default                      ", scene);
+                #endif /* SACN_SERVER */
                 break;
             case SCENE_NO_HIBERNATION:
-                mvprintw(DIAGNOSTIC_ROWS+0, 0, "scene: Default+No_hibernation", scene);
+                mvprintw(DIAGNOSTIC_ROWS+0, 0, "scene: Default+No_hibernation       ", scene);
                 break;
             case SCENE_CIRCLING_RAINBOWS:
-                mvprintw(DIAGNOSTIC_ROWS+0, 0, "scene: Circling_rainbows     ", scene);
+                mvprintw(DIAGNOSTIC_ROWS+0, 0, "scene: Circling_rainbows            ", scene);
                 break;
             default:
-                mvprintw(DIAGNOSTIC_ROWS+0, 0, "scene: ? (#%03d)             ", scene);
+                mvprintw(DIAGNOSTIC_ROWS+0, 0, "scene: ? (#%03d)                    ", scene);
         }
         for (int ii=0; ii<5; ++ii) {
             int xy = 8*COLS + (PETAL_COLS * ii) + 8;
@@ -633,27 +781,31 @@ int main(int argc, char *argv[]) {
         
         switch (menu_context) {
         case MENU_ACTIONS:
-            mvprintw(DIAGNOSTIC_ROWS+0, 50, "menu: Actions | S)cenes                 ");
-            mvprintw(DIAGNOSTIC_ROWS+2, 50, "c) change color                         ");
-            mvprintw(DIAGNOSTIC_ROWS+3, 50, "f) centered effect                         ");
-            mvprintw(DIAGNOSTIC_ROWS+4, 50, "1|2|3|4|5) effect on petal N              ");
+            mvprintw(DIAGNOSTIC_ROWS+0, 50, "menu: Actions | S)cenes                ");
+            mvprintw(DIAGNOSTIC_ROWS+2, 50, "c) change color                        ");
+            mvprintw(DIAGNOSTIC_ROWS+3, 50, "f) centered effect                 ");
+            mvprintw(DIAGNOSTIC_ROWS+4, 50, "1|2|3|4|5) effect on petal N       ");
             #ifdef SACN_TEST_CLIENT
-                mvprintw(DIAGNOSTIC_ROWS+5, 50, "-|=) dec/inc sacn test channel              ");
+                mvprintw(DIAGNOSTIC_ROWS+5, 50, "-|=) dec/inc sacn test color       ");
+                mvprintw(DIAGNOSTIC_ROWS+6, 50, "[|]) dec/inc sacn test pattern     ");
+                mvprintw(DIAGNOSTIC_ROWS+7, 50, ";|') dec/inc sacn test transition  ");
             #else /* SACN_TEST_CLIENT */
-                mvprintw(DIAGNOSTIC_ROWS+5, 50, "                                            ");
+                mvprintw(DIAGNOSTIC_ROWS+5, 50, "                                   ");
+                mvprintw(DIAGNOSTIC_ROWS+6, 50, "                                   ");
             #endif /* SACN_TEST_CLIENT */
-            mvprintw(DIAGNOSTIC_ROWS+6, 50, "                                          ");
             break;
         case MENU_SCENES:
-            mvprintw(DIAGNOSTIC_ROWS+0, 50, "menu: Scenes | A)ctions                 ");
+            mvprintw(DIAGNOSTIC_ROWS+0, 50, "menu: Scenes | A)ctions                ");
             #ifdef SACN_SERVER
-                mvprintw(DIAGNOSTIC_ROWS+2, 50, "0) sACN control (w/fallback)     ");
+                mvprintw(DIAGNOSTIC_ROWS+2, 50, "0) sACN control (w/fallback)       ");
             #else /* SACN_SERVER */
-                mvprintw(DIAGNOSTIC_ROWS+2, 50, "0) Default (cycling n-tones)                         ");
+                mvprintw(DIAGNOSTIC_ROWS+2, 50, "0) Default (cycling n-tones)       ");
             #endif /* SACN_SERVER */
-            mvprintw(DIAGNOSTIC_ROWS+3, 50, "1) cycling n-tones + no_hibernation                         ");
-            mvprintw(DIAGNOSTIC_ROWS+4, 50, "2) Circling_rainbows                         ");
-            mvprintw(DIAGNOSTIC_ROWS+5, 50, "3) Q2 (experimental)                         ");
+            mvprintw(DIAGNOSTIC_ROWS+3, 50, "1) cycling n-tones + no_hibernation");
+            mvprintw(DIAGNOSTIC_ROWS+4, 50, "2) Circling_rainbows               ");
+            mvprintw(DIAGNOSTIC_ROWS+5, 50, "3) Q2 (experimental)               ");
+            mvprintw(DIAGNOSTIC_ROWS+6, 50, "                                   ");
+            mvprintw(DIAGNOSTIC_ROWS+7, 50, "                                   ");
             break;
         default:
             mvprintw(DIAGNOSTIC_ROWS+0, 50, "menu: ? (#%04d)", menu_context);

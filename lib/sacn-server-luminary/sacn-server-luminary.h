@@ -3,11 +3,17 @@
 
 #include <stdint.h>
 
+typedef struct sacn_channels_petal_t {
+    uint8_t intensity;
+    uint8_t color;
+    uint8_t pattern;
+    uint8_t transition;
+} sacn_channels_petal_t;
+
 typedef struct sacn_channels_raw {
-    uint8_t m_mode;
-    uint8_t m_intensity;
-    uint8_t m_color;
-    uint8_t m_pattern;
+    uint8_t               mode;
+    sacn_channels_petal_t m;
+    sacn_channels_petal_t p[5];
 } sacn_channels_raw_t;
 
 typedef struct sacn_channels {
@@ -15,7 +21,7 @@ typedef struct sacn_channels {
     sacn_channels_raw_t logical;
 } sacn_channels_t;
 
-#define SACN_CONTROL(sacn_channels) ((sacn_channels).logical.m_mode > 0)
+#define SACN_CONTROL(sacn_channels) ((sacn_channels).logical.mode > 0)
 
 int sacn_server_get_port();
 

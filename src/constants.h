@@ -15,11 +15,11 @@
 // physical dimensions
 #define PETALS_ACTIVE
 
-#define FLOOR_COLS 155
-#define FLOOR_ROWS 43
+#define FLOOR_COLS 85
+#define FLOOR_ROWS 60
 
 #ifdef PETALS_ACTIVE
-    #define PETAL_COLS 31 // per petal
+    #define PETAL_COLS 17 // per petal
     #define PETAL_ROWS 23
     #define PETAL_ROWS_CONNECTED 6
     #define PETAL_ROWS_SEPARATED (PETAL_ROWS - PETAL_ROWS_CONNECTED)
@@ -45,18 +45,18 @@
 
 #ifdef DISPLAY_PETALS_MODE
     #ifdef DISPLAY_FLOOR_ALSO
-        #define DIAGNOSTIC_COLS_SUGGESTED (COLS / DIAGNOSTIC_SAMPLING_RATE + 12)
+        //#define DIAGNOSTIC_COLS_SUGGESTED (COLS / DIAGNOSTIC_SAMPLING_RATE + 12)
         #define DIAGNOSTIC_ROWS ((PETAL_ROWS + FLOOR_ROWS / 2) / DIAGNOSTIC_SAMPLING_RATE + 5)
     #else /* DISPLAY_FLOOR_ALSO */
-        #define DIAGNOSTIC_COLS_SUGGESTED (PETAL_COLS / DIAGNOSTIC_SAMPLING_RATE * 3 + 6)
+        //#define DIAGNOSTIC_COLS_SUGGESTED (PETAL_COLS / DIAGNOSTIC_SAMPLING_RATE * 3 + 6)
         #define DIAGNOSTIC_ROWS ((PETAL_ROWS / DIAGNOSTIC_SAMPLING_RATE)*2 + 3)
     #endif /* DISPLAY_FLOOR_ALSO */
 #else /* DISPLAY_PETALS_MODE */
-    #define DIAGNOSTIC_COLS_SUGGESTED (COLS / DIAGNOSTIC_SAMPLING_RATE)
+    //#define DIAGNOSTIC_COLS_SUGGESTED (COLS / DIAGNOSTIC_SAMPLING_RATE)
     #define DIAGNOSTIC_ROWS (ROWS / DIAGNOSTIC_SAMPLING_RATE)
 #endif /* DISPLAY_PETALS_MODE */
 
-#define DIAGNOSTIC_COLS (DIAGNOSTIC_COLS_SUGGESTED > 80 ? 80 : DIAGNOSTIC_COLS_SUGGESTED)
+#define DIAGNOSTIC_COLS 80
 
 // colors (for ncurses)
 #define RAINBOW_00  61
@@ -108,9 +108,9 @@
 #define INITIALIZATION_EPOCHS      ( 200 * WILDFIRE_SPEEDUP ) // run this many epochs on startup
 #define PRESSURE_DELAY_EPOCHS      30
 #define PRESSURE_RADIUS_TICKS      150//76
-#define RAINBOW_TONE_EPOCHS         1200
+#define RAINBOW_TONE_EPOCHS        1200
 
-#define DECAY_SQUARE // make decay/waves effects square rather than round
+// #define DECAY_SQUARE // make decay/waves effects square rather than round
 
 // gif output
 //#define OUTPUT_GIF
@@ -141,7 +141,7 @@
 #define WAVES_BASE_ARRAY  {-331,-319,-307,-295,-283,-271,-260,-249,-237,-226,-215,-205,-194,-184,-173,-163,-154,-144,-135,-125,-116,-108,-99,-91,-83,-75,-68,-61,-54,-47,-41,-35,-29,-24,-18,-14,-9,-5,-1,2,4,6,6,7,8,8,9,9,9,9,9,8,8,7,6,6,4,2,-1,-5,-9,-14,-18,-24,-29,-35,-41,-47,-54,-61,-68,-75,-83,-91,-99,-108,-116,-125,-135,-144,-154,-163,-173,-184,-194,-205,-215,-226,-237,-249,-260,-271,-283,-295,-307,-319,-331}
 #define WAVES_BASE_X_ORIG 16
 
-#define PETAL_PIXEL_PATTERN 21
+#define PETAL_PIXEL_PATTERN 3
 
 #if PETAL_PIXEL_PATTERN == 1
     #define PETAL_MAPPING { \
@@ -284,26 +284,42 @@
 #define USABLE_MSEC_PER_EPOCH ( USABLE_USEC_PER_EPOCH / THOUSAND )
 
 // pattern names
-#define PATTERN_BASE 0
-#define PATTERN_RAINBOW_SPOTLIGHTS_ON_GREY 1
-#define PATTERN_RAINBOW_SPOTLIGHTS_ON_TWO_TONES 2
-#define TWO_TONES 3
-#define PATTERN_HANABI 4
-#define PATTERN_Q2 5
-#define PATTERN_FULL_RAINBOW 10
-#define PATTERN_SOLID 20
-#define PATTERN_N_TONES 30
+#define PATTERN_ERR            0
+#define PATTERN_BASE           1
+#define PATTERN_RAINBOW_SPOTLIGHTS_ON_GREY      2
+#define PATTERN_RAINBOW_SPOTLIGHTS_ON_TWO_TONES 3
+#define PATTERN_TWO_TONES      4
+#define PATTERN_OPPOSED_TONES  5
+#define PATTERN_TRIAD_TONES    6
+#define PATTERN_UNUSED         7
+#define PATTERN_HANABI         8
+#define PATTERN_Q2             9
+#define PATTERN_FULL_RAINBOW  10
+#define PATTERN_SOLID         20
+#define PATTERN_N_TONES       30
 #define PATTERN_RAND_N_TONES (PATTERN_N_TONES+2+(rand()%3))
-#define AGGRESSIVE_REVERSION 10000
+#define AGGRESSIVE_REVERSION 100
 
-#define PATTERN_SACN_COLOR 1000
+#define PATTERN_SACN_COLOR         2048 // range from here to 13x here
+#define PATTERN_SACN_TEXTURE        256
+#define PATTERN_SACN_INTENSITY        1
+#define PATTERN_SACN_INTENSE        255
+
+#define PATTERN_SACN(color,texture,intensity) \
+    ((1+color)*PATTERN_SACN_COLOR \
+        + texture*PATTERN_SACN_TEXTURE \
+        + intensity*PATTERN_SACN_INTENSITY \
+    )
+
+#define PATTERN_IS_SACN(pattern)            ((pattern) >= PATTERN_SACN_COLOR)
+#define PATTERN_SACN_GET_COLOR(pattern)     ((pattern)/PATTERN_SACN_COLOR - 1)
+#define PATTERN_SACN_GET_TEXTURE(pattern)   (((pattern)%PATTERN_SACN_COLOR) / PATTERN_SACN_TEXTURE)
+#define PATTERN_SACN_GET_INTENSITY(pattern) ((pattern) % PATTERN_SACN_TEXTURE)
 
 #define SCENE_BASE 0
 #define SCENE_NO_HIBERNATION 1
 #define SCENE_CIRCLING_RAINBOWS 10
 #define SCENE_Q2 50
-#define SCENE_SACN 1000
-/*#define SCENE_IS_SACN(s) ((s)>=1000 && (s)<2000)*/
 
 #define MENU_ACTIONS 1000
 #define MENU_SCENES  2000

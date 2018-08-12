@@ -31,8 +31,11 @@ void sacn_test_client_start() {
         err(EXIT_FAILURE, "e131_set_option");
 
     // set remote system destination as unicast address
-    if (e131_unicast_dest(&dest, "127.0.0.1", E131_DEFAULT_PORT) < 0)
+    if (e131_unicast_dest(&dest, "127.0.0.1", LUMINARY_SACN_PORT) < 0)
         err(EXIT_FAILURE, "e131_unicast_dest");
+    
+    sprintf(ui_message, "sACN test client (uc 127.0.0.1:%d)", LUMINARY_SACN_PORT);
+    print_sacn_message(ui_message, 9);
 }
 
 void sacn_test_client_send_message() {
@@ -54,6 +57,6 @@ void sacn_test_client_set_level(int channel, uint8_t level) {
         err(EXIT_FAILURE, "e131_send");
     //e131_pkt_dump(stderr, &packet);
     
-    sprintf(ui_message, "sent #%3d, ch.%d:=%3d     ", next_seq-1, channel, level);
-    print_sacn_message(ui_message, 8);
+    sprintf(ui_message, "sent #%03d, ch.%d:=%3d                         ", next_seq-1, channel, level);
+    print_sacn_message(ui_message, 10);
 }
