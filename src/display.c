@@ -17,8 +17,9 @@ int petal_mapping[] = PETAL_MAPPING;
 // gifenc
 #ifdef OUTPUT_GIF
     ge_GIF *gif;
-    uint8_t gif_palette[128 * 3];
 #endif /* OUTPUT_GIF */
+
+uint8_t rgb_palette[128 * 3];
 
 #ifdef OUTPUT_CAIRO
     // cairo
@@ -34,20 +35,24 @@ int petal_mapping[] = PETAL_MAPPING;
     void cairo_set_source_luminary(int id) {
         cairo_set_source_rgb(
             cairo_cr,
-            (uint8_t)gif_palette[id * 3 + 0] / 255.0,
-            (uint8_t)gif_palette[id * 3 + 1] / 255.0,
-            (uint8_t)gif_palette[id * 3 + 2] / 255.0
+            (uint8_t)rgb_palette[id * 3 + 0] / 255.0,
+            (uint8_t)rgb_palette[id * 3 + 1] / 255.0,
+            (uint8_t)rgb_palette[id * 3 + 2] / 255.0
         );
     }
 #endif /* OUTPUT_CAIRO */
+
+void print_sacn_message(char *message, int y) {
+    mvprintw(DIAGNOSTIC_ROWS+y, 90, "%s", message);
+}
 
 void display_init_color(int id, int xterm, uint8_t r, uint8_t g, uint8_t b) {
     init_pair(id+1, xterm, xterm);
     
     //#ifdef OUTPUT_GIF
-    gif_palette[id * 3 + 0] = r;
-    gif_palette[id * 3 + 1] = g;
-    gif_palette[id * 3 + 2] = b;
+    rgb_palette[id * 3 + 0] = r;
+    rgb_palette[id * 3 + 1] = g;
+    rgb_palette[id * 3 + 2] = b;
     //#endif /* OUTPUT_GIF */
 }
 
@@ -77,7 +82,7 @@ void display_init() {
 	start_color();
 	
 	for (int ii = 0; ii < 128 * 3; ++ii) {
-	    gif_palette[ii] = 0x00;
+	    rgb_palette[ii] = 0x00;
 	}
     
     display_init_color( 0, RAINBOW_00, 0x6d, 0x3f, 0xa9);
@@ -144,7 +149,7 @@ void display_init() {
         gif = ge_new_gif(
             "demo/example6.gif",
             COLS * GIF_ZOOM, ROWS * GIF_ZOOM,
-            gif_palette,
+            rgb_palette,
             7,              /* palette depth == log2(# of colors) */
             0               /* infinite loop */
         );

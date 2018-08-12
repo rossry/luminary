@@ -10,6 +10,7 @@
 
 // input, output, control
 #define SACN_SERVER
+#define SACN_TEST_CLIENT // use some keyboard actions to send test-client messages to the server
 
 // physical dimensions
 #define PETALS_ACTIVE
@@ -293,12 +294,16 @@
 #define PATTERN_SOLID 20
 #define PATTERN_N_TONES 30
 #define PATTERN_RAND_N_TONES (PATTERN_N_TONES+2+(rand()%3))
-#define AGGRESSIVE_REVERSION 100
+#define AGGRESSIVE_REVERSION 10000
+
+#define PATTERN_SACN_COLOR 1000
 
 #define SCENE_BASE 0
 #define SCENE_NO_HIBERNATION 1
 #define SCENE_CIRCLING_RAINBOWS 10
 #define SCENE_Q2 50
+#define SCENE_SACN 1000
+/*#define SCENE_IS_SACN(s) ((s)>=1000 && (s)<2000)*/
 
 #define MENU_ACTIONS 1000
 #define MENU_SCENES  2000

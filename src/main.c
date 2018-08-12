@@ -8,6 +8,14 @@
 
 #ifdef SACN_SERVER
     #include "sacn-server-luminary.h"
+    #include "sacn-constants-luminary.h"
+    
+    sacn_channels_t sacn_channels;
+    
+    #ifdef SACN_TEST_CLIENT
+        #include "sacn-test-client-luminary.h"
+        uint8_t sacn_test_client_channel_level = 0;
+    #endif /* SACN_TEST_CLIENT */
 #endif /* SACN_SERVER */
 
 double usec_time_elapsed(struct timeval *from, struct timeval *to) {
@@ -94,8 +102,18 @@ int main(int argc, char *argv[]) {
     }
     
     #ifdef SACN_SERVER
-        mvprintw(DIAGNOSTIC_ROWS+0, 90, "sACN server (dummy)");
+        #ifdef SACN_TEST_CLIENT
+            sacn_test_client_start();
+        mvprintw(DIAGNOSTIC_ROWS+8, 90, "sACN test client start", sacn_server_get_port());
+        #endif /* SACN_TEST_CLIENT */
+        
+        mvprintw(DIAGNOSTIC_ROWS+0, 90, "sACN server (port %d)", sacn_server_get_port());
         sacn_server_start();
+        
+        #ifdef SACN_TEST_CLIENT
+            sacn_test_client_set_level(CHANNEL_M_MODE, 128);
+            sacn_test_client_set_level(CHANNEL_M_MODE, 128); // duped to syn seq no.
+        #endif /* SACN_TEST_CLIENT */
     #endif /* SACN_SERVER */
     
     struct timeval start, computed, drawn, refreshed, handled, slept, stop;
@@ -145,13 +163,15 @@ int main(int argc, char *argv[]) {
                     control_orth_next[xy] += SECONDARY_TRANSITION_TICKS;
                 }
                 
-                // revert to hibernation
-                if (control_orth_next[xy] == 0
-                    && control_directive_0_next[xy] != PATTERN_BASE
-                    && RAND_SECONDARY_TRANSITION
-                ) {
-                    control_directive_0_next[xy] = control_directive_1_next[xy] = PATTERN_BASE;
-                    control_orth_next[xy] = SECONDARY_TRANSITION_TICKS;
+                if (!SACN_CONTROL(sacn_channels)) {
+                    // revert to hibernation
+                    if (control_orth_next[xy] == 0
+                        && control_directive_0_next[xy] != PATTERN_BASE
+                        && RAND_SECONDARY_TRANSITION
+                    ) {
+                        control_directive_0_next[xy] = control_directive_1_next[xy] = PATTERN_BASE;
+                        control_orth_next[xy] = SECONDARY_TRANSITION_TICKS;
+                    }
                 }
                 
                 // evolve waves_(orth|diag)
@@ -227,7 +247,6 @@ int main(int argc, char *argv[]) {
                 }
             }
         }
-        // CR rrheingans-yoo: change between PATTERN_N_TONES
         
         for (int xy = 0; xy < ROWS * COLS; ++xy) {
             int x = xy % COLS;
@@ -243,9 +262,13 @@ int main(int argc, char *argv[]) {
             }
             
             
-            if (control_directive_0[xy] == PATTERN_FULL_RAINBOW
-                || rainbow_0_next[xy] != rainbow_0[xy]) {
-                rainbow_tone[xy] = ((waves_orth_next[xy] / 17) / RAINBOW_TONE_EPOCHS) % COLORS;
+            if (SACN_CONTROL(sacn_channels)) {
+                rainbow_tone[xy] = control_directive_0[xy] - PATTERN_SACN_COLOR;
+            } else {
+                if (control_directive_0[xy] == PATTERN_FULL_RAINBOW
+                    || rainbow_0_next[xy] != rainbow_0[xy]) {
+                    rainbow_tone[xy] = ((waves_orth_next[xy] / 17) / RAINBOW_TONE_EPOCHS) % COLORS;
+                }
             }
         }
         
@@ -280,6 +303,10 @@ int main(int argc, char *argv[]) {
                     }
                     // fall through to TWO_TONES
                 case TWO_TONES:
+                case PATTERN_SACN_COLOR+0: case PATTERN_SACN_COLOR+1: case PATTERN_SACN_COLOR+2:
+                case PATTERN_SACN_COLOR+3: case PATTERN_SACN_COLOR+4: case PATTERN_SACN_COLOR+5:
+                case PATTERN_SACN_COLOR+6: case PATTERN_SACN_COLOR+7: case PATTERN_SACN_COLOR+8:
+                case PATTERN_SACN_COLOR+9: case PATTERN_SACN_COLOR+10: case PATTERN_SACN_COLOR+11:
                     switch ((rainbow_0_next[xy] - rainbow_tone[xy] + COLORS) % COLORS) {
                     case -1 + COLORS:
                         display_color(xy, rainbow_tone[xy] + MAKE_DARKER);
@@ -364,8 +391,8 @@ int main(int argc, char *argv[]) {
                         display_color(xy, hanabi_next[xy].color);
                     }
                     
-                    default:
-                        display_color(xy, xy % COLORS);
+                default:
+                    display_color(xy, xy % COLORS);
                 }
                 //display_color(xy, ((waves_orth_next[xy] / 17) / 120) % COLORS);
             }
@@ -455,12 +482,32 @@ int main(int argc, char *argv[]) {
                     mvprintw(DIAGNOSTIC_ROWS+1, 59, "-> Action: rainbow on petal %d", (in_chr-'1')+1);
                     break;
                 
+                #ifdef SACN_TEST_CLIENT
+                    case '-'+MENU_ACTIONS:
+                        sacn_test_client_channel_level -= 5;
+                        mvprintw(DIAGNOSTIC_ROWS+1, 59, "-> sacn ch%d := %3d         ", CHANNEL_M_COLOR, sacn_test_client_channel_level);
+                        sacn_test_client_set_level(CHANNEL_M_COLOR, sacn_test_client_channel_level);
+                        break;
+                    
+                    case '='+MENU_ACTIONS:
+                        sacn_test_client_channel_level += 5;
+                        mvprintw(DIAGNOSTIC_ROWS+1, 59, "-> sacn ch%d := %3d         ", CHANNEL_M_COLOR, sacn_test_client_channel_level);
+                        sacn_test_client_set_level(CHANNEL_M_COLOR, sacn_test_client_channel_level);
+                        break;
+                #endif /* SACN_TEST_CLIENT */
+                
                 case '0'+MENU_SCENES:
                     scene = SCENE_BASE;
+                    #ifdef SACN_TEST_CLIENT
+                        sacn_test_client_set_level(CHANNEL_M_MODE, 128);
+                    #endif /* SACN_TEST_CLIENT */
                     break;
                     
                 case '1'+MENU_SCENES:
                     scene = SCENE_NO_HIBERNATION;
+                    #ifdef SACN_TEST_CLIENT
+                        sacn_test_client_set_level(CHANNEL_M_MODE, 0);
+                    #endif /* SACN_TEST_CLIENT */
                     break;
                     
                 case '2'+MENU_SCENES:
@@ -472,12 +519,26 @@ int main(int argc, char *argv[]) {
                     break;
                     
                 default:
-                    mvprintw(DIAGNOSTIC_ROWS+1, 59, "-> (nothing)");
+                    mvprintw(DIAGNOSTIC_ROWS+1, 59, "-> (nothing)            ");
                 }
             }
             
             #ifdef SACN_SERVER
-                mvprintw(DIAGNOSTIC_ROWS+2, 90, "sACN poll: %d", sacn_server_poll());
+                sacn_server_poll(&sacn_channels);
+                //mvprintw(DIAGNOSTIC_ROWS+2, 90, "sACN poll: (%3d,%3d,%3d)", sacn_channels.raw.m_mode, sacn_channels.raw.m_intensity, sacn_channels.raw.m_color);
+                
+                if (SACN_CONTROL(sacn_channels)) {
+                    for (int ii=0; ii<5; ++ii) {
+                        int xy = PETAL_ROWS*COLS + ii*PETAL_COLS + PETAL_COLS/2;
+                        if (
+                            control_orth[xy] == 0
+                            || rainbow_tone[xy] != sacn_channels.logical.m_color
+                        ) {
+                            control_directive_0[xy] = control_directive_1[xy] = PATTERN_SACN_COLOR + sacn_channels.logical.m_color;
+                            control_orth[xy] = max(HIBERNATION_TICKS + TRANSITION_TICKS, control_orth[xy]) + 35;
+                        }
+                    }
+                }
             #endif /* SACN_SERVER */
             
             if (scene == SCENE_NO_HIBERNATION) {
@@ -515,10 +576,10 @@ int main(int argc, char *argv[]) {
         mvprintw(DIAGNOSTIC_ROWS+2, 2*DIAGNOSTIC_COLS-15, "refresh:%5.1fms", refresh_avg / THOUSAND);
         mvprintw(DIAGNOSTIC_ROWS+3, 2*DIAGNOSTIC_COLS-15, "wait:   %5.1fms", wait_avg / THOUSAND);
         mvprintw(DIAGNOSTIC_ROWS+4, 2*DIAGNOSTIC_COLS-15, "sleep:  %5.1fms", sleep_avg / THOUSAND);
-        mvprintw(DIAGNOSTIC_ROWS+0, 2*DIAGNOSTIC_COLS-37, "epoch: %7d", epoch);
-        mvprintw(DIAGNOSTIC_ROWS+1, 2*DIAGNOSTIC_COLS-37, "Hz:  %7.1f/%d  ", 1 / (total_avg / MILLION), WILDFIRE_SPEEDUP);
-        mvprintw(DIAGNOSTIC_ROWS+2, 2*DIAGNOSTIC_COLS-37, "usable:%5.1fms  ", USABLE_MSEC_PER_EPOCH);
-        mvprintw(DIAGNOSTIC_ROWS+3, 2*DIAGNOSTIC_COLS-37, "used:  %5.1fms  ", usec_time_elapsed(&start, &refreshed) / THOUSAND);
+        mvprintw(DIAGNOSTIC_ROWS+6, 2*DIAGNOSTIC_COLS-15, "epoch: %7d", epoch);
+        mvprintw(DIAGNOSTIC_ROWS+7, 2*DIAGNOSTIC_COLS-15, "Hz:  %7.1f/%d  ", 1 / (total_avg / MILLION), WILDFIRE_SPEEDUP);
+        mvprintw(DIAGNOSTIC_ROWS+8, 2*DIAGNOSTIC_COLS-15, "usable:%5.1fms  ", USABLE_MSEC_PER_EPOCH);
+        mvprintw(DIAGNOSTIC_ROWS+9, 2*DIAGNOSTIC_COLS-15, "used:  %5.1fms  ", usec_time_elapsed(&start, &refreshed) / THOUSAND);
         if (DIAGNOSTIC_SAMPLING_RATE != 1) {
             mvprintw(DIAGNOSTIC_ROWS+5, 2*DIAGNOSTIC_COLS-37, "terminal_display_");
             mvprintw(DIAGNOSTIC_ROWS+6, 2*DIAGNOSTIC_COLS-37, "downsampling: %d", DIAGNOSTIC_SAMPLING_RATE);
@@ -576,12 +637,21 @@ int main(int argc, char *argv[]) {
             mvprintw(DIAGNOSTIC_ROWS+2, 50, "c) change color                         ");
             mvprintw(DIAGNOSTIC_ROWS+3, 50, "f) centered effect                         ");
             mvprintw(DIAGNOSTIC_ROWS+4, 50, "1|2|3|4|5) effect on petal N              ");
-            mvprintw(DIAGNOSTIC_ROWS+5, 50, "                                          ");
+            #ifdef SACN_TEST_CLIENT
+                mvprintw(DIAGNOSTIC_ROWS+5, 50, "-|=) dec/inc sacn test channel              ");
+            #else /* SACN_TEST_CLIENT */
+                mvprintw(DIAGNOSTIC_ROWS+5, 50, "                                            ");
+            #endif /* SACN_TEST_CLIENT */
+            mvprintw(DIAGNOSTIC_ROWS+6, 50, "                                          ");
             break;
         case MENU_SCENES:
             mvprintw(DIAGNOSTIC_ROWS+0, 50, "menu: Scenes | A)ctions                 ");
-            mvprintw(DIAGNOSTIC_ROWS+2, 50, "0) Default (cycling n-tones)                         ");
-            mvprintw(DIAGNOSTIC_ROWS+3, 50, "1) Default + no_hibernation                         ");
+            #ifdef SACN_SERVER
+                mvprintw(DIAGNOSTIC_ROWS+2, 50, "0) sACN control (w/fallback)     ");
+            #else /* SACN_SERVER */
+                mvprintw(DIAGNOSTIC_ROWS+2, 50, "0) Default (cycling n-tones)                         ");
+            #endif /* SACN_SERVER */
+            mvprintw(DIAGNOSTIC_ROWS+3, 50, "1) cycling n-tones + no_hibernation                         ");
             mvprintw(DIAGNOSTIC_ROWS+4, 50, "2) Circling_rainbows                         ");
             mvprintw(DIAGNOSTIC_ROWS+5, 50, "3) Q2 (experimental)                         ");
             break;
