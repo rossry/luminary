@@ -4,6 +4,7 @@
 
 #include "constants.h"
 #include "cellular.h"
+#include "pattern.h"
 #include "display.h"
 
 #ifdef SACN_SERVER
@@ -278,209 +279,16 @@ int main(int argc, char *argv[]) {
         
         for (int xy = 0; xy < ROWS * COLS; ++xy) {
             if (epoch > INITIALIZATION_EPOCHS) {
-                int pattern;
-                int texture;
-                int height;
-                int color_offset;
-                
-                if (PATTERN_IS_SACN(control_directive_0_next[xy])) {
-                    texture = PATTERN_SACN_GET_TEXTURE(control_directive_0_next[xy]);
-                    switch(texture) {
-                    case 0:
-                        pattern = PATTERN_SOLID;
-                        break;
-                    case 1: case 2: case 3: case 4:
-                        pattern = PATTERN_N_TONES + texture;
-                        break;
-                    case 5:
-                        pattern = PATTERN_OPPOSED_TONES;
-                        break;
-                    case 6:
-                        pattern = PATTERN_TRIAD_TONES;
-                        break;
-                    case 7:
-                        pattern = PATTERN_Q2;
-                        break;
-                    default:
-                        pattern = PATTERN_ERR;
-                    }
-                } else {
-                    pattern = control_directive_0_next[xy] % AGGRESSIVE_REVERSION;
-                }
-                
-                switch (pattern) {
-                
-                case PATTERN_SOLID:
-                    display_color(xy, (rainbow_tone[xy]+1)%COLORS);
-                    break;
-                
-                case PATTERN_FULL_RAINBOW:
-                    display_color(xy, rainbow_0_next[xy]);
-                    break;
-                
-                case PATTERN_RAINBOW_SPOTLIGHTS_ON_GREY:
-                    if (rainbow_1_next[xy] == -1) {
-                        display_color(xy, rainbow_0_next[xy]);
-                    } else {
-                        display_color(xy, rainbow_1_next[xy] + MAKE_GREY);
-                    }
-                    break;
-                
-                case PATTERN_RAINBOW_SPOTLIGHTS_ON_TWO_TONES:
-                    if (rainbow_1_next[xy] == -1) {
-                        display_color(xy, rainbow_0_next[xy]);
-                        break;
-                    }
-                    // fall through to TWO_TONES
-                case PATTERN_TWO_TONES:
-                    switch ((rainbow_0_next[xy] - rainbow_tone[xy] + COLORS) % COLORS) {
-                    case -1 + COLORS:
-                        display_color(xy, rainbow_tone[xy] + MAKE_DARKER);
-                        break;
-                    case 0:
-                    case 1:
-                        display_color(xy, rainbow_0_next[xy]);
-                        break;
-                    case 2:
-                        display_color(xy, ((rainbow_0_next[xy] - 1 + COLORS) % COLORS) + MAKE_DARKER);
-                        break;
-                    default:
-                        display_color(xy, -1 + MAKE_GREY + MAKE_DARKER);
-                    }
-                    break;
-                
-                case PATTERN_N_TONES+1: case PATTERN_N_TONES+2: case PATTERN_N_TONES+3: case PATTERN_N_TONES+4:
-                    height = color_offset = (rainbow_0_next[xy] - rainbow_tone[xy] + COLORS) % COLORS;
-                    
-                    switch (pattern-PATTERN_N_TONES) {
-                    case 1:
-                        if (height > 1) { color_offset -= 1; }
-                    case 2:
-                        if (height > 2) { color_offset -= 2; } else if (height > 0) { color_offset -= 1; }
-                        break;
-                    case 3:
-                        if (height > 1) { color_offset -= 1; }
-                        break;
-                    // default: pass
-                    }
-                    
-                    switch (height) {
-                    case -1 + COLORS:
-                        display_color(xy, rainbow_tone[xy] + MAKE_DARKER);
-                        break;
-                    case 0: case 1: case 2: case 3:
-                        display_color(xy, (rainbow_tone[xy] + color_offset) % COLORS);
-                        break;
-                    case 4:
-                        display_color(xy, ((rainbow_tone[xy] + color_offset - 1) % COLORS) + MAKE_DARKER);
-                        break;
-                    default:
-                        display_color(xy, -1 + MAKE_GREY + MAKE_DARKER);
-                    }
-                    break;
-                
-                case PATTERN_OPPOSED_TONES:
-                    switch ((rainbow_0_next[xy] - rainbow_tone[xy] + COLORS) % COLORS) {
-                    case -1 + COLORS:
-                        display_color(xy, rainbow_tone[xy] + MAKE_DARKER);
-                        break;
-                    case 0:
-                        display_color(xy, rainbow_tone[xy]);
-                        break;
-                    case 1:
-                        display_color(xy, (rainbow_tone[xy]+1)%COLORS);
-                        break;
-                    case 5:
-                        display_color(xy, (rainbow_tone[xy]+6)%COLORS + MAKE_DARKER);
-                        break;
-                    case 6:
-                        display_color(xy, (rainbow_tone[xy]+6)%COLORS);
-                        break;
-                    case 7:
-                        display_color(xy, (rainbow_tone[xy]+7)%COLORS);
-                        break;
-                    default:
-                        display_color(xy, -1 + MAKE_GREY + MAKE_DARKER);
-                    }
-                    break;
-                
-                case PATTERN_TRIAD_TONES:
-                    switch ((rainbow_0_next[xy] - rainbow_tone[xy] + COLORS) % COLORS) {
-                    case -1 + COLORS:
-                        display_color(xy, rainbow_tone[xy] + MAKE_DARKER);
-                        break;
-                    case 0:
-                        display_color(xy, rainbow_tone[xy]);
-                        break;
-                    case 1:
-                        display_color(xy, rainbow_tone[xy] + MAKE_DARKER);
-                        break;
-                    case 3:
-                        display_color(xy, (rainbow_tone[xy]+4)%COLORS + MAKE_DARKER);
-                        break;
-                    case 4:
-                        display_color(xy, (rainbow_tone[xy]+4)%COLORS);
-                        break;
-                    case 5:
-                        display_color(xy, (rainbow_tone[xy]+4)%COLORS + MAKE_DARKER);
-                        break;
-                    case 7:
-                        display_color(xy, (rainbow_tone[xy]+8)%COLORS + MAKE_DARKER);
-                        break;
-                    case 8:
-                        display_color(xy, (rainbow_tone[xy]+8)%COLORS);
-                        break;
-                    case 9:
-                        display_color(xy, (rainbow_tone[xy]+8)%COLORS + MAKE_DARKER);
-                        break;
-                    default:
-                        display_color(xy, -1 + MAKE_GREY + MAKE_DARKER);
-                    }
-                    break;
-                    
-                case PATTERN_BASE:
-                case PATTERN_N_TONES:
-                    switch ((rainbow_0_next[xy] - rainbow_tone[xy] + COLORS) % COLORS) {
-                    case -1 + COLORS:
-                    case 0:
-                        display_color(xy, rainbow_tone[xy] + MAKE_DARKER);
-                        break;
-                    default:
-                        display_color(xy, -1 + MAKE_GREY + MAKE_DARKER);
-                    }
-                    break;
-                    
-                case PATTERN_Q2:
-                    if (rainbow_1_next[xy] < 4) {
-                        display_color(xy, rainbow_0_next[xy]);
-                    } else if (rainbow_1_next[xy] < 6 || rainbow_1_next[xy] > 9) {
-                        display_color(xy, rainbow_0_next[xy] + MAKE_DARKER);
-                    } else {
-                        display_color(xy, -1 + MAKE_GREY + MAKE_DARKER);
-                    }
-                    break;
-                    
-                case PATTERN_HANABI:
-                    height = (waves_orth_next[xy] / 17) % 480;
-                    height = min(height, COLORS-height);
-                    
-                    display_color(xy,
-                        max(6,
-                            min(rainbow_1_next[xy],
-                                COLORS - rainbow_1_next[xy]
-                            ) + height
-                        ) + MAKE_GREY + MAKE_DARKER
-                    );
-                    
-                    if (hanabi_next[xy].orth > 0) {
-                        display_color(xy, hanabi_next[xy].color);
-                    }
-                    
-                case PATTERN_ERR:
-                default:
-                    display_color(xy, xy % COLORS);
-                }
-                //display_color(xy, ((waves_orth_next[xy] / 17) / 120) % COLORS);
+                display_color(
+                    xy,
+                    color_from_pattern(
+                        control_directive_0_next[xy],
+                        xy,
+                        rainbow_tone[xy],
+                        rainbow_0_next[xy],
+                        rainbow_1_next[xy]
+                    )
+                );
             }
             
             // increment all states
