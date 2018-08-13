@@ -27,6 +27,8 @@
     #define COLS (5 * PETAL_COLS)
     #define ROWS (FLOOR_ROWS + PETAL_ROWS)
     
+    #define PETAL_OF(xy) (((xy)%COLS) / PETAL_COLS)
+    
     #define DIAGNOSTIC_SAMPLING_RATE 1
     #define DISPLAY_PETALS_MODE
     //#define DISPLAY_FLOOR_ALSO
@@ -38,6 +40,8 @@
     
     #define COLS FLOOR_COLS
     #define ROWS (FLOOR_ROWS + PETAL_ROWS)
+    
+    #define PETAL_OF(xy) 0
     
     #define DIAGNOSTIC_SAMPLING_RATE 1
 #endif /*PETALS_ACTIVE*/

@@ -111,8 +111,8 @@ int main(int argc, char *argv[]) {
         sacn_server_start();
         
         #ifdef SACN_TEST_CLIENT
-            sacn_test_client_set_level(CHANNEL_M_MODE, 128);
-            sacn_test_client_set_level(CHANNEL_M_MODE, 128); // duped to syn seq no.
+            sacn_test_client_set_level(CHANNEL_M_MODE, 200);
+            sacn_test_client_set_level(CHANNEL_M_MODE, 200); // duped to syn seq no.
         #endif /* SACN_TEST_CLIENT */
     #endif /* SACN_SERVER */
     
@@ -591,6 +591,7 @@ int main(int argc, char *argv[]) {
                         sacn_test_client_pattern += 5;
                         mvprintw(DIAGNOSTIC_ROWS+1, 59, "-> sACN ch%d:=%3d         ", CHANNEL_M_PATTERN, sacn_test_client_pattern);
                         sacn_test_client_set_level(CHANNEL_M_PATTERN, sacn_test_client_pattern);
+                        break;
                     
                     case ';'+MENU_ACTIONS:
                         sacn_test_client_transition -= 5;
@@ -646,18 +647,18 @@ int main(int argc, char *argv[]) {
                     int xy;
                     int pattern_next = PATTERN_SACN(sacn_channels.logical.m.color, sacn_channels.logical.m.pattern, PATTERN_SACN_INTENSE);
                     
-                    switch(sacn_channels.logical.m.transition) {
-                    case 0:
-                        xy = PETAL_ROWS*COLS + COLS/2;
+                    switch(8*sacn_channels.logical.mode + sacn_channels.logical.m.transition) {
+                    case 8:
+                        xy = PETAL_ROWS*COLS + (COLS+1)/2;
                         if (control_directive_0[xy] != pattern_next) {
                             control_directive_0[xy] = control_directive_1[xy] = pattern_next;
                             control_orth[xy] = max(HIBERNATION_TICKS + TRANSITION_TICKS, control_orth[xy]) + 35;
                         }
                         break;
                     
-                    case 1:
+                    case 9:
                         for (int ii=0; ii<5; ++ii) {
-                            xy = PETAL_ROWS*COLS + ii*PETAL_COLS + PETAL_COLS/2;
+                            xy = PETAL_ROWS*COLS + PETAL_COLS*ii + (PETAL_COLS+1)/2;
                             if (control_directive_0[xy] != pattern_next) {
                                 control_directive_0[xy] = control_directive_1[xy] = pattern_next;
                                 control_orth[xy] = max(HIBERNATION_TICKS + TRANSITION_TICKS, control_orth[xy]) + 35;
@@ -665,16 +666,49 @@ int main(int argc, char *argv[]) {
                         }
                         break;
                     
-                    case 2:
+                    case 10:
                         for (xy=0; xy<ROWS*COLS; ++xy) {
                             control_directive_0[xy] = control_directive_1[xy] = pattern_next;
                         }
                         break;
                     
-                    case 3:
+                    case 11:
                         for (xy=0; xy<ROWS*COLS; ++xy) {
                             control_directive_0[xy] = control_directive_1[xy] = pattern_next;
-                            rainbow_tone[xy] = PATTERN_SACN_GET_COLOR(control_directive_0[xy]);
+                            rainbow_tone[xy] = sacn_channels.logical.m.color;
+                        }
+                        break;
+                    
+                    case 16: case 17:
+                        for (int ii=0; ii<5; ++ii) {
+                            xy = (PETAL_ROWS-PETAL_ROWS_CONNECTED*0)*COLS + ii*PETAL_COLS + 0;
+                            pattern_next = PATTERN_SACN(sacn_channels.logical.p[PETAL_OF(xy)].color, sacn_channels.logical.p[PETAL_OF(xy)].pattern, PATTERN_SACN_INTENSE);
+                            if (control_directive_0[xy] != pattern_next) {
+                                control_directive_0[xy] = control_directive_1[xy] = pattern_next;
+                                control_orth[xy] = max(HIBERNATION_TICKS + TRANSITION_TICKS, control_orth[xy]) + 35;
+                            }
+                            xy = (PETAL_ROWS-PETAL_ROWS_CONNECTED*0)*COLS + ii*PETAL_COLS + PETAL_COLS-1;
+                            if (control_directive_0[xy] != pattern_next) {
+                                control_directive_0[xy] = control_directive_1[xy] = pattern_next;
+                                control_orth[xy] = max(HIBERNATION_TICKS + TRANSITION_TICKS, control_orth[xy]) + 35;
+                            }
+                        }
+                        break;
+                    
+                    case 18:
+                        for (xy=0; xy<ROWS*COLS; ++xy) {
+                            control_directive_0[xy] = control_directive_1[xy] =
+                                PATTERN_SACN(sacn_channels.logical.p[PETAL_OF(xy)].color, sacn_channels.logical.p[PETAL_OF(xy)].pattern, PATTERN_SACN_INTENSE);
+                            control_orth[xy] = HIBERNATION_TICKS + TRANSITION_TICKS;
+                        }
+                        break;
+                    
+                    case 19:
+                        for (xy=0; xy<ROWS*COLS; ++xy) {
+                            control_directive_0[xy] = control_directive_1[xy] =
+                                PATTERN_SACN(sacn_channels.logical.p[PETAL_OF(xy)].color, sacn_channels.logical.p[PETAL_OF(xy)].pattern, PATTERN_SACN_INTENSE);
+                            rainbow_tone[xy] = sacn_channels.logical.p[PETAL_OF(xy)].color;
+                            control_orth[xy] = HIBERNATION_TICKS + TRANSITION_TICKS;
                         }
                         break;
                     }
@@ -748,7 +782,7 @@ int main(int argc, char *argv[]) {
         for (int ii=0; ii<5; ++ii) {
             int xy = 8*COLS + (PETAL_COLS * ii) + 8;
             display_light(ii*2, ((waves_orth_next[xy] / 17) / RAINBOW_TONE_EPOCHS) % COLORS);
-            mvprintw(DIAGNOSTIC_ROWS+(2*ii + 1), 0, "%03d: %05d.  %02d.%04d.%02d (%3d:%06d|%3d)",
+            mvprintw(DIAGNOSTIC_ROWS+(2*ii + 1), 0, "%03d: %05d.  %02d.%04d.%02d (%5d:%06d|%5d)",
                 520 + ii*2,
                 ((waves_orth_next[xy] / 17) / RAINBOW_TONE_EPOCHS) / COLORS,
                 ((waves_orth_next[xy] / 17) / RAINBOW_TONE_EPOCHS) % COLORS,
@@ -764,7 +798,7 @@ int main(int argc, char *argv[]) {
             
             xy = 8*COLS + (PETAL_COLS * ii) + 22;
             display_light(ii*2+1, ((waves_orth_next[xy] / 17) / RAINBOW_TONE_EPOCHS) % COLORS);
-            mvprintw(DIAGNOSTIC_ROWS+(2*ii + 2), 0, "%03d: %05d.  %02d.%04d.%02d (%3d:%06d|%3d)",
+            mvprintw(DIAGNOSTIC_ROWS+(2*ii + 2), 0, "%03d: %05d.  %02d.%04d.%02d (%5d:%06d|%5d)",
                 520 + ii*2 + 1,
                 ((waves_orth_next[xy] / 17) / RAINBOW_TONE_EPOCHS) / COLORS,
                 ((waves_orth_next[xy] / 17) / RAINBOW_TONE_EPOCHS) % COLORS,

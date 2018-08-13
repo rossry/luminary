@@ -40,7 +40,7 @@ Sets pattern, among 8 presets.
 
 ## Transition (common) | Channels 5, 9, 13, 17, 21, 25
 Sets transition mode, among 4 presets.
-  0- 63 | radiates | radiate from one petal base (currently hardcoded petal 3)
- 64-127 | upwards  | sweep all petals bottom-to-top
-128-191 | fades    | give pixels some leeway to transition smoothly
-192-255 | jumps    | immediately set all pixels
+  0- 63 | radiate | radiate from one petal base (currently hardcoded petal 3)
+ 64-127 | upwards | sweep all petals bottom-to-top
+128-191 | fade    | give pixels some leeway to transition smoothly
+192-255 | jump    | immediately set all pixels
