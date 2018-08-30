@@ -22,6 +22,7 @@ typedef struct sacn_channels {
 } sacn_channels_t;
 
 #define SACN_CONTROL(sacn_channels) ((sacn_channels).logical.mode > 0)
+//#define SACN_CONTROL(sacn_channels) 1
 
 int sacn_server_get_port();
 

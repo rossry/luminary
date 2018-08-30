@@ -9,8 +9,12 @@
 #define MILLION  1000000
 
 // input, output, control
-#define SACN_SERVER
-#define SACN_TEST_CLIENT // use some keyboard actions to send test-client messages to the server
+//#define SACN_SERVER
+#ifdef SACN_SERVER
+    //#define SACN_TEST_CLIENT // use some keyboard actions to send test-client messages to the server
+#endif /* SACN_SERVER */
+
+//#define PP_SERVER
 
 // physical dimensions
 #define PETALS_ACTIVE
@@ -19,9 +23,9 @@
 #define FLOOR_ROWS 60
 
 #ifdef PETALS_ACTIVE
-    #define PETAL_COLS 17 // per petal
-    #define PETAL_ROWS 23
-    #define PETAL_ROWS_CONNECTED 6
+    #define PETAL_COLS 18 // per petal
+    #define PETAL_ROWS 32
+    #define PETAL_ROWS_CONNECTED 7
     #define PETAL_ROWS_SEPARATED (PETAL_ROWS - PETAL_ROWS_CONNECTED)
     
     #define COLS (5 * PETAL_COLS)
@@ -103,7 +107,7 @@
 #define GREY_46 250
 
 // speeds, times, distances
-#define BASE_HZ                    10
+#define BASE_HZ                    15
 #define WILDFIRE_SPEEDUP           4 // wildfire effects propagate at this multiple of BASE_HZ
 #define TRANSITION_TICKS           400
 #define SECONDARY_TRANSITION_TICKS 300

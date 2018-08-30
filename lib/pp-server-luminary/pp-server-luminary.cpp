@@ -1,3 +1,5 @@
+#ifdef PP_SERVER
+
 #include <cstdint>
 
 #include <limits.h>
@@ -22,3 +24,5 @@ extern "C" {
         return;
     }
 }
+
+#endif /* PP_SERVER */

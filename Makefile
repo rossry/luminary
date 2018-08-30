@@ -19,14 +19,16 @@ PP_LIBDIR=lib/pp-server/lib
 PP_LIBRARY_NAME=pixel-push-server
 PP_LIBRARY=$(PP_LIBDIR)/lib$(PP_LIBRARY_NAME).a
 
-LDFLAGS=-lncurses -L$(PP_LIBDIR) -l$(PP_LIBRARY_NAME) -lstdc++ -lrt -lm -lpthread -lcairo -lX11
+#LDFLAGS=-lncurses -L$(PP_LIBDIR) -l$(PP_LIBRARY_NAME) -lstdc++ -lrt -lm -lpthread -lcairo -lX11
+LDFLAGS=-lncurses -lstdc++ -lrt -lm -lpthread -lcairo -lX11
 
-$(BIN_DIR)/$(TARGET_EXEC): $(OBJS) $(PP_LIBRARY)
+$(BIN_DIR)/$(TARGET_EXEC): $(OBJS)
+	#$(PP_LIBRARY)
 	$(CC) $(OBJS) -o $@ $(LDFLAGS)
 
 # pp-server
-$(PP_LIBRARY): FORCE
-	$(MAKE) -C $(PP_LIBDIR)
+#$(PP_LIBRARY): FORCE
+#	$(MAKE) -C $(PP_LIBDIR)
 
 # assembly
 $(BUILD_DIR)/%.s.o: %.s

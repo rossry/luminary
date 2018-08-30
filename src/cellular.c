@@ -10,9 +10,61 @@ int y_wrap_x_cols_minus_one[] = {-1-COLS, -1, -1+COLS, -COLS, 0, COLS, 1-2*COLS,
 int y_rows_minus_one[] = {-1-COLS, -1, 0, -COLS, 0, 0, 1-COLS, 1, 0};
 int y_else[] = {-1-COLS, -1, -1+COLS, -COLS, 0, COLS, 1-COLS, 1, 1+COLS};
 
+int y_upper_left[] = {0, PETAL_COLS-1, PETAL_COLS-2, 0, 0, 1, 0, COLS, COLS+1};
+int y_upper_right[] = {2-PETAL_COLS, 1-PETAL_COLS, 0, -1, 0, 0, COLS-1, COLS, 0};
+
+int y_upper_join_defined = 0;
+int y_upper_join[PETAL_COLS*9];
+
 int* get_offset_array(int x, int y) {
+    if (!y_upper_join_defined) {
+        int ii;
+
+        ii = 0;
+        y_upper_join[ii*9 + 0] = 0;
+        y_upper_join[ii*9 + 1] = 0;
+        y_upper_join[ii*9 + 2] = 0;
+        y_upper_join[ii*9 + 3] = PETAL_COLS-1;
+        y_upper_join[ii*9 + 4] = 0;
+        y_upper_join[ii*9 + 5] = COLS;
+        y_upper_join[ii*9 + 6] = PETAL_COLS-2;
+        y_upper_join[ii*9 + 7] = 1;
+        y_upper_join[ii*9 + 8] = 1+COLS;
+
+        for (int ii = 1; ii < PETAL_COLS; ++ii) {
+            y_upper_join[ii*9 + 0] = PETAL_COLS+2-ii*2;
+            y_upper_join[ii*9 + 1] = -1;
+            y_upper_join[ii*9 + 2] = -1+COLS;
+            y_upper_join[ii*9 + 3] = PETAL_COLS+1-ii*2;
+            y_upper_join[ii*9 + 4] = 0;
+            y_upper_join[ii*9 + 5] = COLS;
+            y_upper_join[ii*9 + 6] = PETAL_COLS-ii*2;
+            y_upper_join[ii*9 + 7] = 1;
+            y_upper_join[ii*9 + 8] = 1+COLS;
+        }
+
+        ii = PETAL_COLS-1;
+        y_upper_join[ii*9 + 0] = 2-PETAL_COLS;
+        y_upper_join[ii*9 + 1] = -1;
+        y_upper_join[ii*9 + 2] = -1+COLS;
+        y_upper_join[ii*9 + 3] = 1-PETAL_COLS;
+        y_upper_join[ii*9 + 4] = 0;
+        y_upper_join[ii*9 + 5] = COLS;
+        y_upper_join[ii*9 + 6] = 0;
+        y_upper_join[ii*9 + 7] = 0;
+        y_upper_join[ii*9 + 8] = 0;
+
+        y_upper_join_defined = 1;
+    }
+
     switch (y) {
     case 0 :
+        switch (x % PETAL_COLS) {
+        case 0 :
+            return y_upper_left;
+        case PETAL_COLS-1 :
+            return y_upper_right;
+        }
         return y_zero;
     case ROWS-1 : 
         return y_rows_minus_one;
@@ -32,13 +84,13 @@ int* get_offset_array(int x, int y) {
 
 #define X_INIT(x,y) \
     (((y) < PETAL_ROWS && (y) > PETAL_ROWS_SEPARATED) \
-        || ((x) > 0 && ((y) > PETAL_ROWS_SEPARATED || (x) % 32 > 0)) \
+        || ((x) > 0 && ((y) > PETAL_ROWS_SEPARATED || (x) % PETAL_COLS > 0)) \
         ? 0 : \
     3)
 #define X_CONTINUE(x,y,i) \
     ((i) < (\
         (((y) < PETAL_ROWS + 3 && (y) > PETAL_ROWS_SEPARATED) \
-            || ((x) < COLS-1 && ((y) > PETAL_ROWS_SEPARATED || (x) % 32 < 31))) ? 9 : \
+            || ((x) < COLS-1 && ((y) > PETAL_ROWS_SEPARATED || (x) % PETAL_COLS < PETAL_COLS-1))) ? 9 : \
         6))
 
 void max_equals(int* x, int y, int* t0, int s0, int* t1, int s1) {

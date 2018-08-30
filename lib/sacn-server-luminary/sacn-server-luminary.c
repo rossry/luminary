@@ -48,7 +48,7 @@ void sacn_server_start() {
 void store_channel_data(sacn_channels_t *sacn_channels, e131_packet_t *packet) {
     sacn_channels->raw.mode = packet->dmp.prop_val[CHANNEL_M_MODE];
     sacn_channels->logical.mode = packet->dmp.prop_val[CHANNEL_M_MODE]/85;
-    
+
     sacn_channels->raw.m.intensity = sacn_channels->logical.m.intensity = packet->dmp.prop_val[CHANNEL_M_INTENSITY];
     
     sacn_channels->raw.m.color = packet->dmp.prop_val[CHANNEL_M_COLOR];
@@ -73,6 +73,7 @@ void store_channel_data(sacn_channels_t *sacn_channels, e131_packet_t *packet) {
         sacn_channels->logical.p[ii].transition = packet->dmp.prop_val[CHANNEL_PETAL_TRANSITION(ii)]/64;
         
         // CR rrheingans-yoo: for testing
+        /*
         sacn_channels->raw.p[ii].intensity = sacn_channels->raw.m.intensity;
         sacn_channels->logical.p[ii].intensity = sacn_channels->logical.m.intensity;
         
@@ -84,6 +85,7 @@ void store_channel_data(sacn_channels_t *sacn_channels, e131_packet_t *packet) {
         
         sacn_channels->raw.p[ii].transition = sacn_channels->raw.m.transition;
         sacn_channels->logical.p[ii].transition = sacn_channels->logical.m.transition;
+        */
     }
 }
 

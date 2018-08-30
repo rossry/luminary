@@ -164,7 +164,13 @@ int main(int argc, char *argv[]) {
                     control_orth_next[xy] += SECONDARY_TRANSITION_TICKS;
                 }
                 
-                if (!SACN_CONTROL(sacn_channels)) {
+                if (
+                    #ifdef SACN_SERVER
+                        !SACN_CONTROL(sacn_channels)
+                    #else /* SACN_SERVER */
+                        1
+                    #endif /* SACN_SERVER */
+                ) {
                     // revert to hibernation
                     if (control_orth_next[xy] == 0
                         && control_directive_0_next[xy] != PATTERN_BASE
@@ -267,7 +273,13 @@ int main(int argc, char *argv[]) {
             if (control_directive_0[xy] == PATTERN_FULL_RAINBOW
                 || rainbow_0_next[xy] != rainbow_0[xy]
             ) {
-                if (SACN_CONTROL(sacn_channels)) {
+                if (
+                    #ifdef SACN_SERVER
+                        SACN_CONTROL(sacn_channels)
+                    #else /* SACN_SERVER */
+                        0
+                    #endif /* SACN_SERVER */
+                ) {
                     rainbow_tone[xy] = PATTERN_SACN_GET_COLOR(control_directive_0[xy]);
                 } else {
                     rainbow_tone[xy] = ((waves_orth_next[xy] / 17) / RAINBOW_TONE_EPOCHS) % COLORS;

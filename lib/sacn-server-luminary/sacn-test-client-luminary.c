@@ -13,7 +13,7 @@
 int sockfd;
 e131_packet_t packet;
 e131_addr_t dest;
-uint8_t next_seq = 0x01;
+uint8_t next_seq_test = 0x01;
 
 char ui_message[256];
 
@@ -41,7 +41,7 @@ void sacn_test_client_start() {
 void sacn_test_client_send_message() {
     packet.dmp.prop_val[1] = level++;
     
-    packet.frame.seq_number = next_seq++;
+    packet.frame.seq_number = next_seq_test++;
     
     if (e131_send(sockfd, &packet, &dest) < 0)
         err(EXIT_FAILURE, "e131_send");
@@ -51,12 +51,12 @@ void sacn_test_client_send_message() {
 void sacn_test_client_set_level(int channel, uint8_t level) {
     packet.dmp.prop_val[channel] = level;
     
-    packet.frame.seq_number = next_seq++;
+    packet.frame.seq_number = next_seq_test++;
     
     if (e131_send(sockfd, &packet, &dest) < 0)
         err(EXIT_FAILURE, "e131_send");
     //e131_pkt_dump(stderr, &packet);
     
-    sprintf(ui_message, "sent #%03d, ch.%d:=%3d                         ", next_seq-1, channel, level);
+    sprintf(ui_message, "sent #%03d, ch.%d:=%3d                         ", next_seq_test-1, channel, level);
     print_sacn_message(ui_message, 10);
 }

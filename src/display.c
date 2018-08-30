@@ -382,15 +382,33 @@ void display_init() {
     pp_server_shutdown();
     */
     
-    // CR rrheingans-yoo for ntarleton: dancefloor initialization, as necessary
+    #ifdef SACN_CLIENT
+        sacn_client_init();
+    #endif /* SACN_CLIENT */
 }
 
+/*
 int petal_mapping_pixel(int x_p,int y) {
     for (int ii = 0; ii < PETAL_MAPPING_PIXELS; ++ii) {
         if (x_p == petal_mapping[ii * 3] && y == petal_mapping[ii * 3 + 1]) {
             return petal_mapping[ii * 3 + 2];
         }
     }
+    return 0;
+}
+*/
+int petal_mapping_pixel(int x_p, int y) {
+    if (x_p == 0) {
+        if (y < 25) {
+            return 25 - y + 1;
+        }
+    }
+    if (x_p == PETAL_COLS-1) {
+        if (y < 25) {
+            return 25 + 25 - y + 1;
+        }
+    }
+
     return 0;
 }
 
@@ -454,7 +472,9 @@ void display_color(int xy, int color) {
 
         display_current[xy] = color;
         
-        // CR rrheingans-yoo for ntarleton: get ready to set cell xy to color color
+        #ifdef SACN_CLIENT
+            sacn_draw_color((x/PETAL_COLS)*512 + petal_mapping_pixel(x & PETAL_COLS, y), rgb_palette[color*3 + 0], rgb_palette[color*3 + 1], rgb_palette[color*3 + 2]);
+        #endif /* SACN_CLIENT */
     }
 }
 
@@ -648,5 +668,7 @@ void display_flush(int epoch) {
         #endif /* OUTPUT_CAIRO_FULLSCREEN */
     #endif /* OUTPUT_CAIRO */
     
-    // CR rrheingans-yoo for ntarleton: set all cell colors at once
+    #ifdef SACN_CLIENT
+        sacn_flush();
+    #endif /* SACN_CLIENT */
 }
