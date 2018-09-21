@@ -58,7 +58,7 @@ int* get_offset_array(int x, int y) {
     }
 
     switch (y) {
-    case 0 :
+    case 0 : // CR rrheingans-yoo: use y_upper_join if PETALS_ACTIVE
         switch (x % PETAL_COLS) {
         case 0 :
             return y_upper_left;
@@ -316,4 +316,128 @@ void run_hanabi_spark(hanabi_cell* grid, int xy, int color) {
         grid[xy+offset[i]].orth = grid[xy+offset[i]].diag = 170 * (rand() % 3 ? 1 : 0); // CR rrheingans-yoo: tune this
         grid[xy+offset[i]].color = color;
     }
+}
+
+void compute_turing_activator(double* turing_z, double* turing_activator, int xy, int type) {
+    int x = xy % COLS;
+    int y = xy / COLS;
+    int* offset = get_offset_array(x,y);
+    
+    double turing_current_state;
+    
+    turing_activator[xy] = 0.0;
+    
+    if (type == 0) {
+        turing_current_state = 0.0;
+        for (int i = X_INIT(x,y); X_CONTINUE(x,y,i); ++i) {
+            switch (offset[i]) {
+            case 0:
+                break;
+            case 1: case -1: case COLS: case -COLS:
+                turing_current_state += 2*turing_z[xy+offset[i]];
+                break;
+            default:
+                turing_current_state += turing_z[xy+offset[i]];
+            }
+        }
+        turing_activator[xy] += turing_current_state/12;
+        
+        turing_current_state = 0.0;
+        for (int y_i = -2; y_i<=2; ++y_i) {
+            for (int x_i = -2; x_i<=2; ++x_i) {
+                if (
+                    (y_i == -2 || y_i == 2 || x_i == -2 || x_i == 2)
+                    && y_i*x_i != 4 && y_i*x_i != -4
+                ) {
+                    if (y+y_i >= 0 && y+y_i < ROWS && x+x_i >= 0 && x+x_i < COLS) {
+                        turing_current_state += turing_z[xy + (y_i*COLS) + x_i];
+                    }
+                }
+            }
+        }
+        turing_activator[xy] -= turing_current_state/12;
+    }
+    
+    if (type == 1) {
+        turing_current_state = 0.0;
+        for (int y_i = -10; y_i<=10; ++y_i) {
+            for (int x_i = -10; x_i<=10; ++x_i) {
+                if (
+                    (x_i*x_i)+(y_i*y_i) < 9
+                ) {
+                    if (y+y_i >= 0 && y+y_i < ROWS && (x+x_i >= 0 || y+y_i > 0) && (x+x_i < COLS || y+y_i < ROWS-1)) {
+                        turing_current_state += turing_z[xy + (y_i*COLS) + x_i];
+                    }
+                }
+            }
+        }
+        turing_activator[xy] += turing_current_state/20;
+        
+        turing_current_state = 0.0;
+        for (int y_i = -20; y_i<=20; ++y_i) {
+            for (int x_i = -20; x_i<=20; ++x_i) {
+                if (
+                    (x_i*x_i)+(y_i*y_i) < 36
+                ) {
+                    if (y+y_i >= 0 && y+y_i < ROWS && (x+x_i >= 0 || y+y_i > 0) && (x+x_i < COLS || y+y_i < ROWS-1)) {
+                        turing_current_state += turing_z[xy + (y_i*COLS) + x_i];
+                    }
+                }
+            }
+        }
+        turing_activator[xy] -= turing_current_state/80;
+    }
+    
+    if (1 || type == 1) {
+        turing_current_state = 0.0;
+        for (int y_i = -10; y_i<=10; ++y_i) {
+            for (int x_i = -10; x_i<=10; ++x_i) {
+                if (
+                    (x_i*x_i)+(y_i*y_i) < 100
+                ) {
+                    if (y+y_i >= 0 && y+y_i < ROWS && (x+x_i >= 0 || y+y_i > 0) && (x+x_i < COLS || y+y_i < ROWS-1)) {
+                        turing_current_state += turing_z[xy + (y_i*COLS) + x_i];
+                    }
+                }
+            }
+        }
+        turing_activator[xy] += turing_current_state/180;
+        
+        turing_current_state = 0.0;
+        for (int y_i = -20; y_i<=20; ++y_i) {
+            for (int x_i = -20; x_i<=20; ++x_i) {
+                if (
+                    (x_i*x_i)+(y_i*y_i) < 400
+                ) {
+                    if (y+y_i >= 0 && y+y_i < ROWS && (x+x_i >= 0 || y+y_i > 0) && (x+x_i < COLS || y+y_i < ROWS-1)) {
+                        turing_current_state += turing_z[xy + (y_i*COLS) + x_i];
+                    }
+                }
+            }
+        }
+        turing_activator[xy] -= turing_current_state/720;
+    }
+}
+
+void apply_turing_activator(
+    double* turing_u, double* turing_u_activator,
+    double* turing_v, double* turing_v_activator,
+    int xy
+) {
+    if (turing_u_activator[xy] > 0.0) {
+        turing_u[xy] += 0.01;
+    } else {
+        turing_u[xy] -= 0.01;
+    }
+    
+    if (turing_v_activator[xy] > 0.0) {
+        turing_v[xy] += 0.01;
+    } else {
+        turing_v[xy] -= 0.01;
+    }
+    
+    double r;
+    r = turing_u[xy]*turing_u[xy] + turing_v[xy]*turing_v[xy];
+    turing_u[xy] /= r;
+    turing_v[xy] /= r;
 }

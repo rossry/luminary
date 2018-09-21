@@ -67,7 +67,7 @@ void sacn_flush_universe(int universe) {
         err(EXIT_FAILURE, "e131_send");
     //e131_pkt_dump(stderr, &packet);
 
-    sprintf(ui_message, "sent #%03d to %d                         ", next_seq-1, 0);
+    sprintf(ui_message, "sent #%03u to %d                         ", next_seq[universe]-1, 0);
     print_sacn_message(ui_message, 10);
 }
 

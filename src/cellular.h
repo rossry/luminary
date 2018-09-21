@@ -17,7 +17,29 @@ void compute_decay(
     int xy
 );
 
-void compute_hanabi(hanabi_cell* grid, hanabi_cell* grid_next, int xy);
-void run_hanabi_spark(hanabi_cell* grid, int xy, int color);
+void compute_hanabi(
+    hanabi_cell* grid,
+    hanabi_cell* grid_next,
+    int xy
+);
+void run_hanabi_spark(
+    hanabi_cell* grid,
+    int xy,
+    int color
+);
+
+void compute_turing_activator(
+    double* turing_z,
+    double* turing_activator,
+    int xy,
+    int type
+);
+void apply_turing_activator(
+    double* turing_u,
+    double* turing_u_activator,
+    double* turing_v,
+    double* turing_v_activator,
+    int xy
+);
 
 #endif /* CELLULAR_H */

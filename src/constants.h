@@ -17,9 +17,9 @@
 //#define PP_SERVER
 
 // physical dimensions
-#define PETALS_ACTIVE
+//#define PETALS_ACTIVE
 
-#define FLOOR_COLS 85
+#define FLOOR_COLS 90
 #define FLOOR_ROWS 60
 
 #ifdef PETALS_ACTIVE
@@ -113,7 +113,7 @@
 #define SECONDARY_TRANSITION_TICKS 300
 #define RAND_SECONDARY_TRANSITION  ( rand() % (ROWS * COLS) == 0 )
 #define HIBERNATION_TICKS          70000 // 70000 ticks ~ 103 seconds
-#define INITIALIZATION_EPOCHS      ( 200 * WILDFIRE_SPEEDUP ) // run this many epochs on startup
+#define INITIALIZATION_EPOCHS      0 // ( 200 * WILDFIRE_SPEEDUP ) // run this many epochs on startup
 #define PRESSURE_DELAY_EPOCHS      30
 #define PRESSURE_RADIUS_TICKS      150//76
 #define RAINBOW_TONE_EPOCHS        1200

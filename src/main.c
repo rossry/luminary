@@ -74,6 +74,11 @@ int main(int argc, char *argv[]) {
     hanabi_cell hanabi_next[ROWS * COLS];
     int hanabi_seed_color[ROWS * COLS];
     
+    double turing_u[ROWS * COLS];
+    double turing_u_activator[ROWS * COLS];
+    double turing_v[ROWS * COLS];
+    double turing_v_activator[ROWS * COLS];
+    
     int in_chr = 0;
     
     for (int xy = 0; xy < ROWS * COLS; ++xy) {
@@ -85,8 +90,10 @@ int main(int argc, char *argv[]) {
         control_diag[xy] = 0;
         
         rainbow_0[xy] = RAND_COLOR;
+        rainbow_0_next[xy] = RAND_COLOR;
         impatience_0[xy] = 0;
         rainbow_1[xy] = RAND_COLOR;
+        rainbow_1_next[xy] = RAND_COLOR;
         impatience_1[xy] = 0;
         
         rainbow_tone[xy] = 0;
@@ -102,6 +109,11 @@ int main(int argc, char *argv[]) {
         hanabi[xy].orth = 0;
         hanabi[xy].diag = 0;
         hanabi_seed_color[xy] = RAND_COLOR;
+        
+        turing_u[xy] = (double)rand()/(double)(RAND_MAX/2) - 1;
+        turing_u_activator[xy] = 0.0;
+        turing_v[xy] = (double)rand()/(double)(RAND_MAX/2) - 1;
+        turing_v_activator[xy] = 0.0;
     }
     
     #ifdef SACN_SERVER
@@ -217,6 +229,9 @@ int main(int argc, char *argv[]) {
                     if ((waves_orth_next[xy] / 17) % 480 < 12) {
                         hanabi_next[xy].orth = hanabi_next[xy].diag = 0;
                     }
+                    
+                    compute_turing_activator(turing_u, turing_u_activator, xy, 0);
+                    compute_turing_activator(turing_v, turing_v_activator, xy, 1);
                 } else if (rand() % PRESSURE_RADIUS_TICKS < pressure_orth[xy]) {
                     // evolve rainbow_0
                     rainbow_0_next[xy] = compute_cyclic(rainbow_0, impatience_0, xy);
@@ -285,12 +300,21 @@ int main(int argc, char *argv[]) {
                     rainbow_tone[xy] = ((waves_orth_next[xy] / 17) / RAINBOW_TONE_EPOCHS) % COLORS;
                 }
             }
+            
+            if (epoch % WILDFIRE_SPEEDUP == 0) {
+                apply_turing_activator(
+                    turing_u, turing_u_activator,
+                    turing_v, turing_v_activator,
+                    xy
+                );
+            }
         }
         
         gettimeofday(&computed, NULL);
         
         for (int xy = 0; xy < ROWS * COLS; ++xy) {
             if (epoch > INITIALIZATION_EPOCHS) {
+                /*
                 display_color(
                     xy,
                     color_from_pattern(
@@ -301,6 +325,44 @@ int main(int argc, char *argv[]) {
                         rainbow_1_next[xy]
                     )
                 );
+                */
+                
+                int z;
+                if (turing_u[xy] > 0.965926) {
+                    z = 6;
+                } else if (turing_u[xy] > 0.707107) {
+                    z = 5;
+                }  else if (turing_u[xy] > 0.258819) {
+                    z = 4;
+                }  else if (turing_u[xy] > -0.258819) {
+                    z = 3;
+                }  else if (turing_u[xy] > -0.707107) {
+                    z = 2;
+                }  else if (turing_u[xy] > -0.965926) {
+                    z = 1;
+                }  else {
+                    z = 0;
+                }
+                
+                if (turing_v[xy]>0) {
+                    z *= -1;
+                }
+                
+                z = (16+z) % COLORS;
+                
+                
+                display_color(
+                    xy,
+                    color_from_pattern(
+                        PATTERN_TWO_TONES,
+                        xy,
+                        z,
+                        rainbow_0_next[xy],
+                        rainbow_1_next[xy]
+                    )
+                );
+                
+                //display_color(xy,z);
             }
             
             // increment all states
