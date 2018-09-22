@@ -28,17 +28,30 @@ void run_hanabi_spark(
     int color
 );
 
-void compute_turing_activator(
-    double* turing_z,
-    double* turing_activator,
+typedef struct turing_reagent {
+    double activ;
+    double inhib;
+} turing_reagent_t;
+
+#define MAX_TURING_SCALES 4
+
+typedef struct vector {
+    int n_scales;
+    turing_reagent_t scale[MAX_TURING_SCALES];
+    double increment[MAX_TURING_SCALES];
+} turing_vector_t;
+
+void compute_turing(
+    double* state,
+    turing_vector_t* reagents,
     int xy,
     int type
 );
-void apply_turing_activator(
-    double* turing_u,
-    double* turing_u_activator,
-    double* turing_v,
-    double* turing_v_activator,
+void apply_turing(
+    double* u_state,
+    turing_vector_t* u_reagents,
+    double* v_state,
+    turing_vector_t* v_reagents,
     int xy
 );
 

@@ -75,9 +75,9 @@ int main(int argc, char *argv[]) {
     int hanabi_seed_color[ROWS * COLS];
     
     double turing_u[ROWS * COLS];
-    double turing_u_activator[ROWS * COLS];
+    turing_vector_t turing_u_reagents[ROWS * COLS];
     double turing_v[ROWS * COLS];
-    double turing_v_activator[ROWS * COLS];
+    turing_vector_t turing_v_reagents[ROWS * COLS];
     
     int in_chr = 0;
     
@@ -111,9 +111,17 @@ int main(int argc, char *argv[]) {
         hanabi_seed_color[xy] = RAND_COLOR;
         
         turing_u[xy] = (double)rand()/(double)(RAND_MAX/2) - 1;
-        turing_u_activator[xy] = 0.0;
+        turing_u_reagents[xy].n_scales = 3;
+        turing_u_reagents[xy].increment[0] = 0.01;
+        turing_u_reagents[xy].increment[1] = 0.02;
+        turing_u_reagents[xy].increment[2] = 0.03;
+        //turing_u_reagents[xy].increment[3] = 0.04;
         turing_v[xy] = (double)rand()/(double)(RAND_MAX/2) - 1;
-        turing_v_activator[xy] = 0.0;
+        turing_v_reagents[xy].n_scales = 3;
+        turing_v_reagents[xy].increment[0] = 0.01;
+        turing_v_reagents[xy].increment[1] = 0.02;
+        turing_v_reagents[xy].increment[2] = 0.03;
+        //turing_u_reagents[xy].increment[3] = 0.04;
     }
     
     #ifdef SACN_SERVER
@@ -201,6 +209,10 @@ int main(int argc, char *argv[]) {
                     xy
                 );
                 
+                // compute turing patterns
+                compute_turing(turing_u, turing_u_reagents, xy, 0);
+                compute_turing(turing_v, turing_v_reagents, xy, 1);
+                
                 if (epoch % WILDFIRE_SPEEDUP == 0) {
                     // evolve rainbow_0
                     rainbow_0_next[xy] = compute_cyclic(rainbow_0, impatience_0, xy);
@@ -229,9 +241,6 @@ int main(int argc, char *argv[]) {
                     if ((waves_orth_next[xy] / 17) % 480 < 12) {
                         hanabi_next[xy].orth = hanabi_next[xy].diag = 0;
                     }
-                    
-                    compute_turing_activator(turing_u, turing_u_activator, xy, 0);
-                    compute_turing_activator(turing_v, turing_v_activator, xy, 1);
                 } else if (rand() % PRESSURE_RADIUS_TICKS < pressure_orth[xy]) {
                     // evolve rainbow_0
                     rainbow_0_next[xy] = compute_cyclic(rainbow_0, impatience_0, xy);
@@ -301,13 +310,11 @@ int main(int argc, char *argv[]) {
                 }
             }
             
-            if (epoch % WILDFIRE_SPEEDUP == 0) {
-                apply_turing_activator(
-                    turing_u, turing_u_activator,
-                    turing_v, turing_v_activator,
-                    xy
-                );
-            }
+            apply_turing(
+                turing_u, turing_u_reagents,
+                turing_v, turing_v_reagents,
+                xy
+            );
         }
         
         gettimeofday(&computed, NULL);
@@ -344,12 +351,11 @@ int main(int argc, char *argv[]) {
                     z = 0;
                 }
                 
-                if (turing_v[xy]>0) {
+                if (turing_v[xy]<0) {
                     z *= -1;
                 }
                 
-                z = (16+z) % COLORS;
-                
+                z = (15+z) % COLORS;
                 
                 display_color(
                     xy,
@@ -363,6 +369,8 @@ int main(int argc, char *argv[]) {
                 );
                 
                 //display_color(xy,z);
+                
+                //display_color(xy, (int)((turing_v[xy]+1)*3)+1);
             }
             
             // increment all states
@@ -388,7 +396,9 @@ int main(int argc, char *argv[]) {
         gettimeofday(&drawn, NULL);
         
         if (epoch > INITIALIZATION_EPOCHS) {
-            display_flush(epoch);
+            if (epoch % WILDFIRE_SPEEDUP == 0) { // CR rrheingans-yoo remove this hack
+                display_flush(epoch);
+            }
             
             gettimeofday(&refreshed, NULL);
             
