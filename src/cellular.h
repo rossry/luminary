@@ -32,6 +32,9 @@ typedef struct turing_reagent {
     double activ;
     double inhib;
     
+    double activ_tmp;
+    double inhib_tmp;
+    
     int n_activ;
     int n_inhib;
 } turing_reagent_t;

@@ -349,36 +349,38 @@ void compute_turing_reagent(
     int y = xy / COLS;
     int radius_squared = radius*radius;
     
-    *reagent = 0.0;
-    *n_neighbors = 0;
-    
     for (int y_i = 1-radius; y_i<radius; ++y_i) {
         for (int x_i = 1-radius; x_i<radius; ++x_i) {
             if (
+                1 ||
                 (x_i*x_i)+(y_i*y_i) < radius_squared
             ) {
                 if (
-                    y+y_i >= 0
-                    && y+y_i < ROWS
-                    && (x+x_i >= 0 || y+y_i > 0)
-                    && (x+x_i < COLS || y+y_i < ROWS-1)
+                    (y+y_i)*COLS+x+x_i >= 0
+                    && (y+y_i)*COLS+x+x_i < ROWS*COLS
                 ) {
-                    *n_neighbors += 1;
-                    *reagent += vv[xy + (y_i*COLS) + x_i].state;
+                    *(
+                        (&vv[xy + (y_i*COLS) + x_i].scale[0].n_activ - &vv[xy].scale[0].n_activ)
+                        + n_neighbors
+                    ) += 1;*(
+                        (&vv[xy + (y_i*COLS) + x_i].scale[0].activ - &vv[xy].scale[0].activ)
+                        + reagent
+                    ) += *(
+                        (&vv[xy].scale[0].activ_tmp - &vv[xy].scale[0].activ)
+                        + reagent
+                    );
                 }
             }
         }
     }
 }
 
-void compute_turing(turing_vector_t* vv, int xy, int type) {
+void compute_turing(turing_vector_t* vv, int xy, int type, int pass) {
     int x = xy % COLS;
     int y = xy / COLS;
     int* offset = get_offset_array(x,y);
     
-    if (1) {
-        vv[xy].scale[0].activ = 0.0;
-        vv[xy].scale[0].n_activ = 0;
+    if (pass==1) {
         for (int i = X_INIT(x,y); X_CONTINUE(x,y,i); ++i) {
             switch (offset[i]) {
             case 0:
@@ -393,8 +395,6 @@ void compute_turing(turing_vector_t* vv, int xy, int type) {
             }
         }
         
-        vv[xy].scale[0].inhib = 0.0;
-        vv[xy].scale[0].n_inhib = 0;
         for (int y_i = -2; y_i<=2; ++y_i) {
             for (int x_i = -2; x_i<=2; ++x_i) {
                 if (
@@ -411,34 +411,85 @@ void compute_turing(turing_vector_t* vv, int xy, int type) {
     }
     
     if (1) {
-        compute_turing_reagent(vv, xy,  5, &vv[xy].scale[1].activ, &vv[xy].scale[1].n_activ);
-        compute_turing_reagent(vv, xy, 10, &vv[xy].scale[1].inhib, &vv[xy].scale[1].n_inhib);
+        compute_turing_reagent(vv, xy,  3, &vv[xy].scale[1].activ, &vv[xy].scale[1].n_activ);
+        compute_turing_reagent(vv, xy,  6, &vv[xy].scale[1].inhib, &vv[xy].scale[1].n_inhib);
     }
     
     if (1) {
-        compute_turing_reagent(vv, xy, 10, &vv[xy].scale[2].activ, &vv[xy].scale[2].n_activ);
-        compute_turing_reagent(vv, xy, 20, &vv[xy].scale[2].inhib, &vv[xy].scale[2].n_inhib);
+        compute_turing_reagent(vv, xy,  6, &vv[xy].scale[2].activ, &vv[xy].scale[2].n_activ);
+        compute_turing_reagent(vv, xy, 12, &vv[xy].scale[2].inhib, &vv[xy].scale[2].n_inhib);
     }
 }
 
 void compute_turing_all(turing_vector_t* uu, turing_vector_t* vv) {
+    // initialize
+    for (int xy=0; xy<ROWS*COLS; ++xy) {
+        for (int scl=0; scl<uu[xy].n_scales; ++scl) {
+            uu[xy].scale[scl].activ = 0.0;
+            uu[xy].scale[scl].n_activ = 0;
+            uu[xy].scale[scl].activ_tmp = uu[xy].state;
+            uu[xy].scale[scl].inhib = 0.0;
+            uu[xy].scale[scl].n_inhib = 0;
+            uu[xy].scale[scl].inhib_tmp = uu[xy].state;
+        }
+        
+        for (int scl=0; scl<vv[xy].n_scales; ++scl) {
+            vv[xy].scale[scl].activ = 0.0;
+            vv[xy].scale[scl].n_activ = 0;
+            vv[xy].scale[scl].activ_tmp = vv[xy].state;
+            vv[xy].scale[scl].inhib = 0.0;
+            vv[xy].scale[scl].n_inhib = 0;
+            vv[xy].scale[scl].inhib_tmp = vv[xy].state;
+        }
+    }
+    
     // diffuse reagents
     // CR rrheingans-yoo: diffuse reagents with a fast Gaussian blur instead
     for (int xy=0; xy<ROWS*COLS; ++xy) {
-        compute_turing(uu, xy, 0);
-        compute_turing(vv, xy, 1);
+        compute_turing(uu, xy, 0, 1);
+        compute_turing(vv, xy, 1, 1);
+    }
+    for (int xy=0; xy<ROWS*COLS; ++xy) {
+        for (int scl=1; scl<uu[xy].n_scales; ++scl) {
+            uu[xy].scale[scl].activ_tmp = uu[xy].scale[scl].activ / uu[xy].scale[scl].n_activ;
+            uu[xy].scale[scl].inhib_tmp = uu[xy].scale[scl].inhib / uu[xy].scale[scl].n_inhib;
+        }
+        
+        for (int scl=1; scl<vv[xy].n_scales; ++scl) {
+            vv[xy].scale[scl].activ_tmp = vv[xy].scale[scl].activ / vv[xy].scale[scl].n_activ;
+            vv[xy].scale[scl].inhib_tmp = vv[xy].scale[scl].inhib / vv[xy].scale[scl].n_inhib;
+        }
+    }
+    for (int xy=0; xy<ROWS*COLS; ++xy) {
+        compute_turing(uu, xy, 0, 2);
+        compute_turing(vv, xy, 1, 2);
+    }
+    for (int xy=0; xy<ROWS*COLS; ++xy) {
+        for (int scl=1; scl<uu[xy].n_scales; ++scl) {
+            uu[xy].scale[scl].activ_tmp = uu[xy].scale[scl].activ / uu[xy].scale[scl].n_activ;
+            uu[xy].scale[scl].inhib_tmp = uu[xy].scale[scl].inhib / uu[xy].scale[scl].n_inhib;
+        }
+        
+        for (int scl=1; scl<vv[xy].n_scales; ++scl) {
+            vv[xy].scale[scl].activ_tmp = vv[xy].scale[scl].activ / vv[xy].scale[scl].n_activ;
+            vv[xy].scale[scl].inhib_tmp = vv[xy].scale[scl].inhib / vv[xy].scale[scl].n_inhib;
+        }
+    }
+    for (int xy=0; xy<ROWS*COLS; ++xy) {
+        compute_turing(uu, xy, 0, 2);
+        compute_turing(vv, xy, 1, 2);
     }
     
     // normalize reagents
     for (int xy=0; xy<ROWS*COLS; ++xy) {
-        for (int ii=0; ii<uu[xy].n_scales; ++ii) {
-            uu[xy].scale[ii].activ /= uu[xy].scale[ii].n_activ;
-            uu[xy].scale[ii].inhib /= uu[xy].scale[ii].n_inhib;
+        for (int scl=0; scl<uu[xy].n_scales; ++scl) {
+            uu[xy].scale[scl].activ /= uu[xy].scale[scl].n_activ;
+            uu[xy].scale[scl].inhib /= uu[xy].scale[scl].n_inhib;
         }
         
-        for (int ii=0; ii<vv[xy].n_scales; ++ii) {
-            vv[xy].scale[ii].activ /= vv[xy].scale[ii].n_activ;
-            vv[xy].scale[ii].inhib /= vv[xy].scale[ii].n_inhib;
+        for (int scl=0; scl<vv[xy].n_scales; ++scl) {
+            vv[xy].scale[scl].activ /= vv[xy].scale[scl].n_activ;
+            vv[xy].scale[scl].inhib /= vv[xy].scale[scl].n_inhib;
         }
     }
 }

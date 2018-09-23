@@ -333,27 +333,52 @@ int main(int argc, char *argv[]) {
                 */
                 
                 int z;
-                if (turing_u[xy].state > 0.965926) {
-                    z = 6;
-                } else if (turing_u[xy].state > 0.707107) {
-                    z = 5;
-                }  else if (turing_u[xy].state > 0.258819) {
-                    z = 4;
-                }  else if (turing_u[xy].state > -0.258819) {
-                    z = 3;
-                }  else if (turing_u[xy].state > -0.707107) {
-                    z = 2;
-                }  else if (turing_u[xy].state > -0.965926) {
-                    z = 1;
-                }  else {
-                    z = 0;
-                }
                 
-                if (turing_v[xy].state < 0) {
-                    z *= -1;
+                if (1) {
+                    if (turing_u[xy].state > 0.965926) {
+                        z = 6;
+                    } else if (turing_u[xy].state > 0.707107) {
+                        z = 5;
+                    }  else if (turing_u[xy].state > 0.258819) {
+                        z = 4;
+                    }  else if (turing_u[xy].state > -0.258819) {
+                        z = 3;
+                    }  else if (turing_u[xy].state > -0.707107) {
+                        z = 2;
+                    }  else if (turing_u[xy].state > -0.965926) {
+                        z = 1;
+                    }  else {
+                        z = 0;
+                    }
+                    
+                    if (turing_v[xy].state < 0) {
+                        z *= -1;
+                    }
+                    
+                    z = (16+z) % COLORS;
+                } else {
+                    if (turing_v[xy].state > 0.965926) {
+                        z = 6;
+                    } else if (turing_v[xy].state > 0.707107) {
+                        z = 5;
+                    }  else if (turing_v[xy].state > 0.258819) {
+                        z = 4;
+                    }  else if (turing_v[xy].state > -0.258819) {
+                        z = 3;
+                    }  else if (turing_v[xy].state > -0.707107) {
+                        z = 2;
+                    }  else if (turing_v[xy].state > -0.965926) {
+                        z = 1;
+                    }  else {
+                        z = 0;
+                    }
+                    
+                    if (turing_u[xy].state < 0) {
+                        z *= -1;
+                    }
+                    
+                    z = (16+z) % COLORS;
                 }
-                
-                z = (16+z) % COLORS;
                 
                 
                 display_color(
@@ -392,6 +417,8 @@ int main(int argc, char *argv[]) {
             hanabi[xy].diag = hanabi_next[xy].diag;
             hanabi[xy].color = hanabi_next[xy].color;
         }
+        
+        //mvprintw(DIAGNOSTIC_ROWS+0, 0, "turing_v[0].scale[2].n_activ=%d", turing_v[0].scale[2].n_activ);
         
         gettimeofday(&drawn, NULL);
         
