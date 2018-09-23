@@ -74,10 +74,8 @@ int main(int argc, char *argv[]) {
     hanabi_cell hanabi_next[ROWS * COLS];
     int hanabi_seed_color[ROWS * COLS];
     
-    double turing_u[ROWS * COLS];
-    turing_vector_t turing_u_reagents[ROWS * COLS];
-    double turing_v[ROWS * COLS];
-    turing_vector_t turing_v_reagents[ROWS * COLS];
+    turing_vector_t turing_u[ROWS * COLS];
+    turing_vector_t turing_v[ROWS * COLS];
     
     int in_chr = 0;
     
@@ -110,18 +108,19 @@ int main(int argc, char *argv[]) {
         hanabi[xy].diag = 0;
         hanabi_seed_color[xy] = RAND_COLOR;
         
-        turing_u[xy] = (double)rand()/(double)(RAND_MAX/2) - 1;
-        turing_u_reagents[xy].n_scales = 3;
-        turing_u_reagents[xy].increment[0] = 0.01;
-        turing_u_reagents[xy].increment[1] = 0.02;
-        turing_u_reagents[xy].increment[2] = 0.03;
-        //turing_u_reagents[xy].increment[3] = 0.04;
-        turing_v[xy] = (double)rand()/(double)(RAND_MAX/2) - 1;
-        turing_v_reagents[xy].n_scales = 3;
-        turing_v_reagents[xy].increment[0] = 0.01;
-        turing_v_reagents[xy].increment[1] = 0.02;
-        turing_v_reagents[xy].increment[2] = 0.03;
-        //turing_u_reagents[xy].increment[3] = 0.04;
+        turing_u[xy].state = (double)rand() / (double)(RAND_MAX/2) - 1.0;
+        turing_u[xy].n_scales = 3;
+        turing_u[xy].increment[0] = 0.01;
+        turing_u[xy].increment[1] = 0.02;
+        turing_u[xy].increment[2] = 0.03;
+        turing_u[xy].increment[3] = 0.04;
+        
+        turing_v[xy].state = (double)rand() / (double)(RAND_MAX/2) - 1.0;
+        turing_v[xy].n_scales = 3;
+        turing_v[xy].increment[0] = 0.01;
+        turing_v[xy].increment[1] = 0.02;
+        turing_v[xy].increment[2] = 0.03;
+        turing_u[xy].increment[3] = 0.04;
     }
     
     #ifdef SACN_SERVER
@@ -209,10 +208,6 @@ int main(int argc, char *argv[]) {
                     xy
                 );
                 
-                // compute turing patterns
-                compute_turing(turing_u, turing_u_reagents, xy, 0);
-                compute_turing(turing_v, turing_v_reagents, xy, 1);
-                
                 if (epoch % WILDFIRE_SPEEDUP == 0) {
                     // evolve rainbow_0
                     rainbow_0_next[xy] = compute_cyclic(rainbow_0, impatience_0, xy);
@@ -247,6 +242,8 @@ int main(int argc, char *argv[]) {
                 }
             }
         }
+        
+        compute_turing_all(turing_u, turing_v);
         
         // drive waves_(orth|diag)'s top row
         waves_base_z_orig += 17;
@@ -311,9 +308,10 @@ int main(int argc, char *argv[]) {
             }
             
             apply_turing(
-                turing_u, turing_u_reagents,
-                turing_v, turing_v_reagents,
-                xy
+                turing_u,
+                turing_v,
+                xy,
+                400.0 / max(400,epoch)
             );
         }
         
@@ -335,27 +333,28 @@ int main(int argc, char *argv[]) {
                 */
                 
                 int z;
-                if (turing_u[xy] > 0.965926) {
+                if (turing_u[xy].state > 0.965926) {
                     z = 6;
-                } else if (turing_u[xy] > 0.707107) {
+                } else if (turing_u[xy].state > 0.707107) {
                     z = 5;
-                }  else if (turing_u[xy] > 0.258819) {
+                }  else if (turing_u[xy].state > 0.258819) {
                     z = 4;
-                }  else if (turing_u[xy] > -0.258819) {
+                }  else if (turing_u[xy].state > -0.258819) {
                     z = 3;
-                }  else if (turing_u[xy] > -0.707107) {
+                }  else if (turing_u[xy].state > -0.707107) {
                     z = 2;
-                }  else if (turing_u[xy] > -0.965926) {
+                }  else if (turing_u[xy].state > -0.965926) {
                     z = 1;
                 }  else {
                     z = 0;
                 }
                 
-                if (turing_v[xy]<0) {
+                if (turing_v[xy].state < 0) {
                     z *= -1;
                 }
                 
-                z = (15+z) % COLORS;
+                z = (16+z) % COLORS;
+                
                 
                 display_color(
                     xy,
@@ -368,9 +367,10 @@ int main(int argc, char *argv[]) {
                     )
                 );
                 
-                //display_color(xy,z);
                 
-                //display_color(xy, (int)((turing_v[xy]+1)*3)+1);
+                display_color(xy,z);
+                
+                //display_color(xy, (int)((turing_v[xy].state1)*3)+1);
             }
             
             // increment all states

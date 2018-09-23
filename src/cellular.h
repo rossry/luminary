@@ -31,28 +31,38 @@ void run_hanabi_spark(
 typedef struct turing_reagent {
     double activ;
     double inhib;
+    
+    int n_activ;
+    int n_inhib;
 } turing_reagent_t;
 
 #define MAX_TURING_SCALES 4
 
 typedef struct vector {
+    double state;
     int n_scales;
     turing_reagent_t scale[MAX_TURING_SCALES];
     double increment[MAX_TURING_SCALES];
 } turing_vector_t;
 
+/*
 void compute_turing(
-    double* state,
     turing_vector_t* reagents,
     int xy,
     int type
 );
-void apply_turing(
-    double* u_state,
+*/
+
+void compute_turing_all(
     turing_vector_t* u_reagents,
-    double* v_state,
+    turing_vector_t* v_reagents
+);
+
+void apply_turing(
+    turing_vector_t* u_reagents,
     turing_vector_t* v_reagents,
-    int xy
+    int xy,
+    double annealing_factor
 );
 
 #endif /* CELLULAR_H */

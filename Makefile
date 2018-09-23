@@ -20,7 +20,8 @@ PP_LIBRARY_NAME=pixel-push-server
 PP_LIBRARY=$(PP_LIBDIR)/lib$(PP_LIBRARY_NAME).a
 
 #LDFLAGS=-lncurses -L$(PP_LIBDIR) -l$(PP_LIBRARY_NAME) -lstdc++ -lrt -lm -lpthread -lcairo -lX11
-LDFLAGS=-lncurses -lstdc++ -lrt -lm -lpthread -lcairo -lX11
+#LDFLAGS=-lncurses -lstdc++ -lrt -lm -lpthread -lcairo -lX11
+LDFLAGS=-lncurses -lstdc++ -lrt -lm -lpthread
 
 $(BIN_DIR)/$(TARGET_EXEC): $(OBJS)
 	#$(PP_LIBRARY)
