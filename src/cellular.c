@@ -1,6 +1,8 @@
 #include <stdlib.h>
 #include <math.h>
 
+#include <assert.h>
+
 #include "cellular.h"
 
 #include "constants.h"
@@ -341,156 +343,238 @@ void run_hanabi_spark(hanabi_cell* grid, int xy, int color) {
     }
 }
 
-// CR rrheingans-yoo: use sliding-window box-blur instead
+// CR rrheingans-yoo: clean up (after implementing _vert)
 void diffuse_turing_reagent_horiz(
-    turing_vector_t* vv, int xy, int radius,
+    turing_vector_t* vv, int radius,
     double* reagent, int* n_neighbors
 ) {
-    //int x = xy % COLS;
-    //int y = xy / COLS;
+    int accum_neighbors = 0;
+    //double accum = 0.0;
+    
+    *(
+        (&vv[ROWS*COLS-1].scale[0].activ_tmp - &vv[0].scale[0].activ)
+        + reagent
+    ) = 0.0;
     
     int y_i = 0;
     //for (int y_i = 1-radius; y_i<radius; ++y_i) {
         for (int x_i = -radius; x_i<=radius; ++x_i) {
-            //if (
-            //    (y+y_i)*COLS+x+x_i >= 0
-            //    && (y+y_i)*COLS+x+x_i < ROWS*COLS
-            //) {
-                *(
-                    (&vv[(xy + (y_i*COLS) + x_i + ROWS*COLS) % (ROWS*COLS)].scale[0].n_activ_tmp - &vv[xy].scale[0].n_activ)
-                    + n_neighbors
-                ) += *(
-                    (&vv[xy].scale[0].n_activ - &vv[xy].scale[0].n_activ)
-                    + n_neighbors
-                );
-                *(
-                    (&vv[(xy + (y_i*COLS) + x_i + ROWS*COLS) % (ROWS*COLS)].scale[0].activ_tmp - &vv[xy].scale[0].activ)
-                    + reagent
-                ) += *(
-                    (&vv[xy].scale[0].activ - &vv[xy].scale[0].activ)
-                    + reagent
-                );
-            //}
+            accum_neighbors += *(
+                (&vv[((0) + (y_i*COLS) + (x_i-1) + ROWS*COLS) % (ROWS*COLS)].scale[0].n_activ - &vv[0].scale[0].n_activ)
+                + n_neighbors
+            );
+            *(
+                (&vv[ROWS*COLS-1].scale[0].activ_tmp - &vv[0].scale[0].activ)
+                + reagent
+            ) += *(
+                (&vv[((0) + (y_i*COLS) + (x_i-1) + ROWS*COLS) % (ROWS*COLS)].scale[0].activ - &vv[0].scale[0].activ)
+                + reagent
+            );
         }
     //}
-}
-
-void diffuse_turing_reagent_vert(
-    turing_vector_t* vv, int xy, int radius,
-    double* reagent, int* n_neighbors
-) {
+    
     /*
-    for (int scl=1; scl<vv[xy].n_scales; ++scl) {
-        vv[xy].scale[scl].n_activ = 1;
-        vv[xy].scale[scl].activ = vv[xy].scale[scl].activ_tmp / vv[xy].scale[scl].n_activ_tmp;
-        //vv[xy].scale[scl].n_activ_tmp = 0;
-        //vv[xy].scale[scl].activ_tmp = 0.0;
-        
-        vv[xy].scale[scl].n_inhib = 1;
-        vv[xy].scale[scl].inhib = vv[xy].scale[scl].inhib_tmp / vv[xy].scale[scl].n_inhib_tmp;
-        //vv[xy].scale[scl].n_inhib_tmp = 0;
-        //vv[xy].scale[scl].inhib_tmp = 0.0;
-    }
+    *(
+        (&vv[ROWS*COLS-1].scale[0].activ_tmp - &vv[0].scale[0].activ)
+        + reagent
+    ) = accum;
     */
     
-    //int x = xy % COLS;
-    //int y = xy / COLS;
+    for (int xy=0; xy<ROWS*COLS; ++xy) { 
+        int y_i = 0;
+        //for (int y_i = -radius; y_i<radius; ++y_i) {
+            for (int x_i = -radius; x_i<=radius; ++x_i) {
+                /*
+                *(
+                    (&vv[xy].scale[0].n_activ_tmp - &vv[0].scale[0].n_activ)
+                    + n_neighbors
+                ) += *(
+                    (&vv[(xy + (y_i*COLS) + x_i + ROWS*COLS) % (ROWS*COLS)].scale[0].n_activ - &vv[0].scale[0].n_activ)
+                    + n_neighbors
+                );
+                */
+                /*
+                *(
+                    (&vv[xy].scale[0].activ_tmp - &vv[0].scale[0].activ)
+                    + reagent
+                ) += *(
+                    (&vv[(xy + (y_i*COLS) + x_i + ROWS*COLS) % (ROWS*COLS)].scale[0].activ - &vv[0].scale[0].activ)
+                    + reagent
+                );
+                */
+            }
+        //}
+        
+        /*
+        assert(
+            *(
+                (&vv[(xy + (y_i*COLS) + (radius+1) + ROWS*COLS) % (ROWS*COLS)].scale[0].n_activ - &vv[0].scale[0].n_activ)
+                + n_neighbors
+        ) == *(
+                (&vv[(xy + (y_i*COLS) + (-radius) + ROWS*COLS) % (ROWS*COLS)].scale[0].n_activ - &vv[0].scale[0].n_activ)
+                + n_neighbors
+            )
+        );
+        assert(accum_neighbors == *(
+                (&vv[xy].scale[0].n_activ_tmp - &vv[0].scale[0].n_activ)
+                + n_neighbors
+            )
+        );
+        */
+        *(
+            (&vv[xy].scale[0].n_activ_tmp - &vv[0].scale[0].n_activ)
+            + n_neighbors
+        ) = accum_neighbors;
+        
+        
+        //accum = *(
+        *(
+            (&vv[xy].scale[0].activ_tmp - &vv[0].scale[0].activ)
+            + reagent
+        ) = *(
+            (&vv[(xy + (y_i*COLS) + (-1) + ROWS*COLS) % (ROWS*COLS)].scale[0].activ_tmp - &vv[0].scale[0].activ)
+            + reagent
+        ) + *(
+            (&vv[(xy + (y_i*COLS) + (radius) + ROWS*COLS) % (ROWS*COLS)].scale[0].activ - &vv[0].scale[0].activ)
+            + reagent
+        ) - *(
+            (&vv[(xy + (y_i*COLS) + (-radius-1) + ROWS*COLS) % (ROWS*COLS)].scale[0].activ - &vv[0].scale[0].activ)
+            + reagent
+        );
+        
+        /*
+        assert(
+            accum - *(
+                (&vv[xy].scale[0].activ_tmp - &vv[0].scale[0].activ)
+                + reagent
+            ) < 0.0000001
+        );*/
+        /**(
+            (&vv[xy].scale[0].activ_tmp - &vv[0].scale[0].activ)
+            + reagent
+        ) = accum;
+        */
+   }
+}
+
+// CR rrheingans-yoo: use sliding-window box-blur instead
+void diffuse_turing_reagent_vert(
+    turing_vector_t* vv, int radius,
+    double* reagent, int* n_neighbors
+) {
+    double accum = 0.0;
     
     for (int y_i = -radius; y_i<=radius; ++y_i) {
         int x_i = 0;
-        //for (int x_i = 1-radius; x_i<radius; ++x_i) {
-            //if (
-            //    (y+y_i)*COLS+x+x_i >= 0
-            //    && (y+y_i)*COLS+x+x_i < ROWS*COLS
-            //) {
+        //for (int x_i = -radius; x_i<radius; ++x_i) {
+            accum += *(
+                (&vv[((0) + (y_i*COLS) + x_i + ROWS*COLS) % (ROWS*COLS)].scale[0].activ_tmp - &vv[0].scale[0].activ)
+                + reagent
+            );
+        //}
+    }
+    
+    for (int xy=0; xy<ROWS*COLS; ++xy) {
+        for (int y_i = -radius; y_i<=radius; ++y_i) {
+            int x_i = 0;
+            //for (int x_i = -radius; x_i<radius; ++x_i) {
                 *(
-                    (&vv[(xy + (y_i*COLS) + x_i + ROWS*COLS) % (ROWS*COLS)].scale[0].n_activ - &vv[xy].scale[0].n_activ)
+                    (&vv[xy].scale[0].n_activ - &vv[0].scale[0].n_activ)
                     + n_neighbors
                 ) += *(
-                    (&vv[xy].scale[0].n_activ_tmp - &vv[xy].scale[0].n_activ)
+                    (&vv[(xy + (y_i*COLS) + x_i + ROWS*COLS) % (ROWS*COLS)].scale[0].n_activ_tmp - &vv[0].scale[0].n_activ)
                     + n_neighbors
                 );
                 *(
-                    (&vv[(xy + (y_i*COLS) + x_i + ROWS*COLS) % (ROWS*COLS)].scale[0].activ - &vv[xy].scale[0].activ)
+                    (&vv[xy].scale[0].activ - &vv[0].scale[0].activ)
                     + reagent
                 ) += *(
-                    (&vv[xy].scale[0].activ_tmp - &vv[xy].scale[0].activ)
+                    (&vv[(xy + (y_i*COLS) + x_i + ROWS*COLS) % (ROWS*COLS)].scale[0].activ_tmp - &vv[0].scale[0].activ)
                     + reagent
                 );
             //}
-        //}
+        }
+        
+        assert(
+            *(
+                (&vv[(xy + ((radius+1)*COLS) + (0) + ROWS*COLS) % (ROWS*COLS)].scale[0].n_activ_tmp - &vv[0].scale[0].n_activ)
+                + n_neighbors
+            ) == *(
+                (&vv[(xy + ((-radius)*COLS) + (0) + ROWS*COLS) % (ROWS*COLS)].scale[0].n_activ_tmp - &vv[0].scale[0].n_activ)
+                + n_neighbors
+            )
+        );
+        
+        assert(xy != 0 || // CR rrheingans-yoo: fails because xy is incrementing horizontally
+            accum - *(
+                (&vv[xy].scale[0].activ - &vv[0].scale[0].activ)
+                + reagent
+            ) < 0.1
+        );
+        accum += *(
+            (&vv[(xy + ((radius+1)*COLS) + (0) + ROWS*COLS) % (ROWS*COLS)].scale[0].activ_tmp - &vv[0].scale[0].activ)
+            + reagent
+        );
+        accum -= *(
+            (&vv[(xy + ((-radius)*COLS) + (0) + ROWS*COLS) % (ROWS*COLS)].scale[0].activ_tmp - &vv[0].scale[0].activ)
+            + reagent
+        );
     }
 }
 
-void compute_turing(turing_vector_t* vv, int xy, int pass) {
-    /*
-    int x = xy % COLS;
-    int y = xy / COLS;
-    int* offset = get_offset_array(x,y);
-    
-    if (pass==1) {
-        for (int i = X_INIT(x,y); X_CONTINUE(x,y,i); ++i) {
-            switch (offset[i]) {
-            case 0:
-                break;
-            case 1: case -1: case COLS: case -COLS:
-                vv[xy].scale[0].n_activ += 2;
-                vv[xy].scale[0].activ += 2*vv[xy+offset[i]].state;
-                break;
-            default:
-                vv[xy].scale[0].n_activ += 1;
-                vv[xy].scale[0].activ += 1*vv[xy+offset[i]].state;
-            }
-        }
+void compute_turing(turing_vector_t* vv, int pass) {
+    if (pass%2 == 1) {
+        diffuse_turing_reagent_horiz(vv,  1, &vv[0].scale[0].activ, &vv[0].scale[0].n_activ);
+        diffuse_turing_reagent_horiz(vv,  2, &vv[0].scale[0].inhib, &vv[0].scale[0].n_inhib);
         
-        for (int y_i = -2; y_i<=2; ++y_i) {
-            for (int x_i = -2; x_i<=2; ++x_i) {
-                if (
-                    (y_i == -2 || y_i == 2 || x_i == -2 || x_i == 2)
-                    && y_i*x_i != 4 && y_i*x_i != -4
-                ) {
-                    if (y+y_i >= 0 && y+y_i < ROWS && x+x_i >= 0 && x+x_i < COLS) {
-                        vv[xy].scale[0].n_inhib += 1;
-                        vv[xy].scale[0].inhib += vv[xy + (y_i*COLS) + x_i].state;
-                    }
-                }
-            }
+        diffuse_turing_reagent_horiz(vv,  3, &vv[0].scale[1].activ, &vv[0].scale[1].n_activ);
+        diffuse_turing_reagent_horiz(vv,  6, &vv[0].scale[1].inhib, &vv[0].scale[1].n_inhib);
+        
+        diffuse_turing_reagent_horiz(vv, 10, &vv[0].scale[2].activ, &vv[0].scale[2].n_activ);
+        diffuse_turing_reagent_horiz(vv, 20, &vv[0].scale[2].inhib, &vv[0].scale[2].n_inhib);
+    } else {
+        diffuse_turing_reagent_vert(vv,  1, &vv[0].scale[0].activ, &vv[0].scale[0].n_activ);
+        diffuse_turing_reagent_vert(vv,  2, &vv[0].scale[0].inhib, &vv[0].scale[0].n_inhib);
+        
+        diffuse_turing_reagent_vert(vv,  3, &vv[0].scale[1].activ, &vv[0].scale[1].n_activ);
+        diffuse_turing_reagent_vert(vv,  6, &vv[0].scale[1].inhib, &vv[0].scale[1].n_inhib);
+        
+        diffuse_turing_reagent_vert(vv, 10, &vv[0].scale[2].activ, &vv[0].scale[2].n_activ);
+        diffuse_turing_reagent_vert(vv, 20, &vv[0].scale[2].inhib, &vv[0].scale[2].n_inhib);
+    }
+}
+
+void turing_zero_reagents(turing_vector_t* uu, turing_vector_t* vv) {
+    for (int xy=0; xy<ROWS*COLS; ++xy) {
+        for (int scl=0; scl<uu[xy].n_scales; ++scl) {
+            uu[xy].scale[scl].n_activ = 0;
+            uu[xy].scale[scl].activ = 0.0;
+            uu[xy].scale[scl].n_inhib = 0;
+            uu[xy].scale[scl].inhib = 0.0;
+        }
+        for (int scl=0; scl<uu[xy].n_scales; ++scl) {
+            vv[xy].scale[scl].n_activ = 0;
+            vv[xy].scale[scl].activ = 0.0;
+            vv[xy].scale[scl].n_inhib = 0;
+            vv[xy].scale[scl].inhib = 0.0;
         }
     }
-    */
-    
-    if (1) {
-        if (pass%2 == 1) {
-            diffuse_turing_reagent_horiz(vv, xy,  1, &vv[xy].scale[0].activ, &vv[xy].scale[0].n_activ);
-            diffuse_turing_reagent_horiz(vv, xy,  2, &vv[xy].scale[0].inhib, &vv[xy].scale[0].n_inhib);
-        } else {
-            diffuse_turing_reagent_vert(vv, xy,  1, &vv[xy].scale[0].activ, &vv[xy].scale[0].n_activ);
-            diffuse_turing_reagent_vert(vv, xy,  2, &vv[xy].scale[0].inhib, &vv[xy].scale[0].n_inhib);
+}
+
+void turing_zero_tmp_reagents(turing_vector_t* uu, turing_vector_t* vv) {
+    for (int xy=0; xy<ROWS*COLS; ++xy) {
+        for (int scl=0; scl<uu[xy].n_scales; ++scl) {
+            uu[xy].scale[scl].n_activ_tmp = 0;
+            uu[xy].scale[scl].activ_tmp = 0.0;
+            uu[xy].scale[scl].n_inhib_tmp = 0;
+            uu[xy].scale[scl].inhib_tmp = 0.0;
         }
-    } else {
-        if (pass%2 == 1) {
-            diffuse_turing_reagent_horiz(vv, xy,  0, &vv[xy].scale[0].activ, &vv[xy].scale[0].n_activ);
-            diffuse_turing_reagent_horiz(vv, xy,  0, &vv[xy].scale[0].inhib, &vv[xy].scale[0].n_inhib);
-        } else {
-            diffuse_turing_reagent_vert(vv, xy,  0, &vv[xy].scale[0].activ, &vv[xy].scale[0].n_activ);
-            diffuse_turing_reagent_vert(vv, xy,  0, &vv[xy].scale[0].inhib, &vv[xy].scale[0].n_inhib);
+        for (int scl=0; scl<uu[xy].n_scales; ++scl) {
+            vv[xy].scale[scl].n_activ_tmp = 0;
+            vv[xy].scale[scl].activ_tmp = 0.0;
+            vv[xy].scale[scl].n_inhib_tmp = 0;
+            vv[xy].scale[scl].inhib_tmp = 0.0;
         }
-    }
-    
-    if (pass%2 == 1) {
-        diffuse_turing_reagent_horiz(vv, xy,  3, &vv[xy].scale[1].activ, &vv[xy].scale[1].n_activ);
-        diffuse_turing_reagent_horiz(vv, xy,  6, &vv[xy].scale[1].inhib, &vv[xy].scale[1].n_inhib);
-    } else {
-        diffuse_turing_reagent_vert(vv, xy,  3, &vv[xy].scale[1].activ, &vv[xy].scale[1].n_activ);
-        diffuse_turing_reagent_vert(vv, xy,  6, &vv[xy].scale[1].inhib, &vv[xy].scale[1].n_inhib);
-    }
-    
-    if (pass%2 == 1) {
-        diffuse_turing_reagent_horiz(vv, xy, 10, &vv[xy].scale[2].activ, &vv[xy].scale[2].n_activ);
-        diffuse_turing_reagent_horiz(vv, xy, 20, &vv[xy].scale[2].inhib, &vv[xy].scale[2].n_inhib);
-    } else {
-        diffuse_turing_reagent_vert(vv, xy, 10, &vv[xy].scale[2].activ, &vv[xy].scale[2].n_activ);
-        diffuse_turing_reagent_vert(vv, xy, 20, &vv[xy].scale[2].inhib, &vv[xy].scale[2].n_inhib);
     }
 }
 
@@ -500,181 +584,44 @@ void compute_turing_all(turing_vector_t* uu, turing_vector_t* vv) {
         for (int scl=0; scl<uu[xy].n_scales; ++scl) {
             uu[xy].scale[scl].n_activ = 1;
             uu[xy].scale[scl].activ = uu[xy].state;
-            uu[xy].scale[scl].n_activ_tmp = 0;
-            uu[xy].scale[scl].activ_tmp = 0.0;
             
             uu[xy].scale[scl].n_inhib = 1;
             uu[xy].scale[scl].inhib = uu[xy].state;
-            uu[xy].scale[scl].n_inhib_tmp = 0;
-            uu[xy].scale[scl].inhib_tmp = 0.0;
         }
         
         for (int scl=0; scl<vv[xy].n_scales; ++scl) {
             vv[xy].scale[scl].n_activ = 1;
             vv[xy].scale[scl].activ = vv[xy].state;
-            vv[xy].scale[scl].n_activ_tmp = 0;
-            vv[xy].scale[scl].activ_tmp = 0.0;
             
             vv[xy].scale[scl].n_inhib = 1;
             vv[xy].scale[scl].inhib = vv[xy].state;
-            vv[xy].scale[scl].n_inhib_tmp = 0;
-            vv[xy].scale[scl].inhib_tmp = 0.0;
         }
     }
+    turing_zero_tmp_reagents(uu, vv);
     
     // diffuse reagents
     // CR rrheingans-yoo: clean up repetition
-    for (int xy=0; xy<ROWS*COLS; ++xy) {
-        compute_turing(uu, xy, 1);
-        compute_turing(vv, xy, 1);
-    }
-    for (int xy=0; xy<ROWS*COLS; ++xy) {
-        for (int scl=0; scl<uu[xy].n_scales; ++scl) {
-            uu[xy].scale[scl].n_activ = 0;
-            uu[xy].scale[scl].activ = 0.0;
-            uu[xy].scale[scl].n_inhib = 0;
-            uu[xy].scale[scl].inhib = 0.0;
-        }
-        for (int scl=0; scl<uu[xy].n_scales; ++scl) {
-            vv[xy].scale[scl].n_activ = 0;
-            vv[xy].scale[scl].activ = 0.0;
-            vv[xy].scale[scl].n_inhib = 0;
-            vv[xy].scale[scl].inhib = 0.0;
-        }
-    }
-    for (int xy=0; xy<ROWS*COLS; ++xy) {
-        compute_turing(uu, xy, 2);
-        compute_turing(vv, xy, 2);
-    }
-    for (int xy=0; xy<ROWS*COLS; ++xy) {
-        for (int scl=0; scl<uu[xy].n_scales; ++scl) {
-            uu[xy].scale[scl].n_activ_tmp = 0;
-            uu[xy].scale[scl].activ_tmp = 0.0;
-            uu[xy].scale[scl].n_inhib_tmp = 0;
-            uu[xy].scale[scl].inhib_tmp = 0.0;
-        }
-        for (int scl=0; scl<uu[xy].n_scales; ++scl) {
-            vv[xy].scale[scl].n_activ_tmp = 0;
-            vv[xy].scale[scl].activ_tmp = 0.0;
-            vv[xy].scale[scl].n_inhib_tmp = 0;
-            vv[xy].scale[scl].inhib_tmp = 0.0;
-        }
-    }
     
-    for (int xy=0; xy<ROWS*COLS; ++xy) {
-        compute_turing(uu, xy, 3);
-        compute_turing(vv, xy, 3);
-    }
-    for (int xy=0; xy<ROWS*COLS; ++xy) {
-        for (int scl=0; scl<uu[xy].n_scales; ++scl) {
-            uu[xy].scale[scl].n_activ = 0;
-            uu[xy].scale[scl].activ = 0.0;
-            uu[xy].scale[scl].n_inhib = 0;
-            uu[xy].scale[scl].inhib = 0.0;
-        }
-        for (int scl=0; scl<uu[xy].n_scales; ++scl) {
-            vv[xy].scale[scl].n_activ = 0;
-            vv[xy].scale[scl].activ = 0.0;
-            vv[xy].scale[scl].n_inhib = 0;
-            vv[xy].scale[scl].inhib = 0.0;
-        }
-    }
-    for (int xy=0; xy<ROWS*COLS; ++xy) {
-        compute_turing(uu, xy, 4);
-        compute_turing(vv, xy, 4);
-    }
-    for (int xy=0; xy<ROWS*COLS; ++xy) {
-        for (int scl=0; scl<uu[xy].n_scales; ++scl) {
-            uu[xy].scale[scl].n_activ_tmp = 0;
-            uu[xy].scale[scl].activ_tmp = 0.0;
-            uu[xy].scale[scl].n_inhib_tmp = 0;
-            uu[xy].scale[scl].inhib_tmp = 0.0;
-        }
-        for (int scl=0; scl<vv[xy].n_scales; ++scl) {
-            vv[xy].scale[scl].n_activ_tmp = 0;
-            vv[xy].scale[scl].activ_tmp = 0.0;
-            vv[xy].scale[scl].n_inhib_tmp = 0;
-            vv[xy].scale[scl].inhib_tmp = 0.0;
-        }
-    }
+    compute_turing(uu, 1);
+    compute_turing(vv, 1);
+    turing_zero_reagents(uu, vv);
+    compute_turing(uu, 2);
+    compute_turing(vv, 2);
+    turing_zero_tmp_reagents(uu, vv);
     
-    for (int xy=0; xy<ROWS*COLS; ++xy) {
-        compute_turing(uu, xy, 5);
-        compute_turing(vv, xy, 5);
-    }
-    for (int xy=0; xy<ROWS*COLS; ++xy) {
-        for (int scl=0; scl<uu[xy].n_scales; ++scl) {
-            uu[xy].scale[scl].n_activ = 0;
-            uu[xy].scale[scl].activ = 0.0;
-            uu[xy].scale[scl].n_inhib = 0;
-            uu[xy].scale[scl].inhib = 0.0;
-        }
-        for (int scl=0; scl<uu[xy].n_scales; ++scl) {
-            vv[xy].scale[scl].n_activ = 0;
-            vv[xy].scale[scl].activ = 0.0;
-            vv[xy].scale[scl].n_inhib = 0;
-            vv[xy].scale[scl].inhib = 0.0;
-        }
-    }
-    for (int xy=0; xy<ROWS*COLS; ++xy) {
-        compute_turing(uu, xy, 6);
-        compute_turing(vv, xy, 6);
-    }
-    /*
-    for (int xy=0; xy<ROWS*COLS; ++xy) {
-        for (int scl=0; scl<uu[xy].n_scales; ++scl) {
-            uu[xy].scale[scl].n_activ_tmp = 0;
-            uu[xy].scale[scl].activ_tmp = 0.0;
-            uu[xy].scale[scl].n_inhib_tmp = 0;
-            uu[xy].scale[scl].inhib_tmp = 0.0;
-        }
-        for (int scl=0; scl<vv[xy].n_scales; ++scl) {
-            vv[xy].scale[scl].n_activ_tmp = 0;
-            vv[xy].scale[scl].activ_tmp = 0.0;
-            vv[xy].scale[scl].n_inhib_tmp = 0;
-            vv[xy].scale[scl].inhib_tmp = 0.0;
-        }
-    }
+    compute_turing(uu, 3);
+    compute_turing(vv, 3);
+    turing_zero_reagents(uu, vv);
+    compute_turing(uu, 4);
+    compute_turing(vv, 4);
+    turing_zero_tmp_reagents(uu, vv);
     
-    for (int xy=0; xy<ROWS*COLS; ++xy) {
-        compute_turing(uu, xy, 7);
-        compute_turing(vv, xy, 7);
-    }
-    for (int xy=0; xy<ROWS*COLS; ++xy) {
-        for (int scl=0; scl<uu[xy].n_scales; ++scl) {
-            uu[xy].scale[scl].n_activ = 0;
-            uu[xy].scale[scl].activ = 0.0;
-            uu[xy].scale[scl].n_inhib = 0;
-            uu[xy].scale[scl].inhib = 0.0;
-        }
-        for (int scl=0; scl<uu[xy].n_scales; ++scl) {
-            vv[xy].scale[scl].n_activ = 0;
-            vv[xy].scale[scl].activ = 0.0;
-            vv[xy].scale[scl].n_inhib = 0;
-            vv[xy].scale[scl].inhib = 0.0;
-        }
-    }
-    for (int xy=0; xy<ROWS*COLS; ++xy) {
-        compute_turing(uu, xy, 8);
-        compute_turing(vv, xy, 8);
-    }
-    */
-    /*
-    for (int xy=0; xy<ROWS*COLS; ++xy) {
-        for (int scl=0; scl<uu[xy].n_scales; ++scl) {
-            uu[xy].scale[scl].n_activ_tmp = 0;
-            uu[xy].scale[scl].activ_tmp = 0.0;
-            uu[xy].scale[scl].n_inhib_tmp = 0;
-            uu[xy].scale[scl].inhib_tmp = 0.0;
-        }
-        for (int scl=0; scl<uu[xy].n_scales; ++scl) {
-            vv[xy].scale[scl].n_activ_tmp = 0;
-            vv[xy].scale[scl].activ_tmp = 0.0;
-            vv[xy].scale[scl].n_inhib_tmp = 0;
-            vv[xy].scale[scl].inhib_tmp = 0.0;
-        }
-    }
-    */
+    compute_turing(uu, 5);
+    compute_turing(vv, 5);
+    turing_zero_reagents(uu, vv);
+    compute_turing(uu, 6);
+    compute_turing(vv, 6);
+    // turing_zero_tmp_reagents(uu, vv);
     
     // normalize reagents
     for (int xy=0; xy<ROWS*COLS; ++xy) {
