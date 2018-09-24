@@ -395,6 +395,8 @@ int main(int argc, char *argv[]) {
                 
                 display_color(xy,z);
                 
+                //display_color(xy,(int)(3.0*(1.0+turing_u[xy].scale[2].inhib)));
+                //display_color(xy,turing_u[xy].debug*4);
                 //display_color(xy, (int)((turing_v[xy].state1)*3)+1);
             }
             
@@ -418,7 +420,7 @@ int main(int argc, char *argv[]) {
             hanabi[xy].color = hanabi_next[xy].color;
         }
         
-        //mvprintw(DIAGNOSTIC_ROWS+0, 0, "turing_v[0].scale[2].n_activ=%d", turing_v[0].scale[2].n_activ);
+        mvprintw(DIAGNOSTIC_ROWS+0, 0, "turing_u[10].scale[0].activ=%f", turing_u[10].scale[0].activ);
         
         gettimeofday(&drawn, NULL);
         

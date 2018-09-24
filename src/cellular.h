@@ -37,6 +37,9 @@ typedef struct turing_reagent {
     
     int n_activ;
     int n_inhib;
+    
+    int n_activ_tmp;
+    int n_inhib_tmp;
 } turing_reagent_t;
 
 #define MAX_TURING_SCALES 4
@@ -46,15 +49,9 @@ typedef struct vector {
     int n_scales;
     turing_reagent_t scale[MAX_TURING_SCALES];
     double increment[MAX_TURING_SCALES];
+    
+    int debug;
 } turing_vector_t;
-
-/*
-void compute_turing(
-    turing_vector_t* reagents,
-    int xy,
-    int type
-);
-*/
 
 void compute_turing_all(
     turing_vector_t* u_reagents,
