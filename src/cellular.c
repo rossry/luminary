@@ -343,13 +343,12 @@ void run_hanabi_spark(hanabi_cell* grid, int xy, int color) {
     }
 }
 
-// CR rrheingans-yoo: clean up (after implementing _vert)
+// CR rrheingans-yoo: clean up
 void diffuse_turing_reagent_horiz(
     turing_vector_t* vv, int radius,
     double* reagent, int* n_neighbors
 ) {
     int accum_neighbors = 0;
-    //double accum = 0.0;
     
     *(
         (&vv[ROWS*COLS-1].scale[0].activ_tmp - &vv[0].scale[0].activ)
@@ -457,24 +456,56 @@ void diffuse_turing_reagent_horiz(
    }
 }
 
-// CR rrheingans-yoo: use sliding-window box-blur instead
+// CR rrheingans-yoo: clean up
 void diffuse_turing_reagent_vert(
     turing_vector_t* vv, int radius,
     double* reagent, int* n_neighbors
 ) {
-    double accum = 0.0;
+    int accum_neighbors = 0;
+    
+    /*
+    *(
+        (&vv[ROWS*COLS-1].scale[0].activ_tmp - &vv[0].scale[0].activ)
+        + reagent
+    ) = 0.0;
+    */
     
     for (int y_i = -radius; y_i<=radius; ++y_i) {
         int x_i = 0;
-        //for (int x_i = -radius; x_i<radius; ++x_i) {
-            accum += *(
-                (&vv[((0) + (y_i*COLS) + x_i + ROWS*COLS) % (ROWS*COLS)].scale[0].activ_tmp - &vv[0].scale[0].activ)
+        //for (int x_i = -radius; x_i<=radius; ++x_i) {
+            accum_neighbors += *(
+                (&vv[((0) + (y_i*COLS) + (x_i-1) + ROWS*COLS) % (ROWS*COLS)].scale[0].n_activ_tmp - &vv[0].scale[0].n_activ)
+                + n_neighbors
+            );
+            /*
+            *(
+                (&vv[ROWS*COLS-1].scale[0].activ_tmp - &vv[0].scale[0].activ)
+                + reagent
+            ) += *(
+                (&vv[((0) + (y_i*COLS) + (x_i-1) + ROWS*COLS) % (ROWS*COLS)].scale[0].activ - &vv[0].scale[0].activ)
                 + reagent
             );
+            */
         //}
     }
     
+    for (int xy=0; xy<COLS; ++xy) {
+        for (int y_i = -radius; y_i<=radius; ++y_i) {
+            int x_i = 0;
+            //for (int x_i = -radius; x_i<=radius; ++x_i) {
+                *(
+                    (&vv[xy - COLS + ROWS*COLS].scale[0].activ - &vv[0].scale[0].activ)
+                    + reagent
+                ) += *(
+                    (&vv[(xy + ((y_i-1)*COLS) + x_i + ROWS*COLS) % (ROWS*COLS)].scale[0].activ_tmp - &vv[0].scale[0].activ)
+                    + reagent
+                );
+            //}
+        }
+    }
+    
     for (int xy=0; xy<ROWS*COLS; ++xy) {
+        /*
         for (int y_i = -radius; y_i<=radius; ++y_i) {
             int x_i = 0;
             //for (int x_i = -radius; x_i<radius; ++x_i) {
@@ -495,6 +526,7 @@ void diffuse_turing_reagent_vert(
             //}
         }
         
+        
         assert(
             *(
                 (&vv[(xy + ((radius+1)*COLS) + (0) + ROWS*COLS) % (ROWS*COLS)].scale[0].n_activ_tmp - &vv[0].scale[0].n_activ)
@@ -504,19 +536,47 @@ void diffuse_turing_reagent_vert(
                 + n_neighbors
             )
         );
+        assert(
+            *(
+                (&vv[xy].scale[0].n_activ - &vv[0].scale[0].n_activ)
+                + n_neighbors
+            ) == accum_neighbors
+        );
         
-        assert(xy != 0 || // CR rrheingans-yoo: fails because xy is incrementing horizontally
-            accum - *(
+        assert( xy < COLS ||
+            *(
                 (&vv[xy].scale[0].activ - &vv[0].scale[0].activ)
                 + reagent
-            ) < 0.1
+            ) - ( *(
+                    (&vv[(xy + ((-1)*COLS) + (0) + ROWS*COLS) % (ROWS*COLS)].scale[0].activ - &vv[0].scale[0].activ)
+                    + reagent
+                ) + *(
+                    (&vv[(xy + ((radius)*COLS) + (0) + ROWS*COLS) % (ROWS*COLS)].scale[0].activ_tmp - &vv[0].scale[0].activ)
+                    + reagent
+                ) - *(
+                    (&vv[(xy + ((-radius-1)*COLS) + (0) + ROWS*COLS) % (ROWS*COLS)].scale[0].activ_tmp - &vv[0].scale[0].activ)
+                    + reagent
+                )
+            ) < 0.001
         );
-        accum += *(
-            (&vv[(xy + ((radius+1)*COLS) + (0) + ROWS*COLS) % (ROWS*COLS)].scale[0].activ_tmp - &vv[0].scale[0].activ)
+        */
+        
+        *(
+            (&vv[xy].scale[0].n_activ - &vv[0].scale[0].n_activ)
+            + n_neighbors
+        ) = accum_neighbors;
+        
+        *(
+            (&vv[xy].scale[0].activ - &vv[0].scale[0].activ)
             + reagent
-        );
-        accum -= *(
-            (&vv[(xy + ((-radius)*COLS) + (0) + ROWS*COLS) % (ROWS*COLS)].scale[0].activ_tmp - &vv[0].scale[0].activ)
+        ) = *(
+            (&vv[(xy + ((-1)*COLS) + (0) + ROWS*COLS) % (ROWS*COLS)].scale[0].activ - &vv[0].scale[0].activ)
+            + reagent
+        ) + *(
+            (&vv[(xy + ((radius)*COLS) + (0) + ROWS*COLS) % (ROWS*COLS)].scale[0].activ_tmp - &vv[0].scale[0].activ)
+            + reagent
+        ) - *(
+            (&vv[(xy + ((-radius-1)*COLS) + (0) + ROWS*COLS) % (ROWS*COLS)].scale[0].activ_tmp - &vv[0].scale[0].activ)
             + reagent
         );
     }
