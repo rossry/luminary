@@ -137,34 +137,20 @@ int main(int argc, char *argv[]) {
     #endif /* SACN_SERVER */
     
     struct timeval start, computed, drawn, refreshed, handled, slept, stop;
-    double compute_avg, draw_avg, refresh_avg, wait_avg, sleep_avg, total_avg;
-    compute_avg = draw_avg = refresh_avg = wait_avg = sleep_avg = total_avg = 0;
+    int n_dirty_pixels;
+    double compute_avg, draw_avg, refresh_avg, wait_avg, sleep_avg, total_avg, n_dirty_pixels_avg;
+    compute_avg = draw_avg = refresh_avg = wait_avg = sleep_avg = total_avg = n_dirty_pixels_avg = 0.0;
     
     gettimeofday(&start, NULL);
     
     while (1) {
         ++epoch;
         
+        // begin computing evolution
         for (int xy = 0; xy < ROWS * COLS; ++xy) {
             int x = xy % COLS;
             int y = xy / COLS;
             if (y < PETAL_ROWS || x < FLOOR_COLS) {
-                // evolve control_directive_(1|2), control_(orth|diag)
-                // CR rrheingans-yoo: move these overrides to the post-processing segment below
-                /*
-                if (xy == COLS*(ROWS-1) + FLOOR_COLS/2 // CR rrheingans-yoo for ntarleton: this should instead be pressure_switch_depressed(xy)
-                    && ((epoch + 5000) / 6000) % 2 == 0 // CR rrheingans-yoo for ntarleton: remove me
-                    && epoch > INITIALIZATION_EPOCHS + 1 // CR rrheingans-yoo for ntarleton: remove me
-                ) {
-                    if (control_orth[xy] == 0) {
-                        control_directive_0[xy] = PATTERN_FULL_RAINBOW;
-                        control_directive_1[xy] = TWO_TONES;
-                        control_orth[xy] = HIBERNATION_TICKS + TRANSITION_TICKS;
-                    } else if (control_orth[xy] < HIBERNATION_TICKS) {
-                        control_orth[xy] = HIBERNATION_TICKS;
-                    }
-                }
-                */
                 compute_decay(
                     control_orth, control_diag,
                     control_orth_next, control_diag_next,
@@ -314,9 +300,11 @@ int main(int argc, char *argv[]) {
                 400.0 / max(400,epoch)
             );
         }
+        // end computing evolution
         
         gettimeofday(&computed, NULL);
         
+        // begin draw/increment mutex
         for (int xy = 0; xy < ROWS * COLS; ++xy) {
             if (epoch > INITIALIZATION_EPOCHS) {
                 /*
@@ -384,7 +372,7 @@ int main(int argc, char *argv[]) {
                 display_color(
                     xy,
                     color_from_pattern(
-                        PATTERN_TWO_TONES,
+                        PATTERN_N_TONES+1,
                         xy,
                         z,
                         rainbow_0_next[xy],
@@ -419,14 +407,15 @@ int main(int argc, char *argv[]) {
             hanabi[xy].diag = hanabi_next[xy].diag;
             hanabi[xy].color = hanabi_next[xy].color;
         }
-        
-        mvprintw(DIAGNOSTIC_ROWS+0, 0, "turing_u[10].scale[0].activ=%f", turing_u[10].scale[0].activ);
+        // end draw/increment mutex
         
         gettimeofday(&drawn, NULL);
         
+        // begin flush display
         if (epoch > INITIALIZATION_EPOCHS) {
-            if (epoch % WILDFIRE_SPEEDUP == 0) { // CR rrheingans-yoo remove this hack
-                display_flush(epoch);
+            if (epoch % DISPLAY_FLUSH_EPOCHS == 0) {
+                n_dirty_pixels = display_flush(epoch);
+                n_dirty_pixels_avg = 0.99*n_dirty_pixels_avg + 0.01*n_dirty_pixels;
             }
             
             gettimeofday(&refreshed, NULL);
@@ -439,7 +428,6 @@ int main(int argc, char *argv[]) {
             if (in_chr > 0 && in_chr < 256) {
                 mvprintw(DIAGNOSTIC_ROWS+1, 50, "input: %c                                           ", in_chr);
                 
-                // CR rrheingans-yoo: do something!
                 int xy;
                 switch (in_chr + menu_context) {
                 case 'a'+MENU_ACTIONS: case 'a'+MENU_SCENES: case 'A'+MENU_ACTIONS: case 'A'+MENU_SCENES:
@@ -662,17 +650,20 @@ int main(int argc, char *argv[]) {
         // diagnostic printouts
         compute_avg = 0.99*compute_avg + 0.01*usec_time_elapsed(&start, &computed);
         draw_avg = 0.99*draw_avg + 0.01*usec_time_elapsed(&computed, &drawn);
-        refresh_avg = 0.99*refresh_avg + 0.01*usec_time_elapsed(&drawn, &refreshed);
+        if (epoch % DISPLAY_FLUSH_EPOCHS == 0) {
+            refresh_avg = 0.99*refresh_avg + 0.01*usec_time_elapsed(&drawn, &refreshed);
+        }
         wait_avg = 0.99*wait_avg + 0.01*usec_time_elapsed(&refreshed, &handled);
         sleep_avg = 0.99*sleep_avg + 0.01*usec_time_elapsed(&handled, &slept);
         total_avg = 0.99*total_avg + 0.01*usec_time_elapsed(&start, &stop);
         mvprintw(DIAGNOSTIC_ROWS+0, 2*DIAGNOSTIC_COLS-15, "compute:%5.1fms", compute_avg / THOUSAND);
         mvprintw(DIAGNOSTIC_ROWS+1, 2*DIAGNOSTIC_COLS-15, "draw:   %5.1fms", draw_avg / THOUSAND);
-        mvprintw(DIAGNOSTIC_ROWS+2, 2*DIAGNOSTIC_COLS-15, "refresh:%5.1fms", refresh_avg / THOUSAND);
+        mvprintw(DIAGNOSTIC_ROWS+2, 2*DIAGNOSTIC_COLS-15, "refresh:%5.1fms/2", refresh_avg / THOUSAND);
+        mvprintw(DIAGNOSTIC_ROWS+2, 2*DIAGNOSTIC_COLS+3, "(%dk%1dpx)   ", (int)n_dirty_pixels_avg/THOUSAND, ((int)n_dirty_pixels_avg % THOUSAND) / 100);
         mvprintw(DIAGNOSTIC_ROWS+3, 2*DIAGNOSTIC_COLS-15, "wait:   %5.1fms", wait_avg / THOUSAND);
         mvprintw(DIAGNOSTIC_ROWS+4, 2*DIAGNOSTIC_COLS-15, "sleep:  %5.1fms", sleep_avg / THOUSAND);
         mvprintw(DIAGNOSTIC_ROWS+6, 2*DIAGNOSTIC_COLS-15, "epoch: %7d", epoch);
-        mvprintw(DIAGNOSTIC_ROWS+7, 2*DIAGNOSTIC_COLS-15, "Hz:  %7.1f/%d  ", 1 / (total_avg / MILLION), WILDFIRE_SPEEDUP);
+        mvprintw(DIAGNOSTIC_ROWS+7, 2*DIAGNOSTIC_COLS-15, "Hz:  %7.1f/%d(/%d)  ", 1 / (total_avg / MILLION), DISPLAY_FLUSH_EPOCHS, WILDFIRE_SPEEDUP);
         mvprintw(DIAGNOSTIC_ROWS+8, 2*DIAGNOSTIC_COLS-15, "usable:%5.1fms  ", USABLE_MSEC_PER_EPOCH);
         mvprintw(DIAGNOSTIC_ROWS+9, 2*DIAGNOSTIC_COLS-15, "used:  %5.1fms  ", usec_time_elapsed(&start, &refreshed) / THOUSAND);
         if (DIAGNOSTIC_SAMPLING_RATE != 1) {
@@ -765,6 +756,7 @@ int main(int argc, char *argv[]) {
         default:
             mvprintw(DIAGNOSTIC_ROWS+0, 50, "menu: ? (#%04d)", menu_context);
         }
+        // end flush display
         
         start = stop;
     }

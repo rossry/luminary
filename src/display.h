@@ -6,6 +6,6 @@ void print_sacn_message(char *message, int y);
 void display_init();
 void display_color(int xy, int color);
 void display_light(int id, int color);
-void display_flush(int epoch);
+int display_flush(int epoch); // returns # flushed pixels
 
 #endif /* DISPLAY_H */

@@ -12,6 +12,7 @@
 //#include "pp-server-luminary.h"
 
 int display_current[ROWS * COLS];
+int n_dirty_pixels;
 int petal_mapping[] = PETAL_MAPPING;
 
 // gifenc
@@ -60,6 +61,7 @@ void display_init() {
     for (int xy = 0; xy < ROWS * COLS; ++xy) {
         display_current[xy] = BLACK;
     }
+    n_dirty_pixels = 0;
     
     // ncurses initialization
     initscr();
@@ -472,6 +474,8 @@ void display_color(int xy, int color) {
 
         display_current[xy] = color;
         
+        n_dirty_pixels += 1;
+        
         #ifdef SACN_CLIENT
             sacn_draw_color((x/PETAL_COLS)*512 + petal_mapping_pixel(x & PETAL_COLS, y), rgb_palette[color*3 + 0], rgb_palette[color*3 + 1], rgb_palette[color*3 + 2]);
         #endif /* SACN_CLIENT */
@@ -482,7 +486,7 @@ void display_light(int id, int color) {
     // CR rrheingans-yoo for ntarleton: set light id to color color
 }
 
-void display_flush(int epoch) {
+int display_flush(int epoch) {
     // ncurses flush
     refresh();
     
@@ -671,4 +675,8 @@ void display_flush(int epoch) {
     #ifdef SACN_CLIENT
         sacn_flush();
     #endif /* SACN_CLIENT */
+    
+    int ret = n_dirty_pixels;
+    n_dirty_pixels = 0;
+    return ret;
 }
