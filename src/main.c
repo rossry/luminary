@@ -26,6 +26,8 @@ double usec_time_elapsed(struct timeval *from, struct timeval *to) {
 }
 
 int main(int argc, char *argv[]) {
+    int n_cores = sysconf(_SC_NPROCESSORS_ONLN);
+    
     display_init();
     
     srand(5);
@@ -658,10 +660,11 @@ int main(int argc, char *argv[]) {
         total_avg = 0.99*total_avg + 0.01*usec_time_elapsed(&start, &stop);
         mvprintw(DIAGNOSTIC_ROWS+0, 2*DIAGNOSTIC_COLS-15, "compute:%5.1fms", compute_avg / THOUSAND);
         mvprintw(DIAGNOSTIC_ROWS+1, 2*DIAGNOSTIC_COLS-15, "draw:   %5.1fms", draw_avg / THOUSAND);
-        mvprintw(DIAGNOSTIC_ROWS+2, 2*DIAGNOSTIC_COLS-15, "refresh:%5.1fms/2", refresh_avg / THOUSAND);
+        mvprintw(DIAGNOSTIC_ROWS+2, 2*DIAGNOSTIC_COLS-15, "refresh:%5.1fms/%d", refresh_avg / THOUSAND, DISPLAY_FLUSH_EPOCHS);
         mvprintw(DIAGNOSTIC_ROWS+2, 2*DIAGNOSTIC_COLS+3, "(%dk%1dpx)   ", (int)n_dirty_pixels_avg/THOUSAND, ((int)n_dirty_pixels_avg % THOUSAND) / 100);
         mvprintw(DIAGNOSTIC_ROWS+3, 2*DIAGNOSTIC_COLS-15, "wait:   %5.1fms", wait_avg / THOUSAND);
         mvprintw(DIAGNOSTIC_ROWS+4, 2*DIAGNOSTIC_COLS-15, "sleep:  %5.1fms", sleep_avg / THOUSAND);
+        mvprintw(DIAGNOSTIC_ROWS+5, 2*DIAGNOSTIC_COLS-15, "[note: %d cores]", n_cores);
         mvprintw(DIAGNOSTIC_ROWS+6, 2*DIAGNOSTIC_COLS-15, "epoch: %7d", epoch);
         mvprintw(DIAGNOSTIC_ROWS+7, 2*DIAGNOSTIC_COLS-15, "Hz:  %7.1f/%d(/%d)  ", 1 / (total_avg / MILLION), DISPLAY_FLUSH_EPOCHS, WILDFIRE_SPEEDUP);
         mvprintw(DIAGNOSTIC_ROWS+8, 2*DIAGNOSTIC_COLS-15, "usable:%5.1fms  ", USABLE_MSEC_PER_EPOCH);

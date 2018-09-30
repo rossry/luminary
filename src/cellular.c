@@ -444,23 +444,23 @@ void diffuse_turing_reagent_vert(
 }
 
 void diffuse_turing_reagents(turing_vector_t* vv) {
-    diffuse_turing_reagent_horiz(vv,  1, &vv[0].scale[0].activ, &vv[0].scale[0].n_activ);
-    diffuse_turing_reagent_horiz(vv,  2, &vv[0].scale[0].inhib, &vv[0].scale[0].n_inhib);
+    diffuse_turing_reagent_horiz(vv,  2, &vv[0].scale[0].activ, &vv[0].scale[0].n_activ);
+    diffuse_turing_reagent_horiz(vv,  4, &vv[0].scale[0].inhib, &vv[0].scale[0].n_inhib);
     
-    diffuse_turing_reagent_horiz(vv,  3, &vv[0].scale[1].activ, &vv[0].scale[1].n_activ);
-    diffuse_turing_reagent_horiz(vv,  6, &vv[0].scale[1].inhib, &vv[0].scale[1].n_inhib);
+    diffuse_turing_reagent_horiz(vv,  4, &vv[0].scale[1].activ, &vv[0].scale[1].n_activ);
+    diffuse_turing_reagent_horiz(vv,  8, &vv[0].scale[1].inhib, &vv[0].scale[1].n_inhib);
     
-    diffuse_turing_reagent_horiz(vv, 10, &vv[0].scale[2].activ, &vv[0].scale[2].n_activ);
-    diffuse_turing_reagent_horiz(vv, 20, &vv[0].scale[2].inhib, &vv[0].scale[2].n_inhib);
+    diffuse_turing_reagent_horiz(vv,  8, &vv[0].scale[2].activ, &vv[0].scale[2].n_activ);
+    diffuse_turing_reagent_horiz(vv, 16, &vv[0].scale[2].inhib, &vv[0].scale[2].n_inhib);
     
-    diffuse_turing_reagent_vert(vv,  1, &vv[0].scale[0].activ, &vv[0].scale[0].n_activ);
-    diffuse_turing_reagent_vert(vv,  2, &vv[0].scale[0].inhib, &vv[0].scale[0].n_inhib);
+    diffuse_turing_reagent_vert(vv,  2, &vv[0].scale[0].activ, &vv[0].scale[0].n_activ);
+    diffuse_turing_reagent_vert(vv,  4, &vv[0].scale[0].inhib, &vv[0].scale[0].n_inhib);
     
-    diffuse_turing_reagent_vert(vv,  3, &vv[0].scale[1].activ, &vv[0].scale[1].n_activ);
-    diffuse_turing_reagent_vert(vv,  6, &vv[0].scale[1].inhib, &vv[0].scale[1].n_inhib);
+    diffuse_turing_reagent_vert(vv,  4, &vv[0].scale[1].activ, &vv[0].scale[1].n_activ);
+    diffuse_turing_reagent_vert(vv,  8, &vv[0].scale[1].inhib, &vv[0].scale[1].n_inhib);
     
-    diffuse_turing_reagent_vert(vv, 10, &vv[0].scale[2].activ, &vv[0].scale[2].n_activ);
-    diffuse_turing_reagent_vert(vv, 20, &vv[0].scale[2].inhib, &vv[0].scale[2].n_inhib);
+    diffuse_turing_reagent_vert(vv,  8, &vv[0].scale[2].activ, &vv[0].scale[2].n_activ);
+    diffuse_turing_reagent_vert(vv, 16, &vv[0].scale[2].inhib, &vv[0].scale[2].n_inhib);
 }
 
 void compute_turing_all(turing_vector_t* uu, turing_vector_t* vv) {
@@ -500,7 +500,7 @@ void compute_turing_all(turing_vector_t* uu, turing_vector_t* vv) {
         //uu[xy].scale[1].activ = 0.0;
         //uu[xy].scale[1].inhib = 0.0;
         //uu[xy].scale[0].activ = 0.0;
-        //uu[xy].scale[0].inhib = 0.0;
+        //uu[xy].scale[0].inhib = 0.9;
         
         for (int scl=0; scl<vv[xy].n_scales; ++scl) {
             vv[xy].scale[scl].activ /= vv[xy].scale[scl].n_activ;
@@ -525,7 +525,7 @@ int turing_min_var(turing_vector_t* vec) {
         } else {
             min_equals1_f(
                 &min_var,
-                fabs(vec->scale[ii].activ - vec->scale[ii].inhib),
+                fabs(vec->scale[ii].activ - vec->scale[ii].inhib) * (ii==0 ? 0.9 : 1.0),
                 &arg_min_var,
                 ii
             );
@@ -560,7 +560,7 @@ void apply_turing(
     vv[xy].debug = scl;
     
     double r;
-    r = uu[xy].state*uu[xy].state + vv[xy].state*vv[xy].state;
+    r = sqrt(uu[xy].state*uu[xy].state + vv[xy].state*vv[xy].state);
     uu[xy].state /= r;
     vv[xy].state /= r;
 }

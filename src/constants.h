@@ -20,7 +20,10 @@
 //#define PETALS_ACTIVE
 
 #define FLOOR_COLS 90
-#define FLOOR_ROWS 60
+#define FLOOR_ROWS 90
+
+#define FLOOR_COLS_SHOWN FLOOR_COLS
+#define FLOOR_ROWS_SHOWN 60
 
 #ifdef PETALS_ACTIVE
     #define PETAL_COLS 18 // per petal
@@ -54,14 +57,14 @@
 #ifdef DISPLAY_PETALS_MODE
     #ifdef DISPLAY_FLOOR_ALSO
         //#define DIAGNOSTIC_COLS_SUGGESTED (COLS / DIAGNOSTIC_SAMPLING_RATE + 12)
-        #define DIAGNOSTIC_ROWS ((PETAL_ROWS + FLOOR_ROWS / 2) / DIAGNOSTIC_SAMPLING_RATE + 5)
+        #define DIAGNOSTIC_ROWS ((PETAL_ROWS + FLOOR_ROWS_SHOWN / 2) / DIAGNOSTIC_SAMPLING_RATE + 5)
     #else /* DISPLAY_FLOOR_ALSO */
         //#define DIAGNOSTIC_COLS_SUGGESTED (PETAL_COLS / DIAGNOSTIC_SAMPLING_RATE * 3 + 6)
         #define DIAGNOSTIC_ROWS ((PETAL_ROWS / DIAGNOSTIC_SAMPLING_RATE)*2 + 3)
     #endif /* DISPLAY_FLOOR_ALSO */
 #else /* DISPLAY_PETALS_MODE */
     //#define DIAGNOSTIC_COLS_SUGGESTED (COLS / DIAGNOSTIC_SAMPLING_RATE)
-    #define DIAGNOSTIC_ROWS (ROWS / DIAGNOSTIC_SAMPLING_RATE)
+    #define DIAGNOSTIC_ROWS (FLOOR_ROWS_SHOWN / DIAGNOSTIC_SAMPLING_RATE)
 #endif /* DISPLAY_PETALS_MODE */
 
 #define DIAGNOSTIC_COLS 80
@@ -109,7 +112,7 @@
 // speeds, times, distances
 #define BASE_HZ                    15
 #define WILDFIRE_SPEEDUP           4 // wildfire effects propagate at this multiple of BASE_HZ
-#define DISPLAY_FLUSH_EPOCHS       2 // flush display every # epochs
+#define DISPLAY_FLUSH_EPOCHS       1 // flush display every # epochs
 #define TRANSITION_TICKS           400
 #define SECONDARY_TRANSITION_TICKS 300
 #define RAND_SECONDARY_TRANSITION  ( rand() % (ROWS * COLS) == 0 )

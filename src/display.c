@@ -417,68 +417,76 @@ int petal_mapping_pixel(int x_p, int y) {
 void display_color(int xy, int color) {
     int x = xy % COLS;
     int y = xy / COLS;
-    if (display_current[xy] != color
-        || rand() % 100 == 100
-        || xy == COLS * (ROWS-1) + FLOOR_COLS - 1
+    if (
+        y <
+        FLOOR_ROWS_SHOWN
+        #ifdef DISPLAY_PETALS_MODE
+            + PETAL_ROWS
+        #endif /*DISPLAY_PETALS_MODE*/
     ) {
-        // ncurses drawing
-        if (y % DIAGNOSTIC_SAMPLING_RATE == 0
-            && x % DIAGNOSTIC_SAMPLING_RATE == 0
-            && (y < PETAL_ROWS || x < FLOOR_COLS)
-            #ifdef DISPLAY_PETALS_MODE
-                #ifndef DISPLAY_FLOOR_ALSO
-                    && y < PETAL_ROWS
-                #endif /* DISPLAY_FLOOR_ALSO */
-            #endif /* DISPLAY_PETALS_MODE */
+        if (display_current[xy] != color
+            || rand() % 100 == 100
+            || xy == COLS * (ROWS-1) + FLOOR_COLS - 1
         ) {
-            #ifdef DISPLAY_PETALS_MODE
-                if (petal_mapping_pixel(x%PETAL_COLS,y)) {
-                    attron(COLOR_PAIR(1+color));
-                } else if (y > PETAL_ROWS) {
-                    attron(COLOR_PAIR(1+color + (color < COLORS ? MAKE_DARKER : 0)));
-                } else {
-                    attron(COLOR_PAIR(1+15));
-                }
-                #ifndef DISPLAY_FLOOR_ALSO
-                    if (x < 3*PETAL_COLS) {
-                #endif /* DISPLAY_FLOOR_ALSO */
-                mvprintw(
-                    ((y/DIAGNOSTIC_SAMPLING_RATE + (y > PETAL_ROWS ? 8 + PETAL_ROWS : 0)) / (y > PETAL_ROWS ? 2 : 1)),
-                    2*x/DIAGNOSTIC_SAMPLING_RATE + ((x / PETAL_COLS) * 6),
-                    (display_current[xy] == color ?  " ," : " .")
-                );
-                #ifndef DISPLAY_FLOOR_ALSO
+            // ncurses drawing
+            if (y % DIAGNOSTIC_SAMPLING_RATE == 0
+                && x % DIAGNOSTIC_SAMPLING_RATE == 0
+                && (y < PETAL_ROWS || x < FLOOR_COLS)
+                #ifdef DISPLAY_PETALS_MODE
+                    #ifndef DISPLAY_FLOOR_ALSO
+                        && y < PETAL_ROWS
+                    #endif /* DISPLAY_FLOOR_ALSO */
+                #endif /* DISPLAY_PETALS_MODE */
+            ) {
+                #ifdef DISPLAY_PETALS_MODE
+                    if (petal_mapping_pixel(x%PETAL_COLS,y)) {
+                        attron(COLOR_PAIR(1+color));
+                    } else if (y > PETAL_ROWS) {
+                        attron(COLOR_PAIR(1+color + (color < COLORS ? MAKE_DARKER : 0)));
                     } else {
-                        mvprintw(
-                            2 + PETAL_ROWS/DIAGNOSTIC_SAMPLING_RATE + (((PETAL_ROWS-1-y)/DIAGNOSTIC_SAMPLING_RATE + ((PETAL_ROWS-1-y) > PETAL_ROWS ? 8 + PETAL_ROWS : 0)) / ((PETAL_ROWS-1-y) > PETAL_ROWS ? 2 : 1)),
-                            PETAL_COLS + 3 + 2*(COLS-1-x)/DIAGNOSTIC_SAMPLING_RATE + (((COLS-1-x) / PETAL_COLS) * 6),
-                            (display_current[xy] == color ?  " ," : " .")
-                        );
+                        attron(COLOR_PAIR(1+15));
                     }
-                #endif /* DISPLAY_FLOOR_ALSO */
-            #else /* DISPLAY_PETALS_MODE */
-                attron(COLOR_PAIR(1+color));
-                mvprintw(
-                    y/DIAGNOSTIC_SAMPLING_RATE,
-                    2*x/DIAGNOSTIC_SAMPLING_RATE,
-                    " ."
-                );
-            #endif /* DISPLAY_PETALS_MODE */
-            attroff(COLOR_PAIR(1+color));
+                    #ifndef DISPLAY_FLOOR_ALSO
+                        if (x < 3*PETAL_COLS) {
+                    #endif /* DISPLAY_FLOOR_ALSO */
+                    mvprintw(
+                        ((y/DIAGNOSTIC_SAMPLING_RATE + (y > PETAL_ROWS ? 8 + PETAL_ROWS : 0)) / (y > PETAL_ROWS ? 2 : 1)),
+                        2*x/DIAGNOSTIC_SAMPLING_RATE + ((x / PETAL_COLS) * 6),
+                        (display_current[xy] == color ?  " ," : " .")
+                    );
+                    #ifndef DISPLAY_FLOOR_ALSO
+                        } else {
+                            mvprintw(
+                                2 + PETAL_ROWS/DIAGNOSTIC_SAMPLING_RATE + (((PETAL_ROWS-1-y)/DIAGNOSTIC_SAMPLING_RATE + ((PETAL_ROWS-1-y) > PETAL_ROWS ? 8 + PETAL_ROWS : 0)) / ((PETAL_ROWS-1-y) > PETAL_ROWS ? 2 : 1)),
+                                PETAL_COLS + 3 + 2*(COLS-1-x)/DIAGNOSTIC_SAMPLING_RATE + (((COLS-1-x) / PETAL_COLS) * 6),
+                                (display_current[xy] == color ?  " ," : " .")
+                            );
+                        }
+                    #endif /* DISPLAY_FLOOR_ALSO */
+                #else /* DISPLAY_PETALS_MODE */
+                    attron(COLOR_PAIR(1+color));
+                    mvprintw(
+                        y/DIAGNOSTIC_SAMPLING_RATE,
+                        2*x/DIAGNOSTIC_SAMPLING_RATE,
+                        " ."
+                    );
+                #endif /* DISPLAY_PETALS_MODE */
+                attroff(COLOR_PAIR(1+color));
+            }
+    
+            #ifdef OUTPUT_CAIRO_FULLSCREEN
+                cairo_set_source_luminary(color);
+                cairo_mask_surface(cairo_cr, cairo_blur, -CAIRO_BLUR_WIDTH + x * CAIRO_ZOOM, -CAIRO_BLUR_WIDTH + y * CAIRO_ZOOM);
+            #endif /* OUTPUT_CAIRO_FULLSCREEN */
+    
+            display_current[xy] = color;
+            
+            n_dirty_pixels += 1;
+            
+            #ifdef SACN_CLIENT
+                sacn_draw_color((x/PETAL_COLS)*512 + petal_mapping_pixel(x & PETAL_COLS, y), rgb_palette[color*3 + 0], rgb_palette[color*3 + 1], rgb_palette[color*3 + 2]);
+            #endif /* SACN_CLIENT */
         }
-
-        #ifdef OUTPUT_CAIRO_FULLSCREEN
-            cairo_set_source_luminary(color);
-            cairo_mask_surface(cairo_cr, cairo_blur, -CAIRO_BLUR_WIDTH + x * CAIRO_ZOOM, -CAIRO_BLUR_WIDTH + y * CAIRO_ZOOM);
-        #endif /* OUTPUT_CAIRO_FULLSCREEN */
-
-        display_current[xy] = color;
-        
-        n_dirty_pixels += 1;
-        
-        #ifdef SACN_CLIENT
-            sacn_draw_color((x/PETAL_COLS)*512 + petal_mapping_pixel(x & PETAL_COLS, y), rgb_palette[color*3 + 0], rgb_palette[color*3 + 1], rgb_palette[color*3 + 2]);
-        #endif /* SACN_CLIENT */
     }
 }
 
