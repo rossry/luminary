@@ -422,7 +422,7 @@ void display_color(int xy, int color) {
         FLOOR_ROWS_SHOWN
         #ifdef DISPLAY_PETALS_MODE
             + PETAL_ROWS
-        #endif /*DISPLAY_PETALS_MODE*/
+        #endif /* DISPLAY_PETALS_MODE */
     ) {
         if (display_current[xy] != color
             || rand() % 100 == 100

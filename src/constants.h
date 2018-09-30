@@ -14,6 +14,8 @@
     //#define SACN_TEST_CLIENT // use some keyboard actions to send test-client messages to the server
 #endif /* SACN_SERVER */
 
+//#define SACN_CLIENT
+
 //#define PP_SERVER
 
 // physical dimensions

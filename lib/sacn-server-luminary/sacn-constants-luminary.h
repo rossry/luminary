@@ -1,6 +1,8 @@
 #ifndef SACN_CONSTANTS_LUMINARY_H
 #define SACN_CONSTANTS_LUMINARY_H
 
+#ifdef SACN_SERVER || SACN_CLIENT
+
 #include "e131.h"
 
 // general
@@ -36,5 +38,7 @@
 #define BASE_UNIVERSE_LUMINARY_CLIENT 2
 
 #define N_CHANNELS_DOWNSTREAM 300
+
+#endif /*SACN_SERVER || SACN_CLIENT*/
 
 #endif /* SACN_CONSTANTS_LUMINARY_H */

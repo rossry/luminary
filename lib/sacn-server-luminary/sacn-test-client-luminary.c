@@ -1,3 +1,5 @@
+#ifdef SACN_TEST_CLIENT
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -60,3 +62,5 @@ void sacn_test_client_set_level(int channel, uint8_t level) {
     sprintf(ui_message, "sent #%03d, ch.%d:=%3d                         ", next_seq_test-1, channel, level);
     print_sacn_message(ui_message, 10);
 }
+
+#endif /* SACN_TEST_CLIENT */

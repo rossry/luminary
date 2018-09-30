@@ -1,6 +1,8 @@
 #ifndef SACN_SERVER_LUMINARY_H
 #define SACN_SERVER_LUMINARY_H
 
+#ifdef SACN_SERVER
+
 #include <stdint.h>
 
 typedef struct sacn_channels_petal_t {
@@ -29,5 +31,7 @@ int sacn_server_get_port();
 void sacn_server_start();
 int sacn_server_poll(sacn_channels_t *sacn_channels);
 void sacn_server_shutdown();
+
+#endif /* SACN_SERVER */
 
 #endif /* SACN_SERVER_LUMINARY_H */

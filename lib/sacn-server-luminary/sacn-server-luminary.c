@@ -1,3 +1,5 @@
+#ifdef SACN_SERVER
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -155,3 +157,5 @@ int sacn_server_poll(sacn_channels_t *sacn_channels) {
 void sacn_server_shutdown() {
     
 }
+
+#endif /* SACN_SERVER */

@@ -1,3 +1,5 @@
+#ifdef SACN_CLIENT
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -76,3 +78,5 @@ void sacn_flush() {
         sacn_flush_universe(universe);
     }
 }
+
+#endif /* SACN_CLIENT */
