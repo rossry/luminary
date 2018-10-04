@@ -115,14 +115,12 @@ int main(int argc, char *argv[]) {
         turing_u[xy].increment[0] = 0.01;
         turing_u[xy].increment[1] = 0.02;
         turing_u[xy].increment[2] = 0.03;
-        turing_u[xy].increment[3] = 0.04;
         
         turing_v[xy].state = (double)rand() / (double)(RAND_MAX/2) - 1.0;
         turing_v[xy].n_scales = 3;
         turing_v[xy].increment[0] = 0.01;
         turing_v[xy].increment[1] = 0.02;
         turing_v[xy].increment[2] = 0.03;
-        turing_u[xy].increment[3] = 0.04;
     }
     
     #ifdef SACN_SERVER

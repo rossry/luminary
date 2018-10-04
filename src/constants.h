@@ -114,7 +114,7 @@
 // speeds, times, distances
 #define BASE_HZ                    15
 #define WILDFIRE_SPEEDUP           4 // wildfire effects propagate at this multiple of BASE_HZ
-#define DISPLAY_FLUSH_EPOCHS       1 // flush display every # epochs
+#define DISPLAY_FLUSH_EPOCHS       2 // flush display every # epochs
 #define TRANSITION_TICKS           400
 #define SECONDARY_TRANSITION_TICKS 300
 #define RAND_SECONDARY_TRANSITION  ( rand() % (ROWS * COLS) == 0 )
