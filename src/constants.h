@@ -7,6 +7,7 @@
 
 #define THOUSAND 1000
 #define MILLION  1000000
+#define RAND_DOUBLE ((double)rand() / (double)(RAND_MAX))
 
 // input, output, control
 //#define SACN_SERVER
@@ -22,7 +23,9 @@
 //#define PETALS_ACTIVE
 
 #define FLOOR_COLS 90
-#define FLOOR_ROWS 90
+#define FLOOR_ROWS 60
+
+
 
 #define FLOOR_COLS_SHOWN FLOOR_COLS
 #define FLOOR_ROWS_SHOWN 60
@@ -113,13 +116,13 @@
 
 // speeds, times, distances
 #define BASE_HZ                    15
-#define WILDFIRE_SPEEDUP           4 // wildfire effects propagate at this multiple of BASE_HZ
-#define DISPLAY_FLUSH_EPOCHS       2 // flush display every # epochs
+#define WILDFIRE_SPEEDUP           3// wildfire effects propagate at this multiple of BASE_HZ
+#define DISPLAY_FLUSH_EPOCHS       3 // flush display every # epochs
 #define TRANSITION_TICKS           400
 #define SECONDARY_TRANSITION_TICKS 300
 #define RAND_SECONDARY_TRANSITION  ( rand() % (ROWS * COLS) == 0 )
 #define HIBERNATION_TICKS          70000 // 70000 ticks ~ 103 seconds
-#define INITIALIZATION_EPOCHS      1 // ( 200 * WILDFIRE_SPEEDUP ) // run this many epochs on startup
+#define INITIALIZATION_EPOCHS      2 // ( 200 * WILDFIRE_SPEEDUP ) // run this many epochs on startup
 #define PRESSURE_DELAY_EPOCHS      30
 #define PRESSURE_RADIUS_TICKS      150//76
 #define RAINBOW_TONE_EPOCHS        1200

@@ -515,7 +515,7 @@ void compute_turing_all(turing_vector_t* uu, turing_vector_t* vv) {
     }
 }
 
-int turing_min_var(turing_vector_t* vec) {
+int turing_min_var(turing_vector_t* vec, double custom_factor) {
     int arg_min_var = 0;
     double min_var = 1.0;
     
@@ -523,9 +523,17 @@ int turing_min_var(turing_vector_t* vec) {
         if (vec->scale[ii].activ == 0 && vec->scale[ii].inhib == 0) {
             // pass
         } else {
+            double tt = (double)(ii)/(double)(vec->n_scales) - custom_factor + 1.0;
+            /*
+            tt = tt - (int)tt;
+            tt = tt - 0.5;
+            tt = fabs(tt);
+            tt = tt + 0.03;
+            */
+            tt = 1.0;
             min_equals1_f(
                 &min_var,
-                fabs(vec->scale[ii].activ - vec->scale[ii].inhib) * (ii==0 ? 0.9 : 1.0),
+                (0.0 + fabs(vec->scale[ii].activ - vec->scale[ii].inhib)) * tt,
                 &arg_min_var,
                 ii
             );
@@ -539,11 +547,12 @@ void apply_turing(
     turing_vector_t* uu,
     turing_vector_t* vv,
     int xy,
-    double annealing_factor
+    double annealing_factor,
+    double custom_factor
 ) {
     int scl;
     
-    scl = turing_min_var(&uu[xy]);
+    scl = turing_min_var(&uu[xy], custom_factor);
     if (uu[xy].scale[scl].activ > uu[xy].scale[scl].inhib) {
         uu[xy].state += uu[xy].increment[scl] * annealing_factor;
     } else {
@@ -551,7 +560,7 @@ void apply_turing(
     }
     uu[xy].debug = scl;
     
-    scl = turing_min_var(&vv[xy]);
+    scl = turing_min_var(&vv[xy], custom_factor);
     if (vv[xy].scale[scl].activ > vv[xy].scale[scl].inhib) {
         vv[xy].state += vv[xy].increment[scl] * annealing_factor;
     } else {

@@ -390,6 +390,7 @@ void display_init() {
 }
 
 /*
+// use petal mapping array
 int petal_mapping_pixel(int x_p,int y) {
     for (int ii = 0; ii < PETAL_MAPPING_PIXELS; ++ii) {
         if (x_p == petal_mapping[ii * 3] && y == petal_mapping[ii * 3 + 1]) {
@@ -399,6 +400,9 @@ int petal_mapping_pixel(int x_p,int y) {
     return 0;
 }
 */
+
+/*
+// edges only
 int petal_mapping_pixel(int x_p, int y) {
     if (x_p == 0) {
         if (y < 25) {
@@ -412,6 +416,10 @@ int petal_mapping_pixel(int x_p, int y) {
     }
 
     return 0;
+}
+*/
+int petal_mapping_pixel(int x_p, int y) {
+    return 1;
 }
 
 void display_color(int xy, int color) {

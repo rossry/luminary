@@ -62,7 +62,8 @@ void apply_turing(
     turing_vector_t* u_reagents,
     turing_vector_t* v_reagents,
     int xy,
-    double annealing_factor
+    double annealing_factor,
+    double custom_factor
 );
 
 #endif /* CELLULAR_H */
