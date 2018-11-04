@@ -20,15 +20,15 @@
 //#define PP_SERVER
 
 // physical dimensions
-//#define PETALS_ACTIVE
+//  #define PETALS_ACTIVE
 
-#define FLOOR_COLS 90
-#define FLOOR_ROWS 60
+#define FLOOR_COLS 72
+#define FLOOR_ROWS 48
 
 
 
 #define FLOOR_COLS_SHOWN FLOOR_COLS
-#define FLOOR_ROWS_SHOWN 60
+#define FLOOR_ROWS_SHOWN FLOOR_ROWS
 
 #ifdef PETALS_ACTIVE
     #define PETAL_COLS 18 // per petal
@@ -135,7 +135,7 @@
     #define GIF_BLUR
     #define GIF_BLUR_WIDTH 4
     #define GIF_ZOOM 15
-    #define GIF_EPOCHS 1200 * WILDFIRE_SPEEDUP
+    #define GIF_EPOCHS 3100
 #endif /* OUTPUT_GIF */
 
 // cairo output
@@ -149,11 +149,13 @@
 #endif /* OUTPUT_CAIRO */
 
 // other constants (probably don't mess with these)
-#define COLORS      12
-#define RAND_COLOR  ( rand() % COLORS )
-#define MAKE_GREY   20
-#define MAKE_DARKER 40
-#define BLACK       15
+#define COLORS       12
+#define RAND_COLOR   ( rand() % COLORS )
+#define MAKE_GREY    20
+#define MAKE_DARKER  40
+#define EXTRA_COLOR  80
+#define EXTRA_COLORS 36
+#define BLACK        15
 
 #define WAVES_BASE_ARRAY  {-331,-319,-307,-295,-283,-271,-260,-249,-237,-226,-215,-205,-194,-184,-173,-163,-154,-144,-135,-125,-116,-108,-99,-91,-83,-75,-68,-61,-54,-47,-41,-35,-29,-24,-18,-14,-9,-5,-1,2,4,6,6,7,8,8,9,9,9,9,9,8,8,7,6,6,4,2,-1,-5,-9,-14,-18,-24,-29,-35,-41,-47,-54,-61,-68,-75,-83,-91,-99,-108,-116,-125,-135,-144,-154,-163,-173,-184,-194,-205,-215,-226,-237,-249,-260,-271,-283,-295,-307,-319,-331}
 #define WAVES_BASE_X_ORIG 16

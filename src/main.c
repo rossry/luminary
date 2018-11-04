@@ -83,17 +83,17 @@ int color_of_turing(int xy, turing_vector_t* turing_u, turing_vector_t* turing_v
     
     if (turing_u[xy].state > 0.965926) {
         z = 6;
-    } else if (turing_u[xy].state > 0.707107) {
+    } else if (turing_u[xy].state >  0.707107) {
         z = 5;
-    }  else if (turing_u[xy].state > 0.258819) {
+    } else if (turing_u[xy].state >  0.258819) {
         z = 4;
-    }  else if (turing_u[xy].state > -0.258819) {
+    } else if (turing_u[xy].state > -0.258819) {
         z = 3;
-    }  else if (turing_u[xy].state > -0.707107) {
+    } else if (turing_u[xy].state > -0.707107) {
         z = 2;
-    }  else if (turing_u[xy].state > -0.965926) {
+    } else if (turing_u[xy].state > -0.965926) {
         z = 1;
-    }  else {
+    } else {
         z = 0;
     }
     
@@ -104,6 +104,78 @@ int color_of_turing(int xy, turing_vector_t* turing_u, turing_vector_t* turing_v
     z = (16+z) % COLORS;
     
     return z;
+}
+
+int extra_color_of_turing(int xy, turing_vector_t* turing_u, turing_vector_t* turing_v) {
+    int z;
+    
+    /*
+    if (turing_u[xy].state > 0.965926) {
+        z = 18;
+    } else if (turing_u[xy].state >  0.707107) {
+        z = 15;
+    } else if (turing_u[xy].state >  0.258819) {
+        z = 12;
+    } else if (turing_u[xy].state > -0.258819) {
+        z =  9;
+    } else if (turing_u[xy].state > -0.707107) {
+        z =  6;
+    } else if (turing_u[xy].state > -0.965926) {
+        z =  3;
+    } else {
+        z =  0;
+    }
+    */
+    
+    if (turing_u[xy].state > 0.996195) {
+        z = 18;
+    } else if (turing_u[xy].state >  0.965926) {
+        z = 17;
+    } else if (turing_u[xy].state >  0.906308) {
+        z = 16;
+    } else if (turing_u[xy].state >  0.819152) {
+        z = 15;
+    } else if (turing_u[xy].state >  0.707107) {
+        z = 14;
+    } else if (turing_u[xy].state >  0.573576) {
+        z = 13;
+    } else if (turing_u[xy].state >  0.422618) {
+        z = 12;
+    } else if (turing_u[xy].state >  0.258819) {
+        z = 11;
+    } else if (turing_u[xy].state >  0.087156) {
+        z = 10;
+    } else if (turing_u[xy].state > -0.087156) {
+        z =  9;
+    } else if (turing_u[xy].state > -0.258819) {
+        z =  8;
+    } else if (turing_u[xy].state > -0.422618) {
+        z =  7;
+    } else if (turing_u[xy].state > -0.573576) {
+        z =  6;
+    } else if (turing_u[xy].state > -0.707107) {
+        z =  5;
+    } else if (turing_u[xy].state > -0.819152) {
+        z =  4;
+    } else if (turing_u[xy].state > -0.906308) {
+        z =  3;
+    } else if (turing_u[xy].state > -0.965926) {
+        z =  2;
+    } else if (turing_u[xy].state > -0.996195) {
+        z =  1;
+    } else {
+        z =  0;
+    }
+    
+    //z = ((1+z) / 3) * 3;
+    
+    if (turing_v[xy].state < 0) {
+        z *= -1;
+    }
+    
+    z = (48+z) % EXTRA_COLORS;
+    
+    return EXTRA_COLOR + z;
 }
 
 int main(int argc, char *argv[]) {
@@ -314,10 +386,9 @@ int main(int argc, char *argv[]) {
                 
                 //excitement[xy] += (1.0 + turing_u[xy].state) / 2.0;
                 //excitement[xy] += 200.0 / (1.0 + (double)epoch);
-                excitement[xy] += (epoch < 300) ? 1.0 : 0.33 ;
-                if (rand() % PRESSURE_RADIUS_TICKS < pressure_orth[xy]) {
-                    excitement[xy] += 1.0;
-                }
+                //excitement[xy] += (epoch < 200) ? 1.0 : 0.33 ;
+                excitement[xy] += 1.0 / 3.0;
+                excitement[xy] += pressure_orth[xy] * 2 / 3 / PRESSURE_RADIUS_TICKS;
                 if (
                     excitement[xy] > 1.0
                 ) {
@@ -327,6 +398,22 @@ int main(int argc, char *argv[]) {
                     if (excitement[xy] > 1.0) {
                         excitement[xy] = 1.0;
                     }
+                }
+                
+                
+                /*
+                if ((500+epoch) % 1000 == 0) {
+                    rainbow_to_turing(xy, rainbow_0_next, turing_u, turing_v);
+                }
+                if (epoch % 1000 == 0) {
+                    rainbow_0_next[xy] = color_of_turing(xy, turing_u, turing_v);
+                }
+                */
+                if (
+                    rainbow_0_next[xy] != rainbow_0[xy]
+                    && rainbow_0_next[xy] != color_of_turing(xy, turing_u, turing_v)
+                ) {
+                    rainbow_to_turing(xy, rainbow_0_next, turing_u, turing_v);
                 }
             }
         }
@@ -368,9 +455,9 @@ int main(int argc, char *argv[]) {
             int x = xy % COLS;
             int y = xy / COLS;
             
-            if (0
+            if (1
                 && (y > PETAL_ROWS && x < FLOOR_COLS) // CR-someday rrheingans-yoo for ntarleton: this should instead be pressure_switch_depressed(xy)
-                && rand() % (FLOOR_ROWS * FLOOR_COLS * 100) == 0 // CR-someday rrheingans-yoo for ntarleton: remove me
+                && rand() % (FLOOR_ROWS * FLOOR_COLS * 20) == 0 // CR-someday rrheingans-yoo for ntarleton: remove me
             ) { 
                 if (pressure_self[xy] < PRESSURE_DELAY_EPOCHS) {
                     run_hanabi_spark(hanabi_next, xy, hanabi_seed_color[xy]);
@@ -400,22 +487,11 @@ int main(int argc, char *argv[]) {
                 turing_u,
                 turing_v,
                 xy,
-                1000.0 / max(1000,(epoch%3000)),
+                //1000.0 / max(1000,(epoch%3000)),
+                1.0,
                 //(double)rainbow_0_next[xy] / 12.0
                 (double)(epoch%1000)/(1000.0)
             );
-            
-            /*
-            if ((500+epoch) % 1000 == 0) {
-                rainbow_to_turing(xy, rainbow_0_next, turing_u, turing_v);
-            }
-            if (epoch % 1000 == 0) {
-                rainbow_0_next[xy] = color_of_turing(xy, turing_u, turing_v);
-            }
-            */
-            if (rainbow_0_next[xy] != rainbow_0[xy]) {
-                rainbow_to_turing(xy, rainbow_0_next, turing_u, turing_v);
-            }
         }
         // end computing evolution
         
@@ -479,8 +555,16 @@ int main(int argc, char *argv[]) {
                 */
                  display_color(
                     xy,
-                    color_of_turing(xy, turing_u, turing_v)
+                    extra_color_of_turing(xy, turing_u, turing_v)
                 );
+                
+                /*
+                display_color(
+                    xy,
+                    (pressure_orth_next[xy]*7)/PRESSURE_RADIUS_TICKS + MAKE_GREY
+                    //(pressure_self[xy]*7)/PRESSURE_DELAY_EPOCHS + MAKE_GREY
+                );
+                */
                 
                 //display_color(xy,z);
                 

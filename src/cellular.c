@@ -61,18 +61,21 @@ int* get_offset_array(int x, int y) {
     }
 
     switch (y) {
-    case 0 : // CR rrheingans-yoo: use y_upper_join if PETALS_ACTIVE
-        switch (x % PETAL_COLS) {
-        case 0 :
-            return y_upper_left;
-        case PETAL_COLS-1 :
-            return y_upper_right;
-        }
+    case 0 : 
+        #ifdef PETALS_ACTIVE
+            // CR rrheingans-yoo: use y_upper_join
+            switch (x % PETAL_COLS) {
+            case 0 :
+                return y_upper_left;
+            case PETAL_COLS-1 :
+                return y_upper_right;
+            }
+        #endif /* PETALS_ACTIVE */
         return y_zero;
     case ROWS-1 : 
         return y_rows_minus_one;
     default :
-        if (y < PETAL_ROWS && y > 24) {
+        if (y < PETAL_ROWS && y > PETAL_ROWS_SEPARATED) {
             if (x == 0) {
                 return y_wrap_x_zero;
             } else if (x == COLS - 1) {
@@ -92,7 +95,7 @@ int* get_offset_array(int x, int y) {
     3)
 #define X_CONTINUE(x,y,i) \
     ((i) < (\
-        (((y) < PETAL_ROWS + 3 && (y) > PETAL_ROWS_SEPARATED) \
+        (((y) < PETAL_ROWS && (y) > PETAL_ROWS_SEPARATED) \
             || ((x) < COLS-1 && ((y) > PETAL_ROWS_SEPARATED || (x) % PETAL_COLS < PETAL_COLS-1))) ? 9 : \
         6))
 
@@ -147,7 +150,7 @@ int maybe_increment(int* grid, int xy, int target, int inc, int neighbors[COLORS
     if (inc == 2) {
         return inc;
     }
-    if (grid[target] == (grid[xy] + 2) % COLORS && rand() < 0.22*RAND_MAX) { // CR-someday rrheingans-yoo: was 0.2; 0.25 is a lot
+    if (grid[target] == (grid[xy] + 2) % COLORS && rand() < 0.21*RAND_MAX) { // CR-someday rrheingans-yoo: was 0.2; 0.25 is a lot
         return 2;
     }
     if (grid[target] == (grid[xy] + 1) % COLORS) {

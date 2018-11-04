@@ -57,6 +57,16 @@ void display_init_color(int id, int xterm, uint8_t r, uint8_t g, uint8_t b) {
     //#endif /* OUTPUT_GIF */
 }
 
+void display_init_extra_color(int id, int xterm_fg, int xterm_bg, uint8_t r, uint8_t g, uint8_t b) {
+    init_pair(id+1, xterm_fg, xterm_bg);
+    
+    //#ifdef OUTPUT_GIF
+    rgb_palette[id * 3 + 0] = r;
+    rgb_palette[id * 3 + 1] = g;
+    rgb_palette[id * 3 + 2] = b;
+    //#endif /* OUTPUT_GIF */
+}
+
 void display_init() {
     for (int xy = 0; xy < ROWS * COLS; ++xy) {
         display_current[xy] = BLACK;
@@ -147,9 +157,48 @@ void display_init() {
     display_init_color(11+MAKE_GREY+MAKE_DARKER, GREY_45, 0x00, 0x00, 0x00);
     display_init_color(12+MAKE_GREY+MAKE_DARKER, GREY_46, 0x00, 0x00, 0x00);
     
+    // EXTRA_COLOR
+    // EXTRA_COLOR+(3*color) ~ color
+    display_init_extra_color( 0+EXTRA_COLOR, RAINBOW_00, RAINBOW_00, 0x6d, 0x3f, 0xa9);
+    display_init_extra_color( 1+EXTRA_COLOR, RAINBOW_01, RAINBOW_00, 0x83, 0x3e, 0xb0);
+    display_init_extra_color( 2+EXTRA_COLOR, RAINBOW_00, RAINBOW_01, 0x9a, 0x3c, 0xb3);
+    display_init_extra_color( 3+EXTRA_COLOR, RAINBOW_01, RAINBOW_01, 0xb1, 0x3c, 0xb1);
+    display_init_extra_color( 4+EXTRA_COLOR, RAINBOW_02, RAINBOW_01, 0xc7, 0x3c, 0xab);
+    display_init_extra_color( 5+EXTRA_COLOR, RAINBOW_01, RAINBOW_02, 0xdc, 0x3f, 0xa2);
+    display_init_extra_color( 6+EXTRA_COLOR, RAINBOW_02, RAINBOW_02, 0xed, 0x43, 0x95);
+    display_init_extra_color( 7+EXTRA_COLOR, RAINBOW_03, RAINBOW_02, 0xfb, 0x49, 0x85);
+    display_init_extra_color( 8+EXTRA_COLOR, RAINBOW_02, RAINBOW_03, 0xff, 0x52, 0x74);
+    display_init_extra_color( 9+EXTRA_COLOR, RAINBOW_03, RAINBOW_03, 0xff, 0x5d, 0x63);
+    display_init_extra_color(10+EXTRA_COLOR, RAINBOW_04, RAINBOW_03, 0xff, 0x6b, 0x52);
+    display_init_extra_color(11+EXTRA_COLOR, RAINBOW_03, RAINBOW_04, 0xff, 0x7a, 0x43);
+    display_init_extra_color(12+EXTRA_COLOR, RAINBOW_04, RAINBOW_04, 0xff, 0x8b, 0x38);
+    display_init_extra_color(13+EXTRA_COLOR, RAINBOW_05, RAINBOW_04, 0xf5, 0x9d, 0x30);
+    display_init_extra_color(14+EXTRA_COLOR, RAINBOW_04, RAINBOW_05, 0xe8, 0xaf, 0x2e);
+    display_init_extra_color(15+EXTRA_COLOR, RAINBOW_05, RAINBOW_05, 0xd8, 0xc1, 0x31);
+    display_init_extra_color(16+EXTRA_COLOR, RAINBOW_06, RAINBOW_05, 0xc9, 0xd3, 0x39);
+    display_init_extra_color(17+EXTRA_COLOR, RAINBOW_05, RAINBOW_06, 0xbb, 0xe2, 0x47);
+    display_init_extra_color(18+EXTRA_COLOR, RAINBOW_06, RAINBOW_06, 0xaf, 0xef, 0x5a);
+    display_init_extra_color(19+EXTRA_COLOR, RAINBOW_07, RAINBOW_06, 0x94, 0xf3, 0x56);
+    display_init_extra_color(20+EXTRA_COLOR, RAINBOW_06, RAINBOW_07, 0x79, 0xf5, 0x58);
+    display_init_extra_color(21+EXTRA_COLOR, RAINBOW_07, RAINBOW_07, 0x60, 0xf6, 0x60);
+    display_init_extra_color(22+EXTRA_COLOR, RAINBOW_08, RAINBOW_07, 0x49, 0xf4, 0x6c);
+    display_init_extra_color(23+EXTRA_COLOR, RAINBOW_07, RAINBOW_08, 0x36, 0xf0, 0x7b);
+    display_init_extra_color(24+EXTRA_COLOR, RAINBOW_08, RAINBOW_08, 0x28, 0xea, 0x8c);
+    display_init_extra_color(25+EXTRA_COLOR, RAINBOW_09, RAINBOW_08, 0x1e, 0xe0, 0x9f);
+    display_init_extra_color(26+EXTRA_COLOR, RAINBOW_08, RAINBOW_09, 0x19, 0xd5, 0xb1);
+    display_init_extra_color(27+EXTRA_COLOR, RAINBOW_09, RAINBOW_09, 0x19, 0xc7, 0xc1);
+    display_init_extra_color(28+EXTRA_COLOR, RAINBOW_10, RAINBOW_09, 0x1d, 0xb7, 0xcf);
+    display_init_extra_color(29+EXTRA_COLOR, RAINBOW_09, RAINBOW_10, 0x25, 0xa7, 0xd9);
+    display_init_extra_color(30+EXTRA_COLOR, RAINBOW_10, RAINBOW_10, 0x2f, 0x96, 0xdf);
+    display_init_extra_color(31+EXTRA_COLOR, RAINBOW_11, RAINBOW_10, 0x3a, 0x85, 0xe1);
+    display_init_extra_color(32+EXTRA_COLOR, RAINBOW_10, RAINBOW_11, 0x47, 0x74, 0xde);
+    display_init_extra_color(33+EXTRA_COLOR, RAINBOW_11, RAINBOW_11, 0x53, 0x65, 0xd6);
+    display_init_extra_color(34+EXTRA_COLOR, RAINBOW_00, RAINBOW_11, 0x5e, 0x57, 0xca);
+    display_init_extra_color(35+EXTRA_COLOR, RAINBOW_11, RAINBOW_00, 0x67, 0x4a, 0xbb);
+    
     #ifdef OUTPUT_GIF
         gif = ge_new_gif(
-            "demo/example6.gif",
+            "demo/example8.gif",
             COLS * GIF_ZOOM, ROWS * GIF_ZOOM,
             rgb_palette,
             7,              /* palette depth == log2(# of colors) */
@@ -476,7 +525,7 @@ void display_color(int xy, int color) {
                     mvprintw(
                         y/DIAGNOSTIC_SAMPLING_RATE,
                         2*x/DIAGNOSTIC_SAMPLING_RATE,
-                        " ."
+                        "##"
                     );
                 #endif /* DISPLAY_PETALS_MODE */
                 attroff(COLOR_PAIR(1+color));
