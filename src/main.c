@@ -25,159 +25,6 @@ double usec_time_elapsed(struct timeval *from, struct timeval *to) {
     return (double)(to->tv_usec - from->tv_usec) + (double)(to->tv_sec - from->tv_sec) * MILLION;
 }
 
-void rainbow_to_turing(int xy, int* rainbow, turing_vector_t* turing_u, turing_vector_t* turing_v) {
-    switch(rainbow[xy]) {
-    case 0:
-        turing_u[xy].state = 0.5;
-        turing_v[xy].state = -0.866025;
-        break;
-    case 1:
-        turing_u[xy].state = 0.0;
-        turing_v[xy].state = -1.0;
-        break;
-    case 2:
-        turing_u[xy].state = -0.5;
-        turing_v[xy].state = -0.866025;
-        break;
-    case 3:
-        turing_u[xy].state = -0.866025;
-        turing_v[xy].state = -0.5;
-        break;
-    case 4:
-        turing_u[xy].state = -1.0;
-        turing_v[xy].state = 0;
-        break;
-    case 5:
-        turing_u[xy].state = -0.866025;
-        turing_v[xy].state = 0.5;
-        break;
-    case 6:
-        turing_u[xy].state = -0.5;
-        turing_v[xy].state = 0.866025;
-        break;
-    case 7:
-        turing_u[xy].state = 0.00;
-        turing_v[xy].state = 1.0;
-        break;
-    case 8:
-        turing_u[xy].state = 0.5;
-        turing_v[xy].state = 0.866025;
-        break;
-    case 9:
-        turing_u[xy].state = 0.866025;
-        turing_v[xy].state = 0.5;
-        break;
-    case 10:
-        turing_u[xy].state = 1.0;
-        turing_v[xy].state = 0.0;
-        break;
-    case 11:
-        turing_u[xy].state = 0.866025;
-        turing_v[xy].state = -0.5;
-        break;
-    }
-}
-
-int color_of_turing(int xy, turing_vector_t* turing_u, turing_vector_t* turing_v) {
-    int z;
-    
-    if (turing_u[xy].state > 0.965926) {
-        z = 6;
-    } else if (turing_u[xy].state >  0.707107) {
-        z = 5;
-    } else if (turing_u[xy].state >  0.258819) {
-        z = 4;
-    } else if (turing_u[xy].state > -0.258819) {
-        z = 3;
-    } else if (turing_u[xy].state > -0.707107) {
-        z = 2;
-    } else if (turing_u[xy].state > -0.965926) {
-        z = 1;
-    } else {
-        z = 0;
-    }
-    
-    if (turing_v[xy].state < 0) {
-        z *= -1;
-    }
-    
-    z = (16+z) % COLORS;
-    
-    return z;
-}
-
-int extra_color_of_turing(int xy, turing_vector_t* turing_u, turing_vector_t* turing_v) {
-    int z;
-    
-    /*
-    if (turing_u[xy].state > 0.965926) {
-        z = 18;
-    } else if (turing_u[xy].state >  0.707107) {
-        z = 15;
-    } else if (turing_u[xy].state >  0.258819) {
-        z = 12;
-    } else if (turing_u[xy].state > -0.258819) {
-        z =  9;
-    } else if (turing_u[xy].state > -0.707107) {
-        z =  6;
-    } else if (turing_u[xy].state > -0.965926) {
-        z =  3;
-    } else {
-        z =  0;
-    }
-    */
-    
-    if (turing_u[xy].state > 0.996195) {
-        z = 18;
-    } else if (turing_u[xy].state >  0.965926) {
-        z = 17;
-    } else if (turing_u[xy].state >  0.906308) {
-        z = 16;
-    } else if (turing_u[xy].state >  0.819152) {
-        z = 15;
-    } else if (turing_u[xy].state >  0.707107) {
-        z = 14;
-    } else if (turing_u[xy].state >  0.573576) {
-        z = 13;
-    } else if (turing_u[xy].state >  0.422618) {
-        z = 12;
-    } else if (turing_u[xy].state >  0.258819) {
-        z = 11;
-    } else if (turing_u[xy].state >  0.087156) {
-        z = 10;
-    } else if (turing_u[xy].state > -0.087156) {
-        z =  9;
-    } else if (turing_u[xy].state > -0.258819) {
-        z =  8;
-    } else if (turing_u[xy].state > -0.422618) {
-        z =  7;
-    } else if (turing_u[xy].state > -0.573576) {
-        z =  6;
-    } else if (turing_u[xy].state > -0.707107) {
-        z =  5;
-    } else if (turing_u[xy].state > -0.819152) {
-        z =  4;
-    } else if (turing_u[xy].state > -0.906308) {
-        z =  3;
-    } else if (turing_u[xy].state > -0.965926) {
-        z =  2;
-    } else if (turing_u[xy].state > -0.996195) {
-        z =  1;
-    } else {
-        z =  0;
-    }
-    
-    //z = ((1+z) / 3) * 3;
-    
-    if (turing_v[xy].state < 0) {
-        z *= -1;
-    }
-    
-    z = (48+z) % EXTRA_COLORS;
-    
-    return EXTRA_COLOR + z;
-}
-
 int main(int argc, char *argv[]) {
     int n_cores = sysconf(_SC_NPROCESSORS_ONLN);
     
@@ -227,10 +74,6 @@ int main(int argc, char *argv[]) {
     int waves_diag[ROWS * COLS];
     int waves_diag_next[ROWS * COLS];
     
-    hanabi_cell hanabi[ROWS * COLS];
-    hanabi_cell hanabi_next[ROWS * COLS];
-    int hanabi_seed_color[ROWS * COLS];
-    
     turing_vector_t turing_u[ROWS * COLS];
     turing_vector_t turing_v[ROWS * COLS];
     
@@ -262,11 +105,6 @@ int main(int argc, char *argv[]) {
         waves_orth[xy] = 0;
         waves_diag[xy] = 0;
         
-        hanabi[xy].color = 0;
-        hanabi[xy].orth = 0;
-        hanabi[xy].diag = 0;
-        hanabi_seed_color[xy] = RAND_COLOR;
-        
         turing_u[xy].state = (double)rand() / (double)(RAND_MAX/2) - 1.0;
         turing_u[xy].n_scales = 3;
         turing_u[xy].increment[0] = 0.01;
@@ -291,7 +129,7 @@ int main(int argc, char *argv[]) {
         
         #ifdef SACN_TEST_CLIENT
             sacn_test_client_set_level(CHANNEL_M_MODE, 200);
-            sacn_test_client_set_level(CHANNEL_M_MODE, 200); // duped to syn seq no.
+            sacn_test_client_set_level(CHANNEL_M_MODE, 200); // duped to sync seq no.
         #endif /* SACN_TEST_CLIENT */
     #endif /* SACN_SERVER */
     
@@ -377,16 +215,8 @@ int main(int argc, char *argv[]) {
                         pressure_self[xy] -= 1;
                         pressure_orth_next[xy] = pressure_diag_next[xy] = PRESSURE_RADIUS_TICKS;
                     }
-                    
-                    compute_hanabi(hanabi, hanabi_next, xy);
-                    if ((waves_orth_next[xy] / 17) % 480 < 12) {
-                        hanabi_next[xy].orth = hanabi_next[xy].diag = 0;
-                    }
                 }
                 
-                //excitement[xy] += (1.0 + turing_u[xy].state) / 2.0;
-                //excitement[xy] += 200.0 / (1.0 + (double)epoch);
-                //excitement[xy] += (epoch < 200) ? 1.0 : 0.33 ;
                 excitement[xy] += 1.0 / 3.0;
                 excitement[xy] += pressure_orth[xy] * 2 / 3 / PRESSURE_RADIUS_TICKS;
                 if (
@@ -394,26 +224,34 @@ int main(int argc, char *argv[]) {
                 ) {
                     // evolve rainbow_0
                     rainbow_0_next[xy] = compute_cyclic(rainbow_0, impatience_0, xy);
+                    
+                    // maybe sync (turing_u, turing_v) from rainbow_0
+                    if (
+                        rainbow_0_next[xy] != rainbow_0[xy]
+                        && rainbow_0_next[xy] != color_of_turing(xy, turing_u, turing_v)
+                    ) {
+                        /* CR rrheingans-yoo: if you just incremented, then set
+                           to substate 0 (but display substate -1 for one round
+                           only). if you just randomized, then set to substate
+                           rand{-1,0,1}.
+                        */
+                        switch (rainbow_0_next[xy] - rainbow_0[xy]) {
+                        case 1: case 1-COLORS:
+                        case 2: case 2-COLORS:
+                            rainbow_to_turing(xy, rainbow_0_next, turing_u, turing_v, 0);
+                            break;
+                        default:
+                            rainbow_to_turing(xy, rainbow_0_next, turing_u, turing_v, (rand()%3)-1);
+                            break;
+                        }
+                        // CR rrheingans-yoo: maybe compute/apply turing a few
+                        // times at [xy] right now?
+                    }
+                    
                     excitement[xy] -= 1.0;
                     if (excitement[xy] > 1.0) {
                         excitement[xy] = 1.0;
                     }
-                }
-                
-                
-                /*
-                if ((500+epoch) % 1000 == 0) {
-                    rainbow_to_turing(xy, rainbow_0_next, turing_u, turing_v);
-                }
-                if (epoch % 1000 == 0) {
-                    rainbow_0_next[xy] = color_of_turing(xy, turing_u, turing_v);
-                }
-                */
-                if (
-                    rainbow_0_next[xy] != rainbow_0[xy]
-                    && rainbow_0_next[xy] != color_of_turing(xy, turing_u, turing_v)
-                ) {
-                    rainbow_to_turing(xy, rainbow_0_next, turing_u, turing_v);
                 }
             }
         }
@@ -458,10 +296,7 @@ int main(int argc, char *argv[]) {
             if (1
                 && (y > PETAL_ROWS && x < FLOOR_COLS) // CR-someday rrheingans-yoo for ntarleton: this should instead be pressure_switch_depressed(xy)
                 && rand() % (FLOOR_ROWS * FLOOR_COLS * 20) == 0 // CR-someday rrheingans-yoo for ntarleton: remove me
-            ) { 
-                if (pressure_self[xy] < PRESSURE_DELAY_EPOCHS) {
-                    run_hanabi_spark(hanabi_next, xy, hanabi_seed_color[xy]);
-                }
+            ) {
                 pressure_self[xy] = PRESSURE_DELAY_EPOCHS;
             }
             
@@ -500,79 +335,10 @@ int main(int argc, char *argv[]) {
         // begin draw/increment mutex
         for (int xy = 0; xy < ROWS * COLS; ++xy) {
             if (epoch > INITIALIZATION_EPOCHS) {
-                //int z = color_of_turing(xy, turing_u, turing_v);
-                
-                /*
-                display_color(
-                    xy,
-                    color_from_pattern(
-                        control_directive_0_next[xy],
-                        xy,
-                        rainbow_tone[xy],
-                        rainbow_0_next[xy],
-                        rainbow_1_next[xy]
-                    )
-                );
-                */
-                
-                /*
-                display_color(
-                    xy,
-                    color_from_pattern(
-                        PATTERN_N_TONES+1,
-                        xy,
-                        z,
-                        rainbow_0_next[xy],
-                        rainbow_1_next[xy]
-                    )
-                );
-                */
-                
-                /*
-                display_color(
-                    xy,
-                    color_from_pattern(
-                        control_directive_0_next[xy],
-                        xy,
-                        rainbow_tone[xy],
-                        z,
-                        rainbow_1_next[xy]
-                    )
-                );
-                */
-                /*
-                if (epoch % 1000 < 500) {
-                    display_color(
-                        xy,
-                        rainbow_0_next[xy]
-                    );
-                } else {
-                    display_color(
-                        xy,
-                        color_of_turing(xy, turing_u, turing_v)
-                    );
-                }
-                */
                  display_color(
                     xy,
                     extra_color_of_turing(xy, turing_u, turing_v)
                 );
-                
-                /*
-                display_color(
-                    xy,
-                    (pressure_orth_next[xy]*7)/PRESSURE_RADIUS_TICKS + MAKE_GREY
-                    //(pressure_self[xy]*7)/PRESSURE_DELAY_EPOCHS + MAKE_GREY
-                );
-                */
-                
-                //display_color(xy,z);
-                
-                //display_color(xy, rainbow_0_next[xy]);
-                
-                //display_color(xy,(int)(3.0*(1.0+turing_u[xy].scale[2].inhib)));
-                //display_color(xy,turing_u[xy].debug*4);
-                //display_color(xy, (int)((turing_v[xy].state1)*3)+1);
             }
             
             // increment all states
@@ -589,10 +355,6 @@ int main(int argc, char *argv[]) {
             
             waves_orth[xy] = waves_orth_next[xy];
             waves_diag[xy] = waves_diag_next[xy];
-            
-            hanabi[xy].orth = hanabi_next[xy].orth;
-            hanabi[xy].diag = hanabi_next[xy].diag;
-            hanabi[xy].color = hanabi_next[xy].color;
         }
         // end draw/increment mutex
         

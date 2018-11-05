@@ -1,33 +1,6 @@
 #ifndef CELLULAR_H
 #define CELLULAR_H
 
-typedef struct hanabi_cell {
-    int color;
-    int orth;
-    int diag;
-} hanabi_cell;
-
-int compute_cyclic(int* grid, int* impatience, int xy);
-
-void compute_decay(
-    int* orth, int* diag,
-    int* orth_next, int* diag_next,
-    int* directive_0, int* directive_1,
-    int* directive_0_next, int* directive_1_next,
-    int xy
-);
-
-void compute_hanabi(
-    hanabi_cell* grid,
-    hanabi_cell* grid_next,
-    int xy
-);
-void run_hanabi_spark(
-    hanabi_cell* grid,
-    int xy,
-    int color
-);
-
 typedef struct turing_reagent {
     double activ;
     double inhib;
@@ -52,6 +25,38 @@ typedef struct vector {
     
     int debug;
 } turing_vector_t;
+
+// sets (turing_u, turing_v) from rainbow
+void rainbow_to_turing(
+    int xy,
+    int* rainbow,
+    turing_vector_t* turing_u,
+    turing_vector_t* turing_v,
+    int substate // {-1,0,1}
+);
+
+// returns a color from (turing_u, turing_v)
+int color_of_turing(
+    int xy,
+    turing_vector_t* turing_u,
+    turing_vector_t* turing_v
+);
+// returns an extended-palette color from (turing_u, turing_v)
+int extra_color_of_turing(
+    int xy,
+    turing_vector_t* turing_u,
+    turing_vector_t* turing_v
+);
+
+int compute_cyclic(int* grid, int* impatience, int xy);
+
+void compute_decay(
+    int* orth, int* diag,
+    int* orth_next, int* diag_next,
+    int* directive_0, int* directive_1,
+    int* directive_0_next, int* directive_1_next,
+    int xy
+);
 
 void compute_turing_all(
     turing_vector_t* u_reagents,

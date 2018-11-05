@@ -7,6 +7,8 @@
 
 #include "constants.h"
 
+// shared neighbors logic
+
 int y_zero[] = {0, -1, -1+COLS, 0, 0, COLS, 0, 1, 1+COLS};
 int y_wrap_x_zero[] = {-1, -1+COLS, -1+2*COLS, -COLS, 0, COLS, 1-COLS, 1, 1+COLS};
 int y_wrap_x_cols_minus_one[] = {-1-COLS, -1, -1+COLS, -COLS, 0, COLS, 1-2*COLS, 1-COLS, 1};
@@ -98,6 +100,240 @@ int* get_offset_array(int x, int y) {
         (((y) < PETAL_ROWS && (y) > PETAL_ROWS_SEPARATED) \
             || ((x) < COLS-1 && ((y) > PETAL_ROWS_SEPARATED || (x) % PETAL_COLS < PETAL_COLS-1))) ? 9 : \
         6))
+
+// cross-CA conversions
+
+// CR rrheingans-yoo: fix the off-0 substate cases
+void rainbow_to_turing(int xy, int* rainbow, turing_vector_t* turing_u, turing_vector_t* turing_v, int substate) {
+    switch(3*rainbow[xy] + substate) {
+    case  0:
+        turing_u[xy].state = 0.5;
+        turing_v[xy].state = -0.866025;
+        break;
+    case  1:
+        turing_u[xy].state = 0.5;
+        turing_v[xy].state = -0.866025;
+        break;
+    case  2:
+        turing_u[xy].state = 0.0;
+        turing_v[xy].state = -1.0;
+        break;
+    case  3:
+        turing_u[xy].state = 0.0;
+        turing_v[xy].state = -1.0;
+        break;
+    case  4:
+        turing_u[xy].state = 0.0;
+        turing_v[xy].state = -1.0;
+        break;
+    case  5:
+        turing_u[xy].state = -0.5;
+        turing_v[xy].state = -0.866025;
+        break;
+    case  6:
+        turing_u[xy].state = -0.5;
+        turing_v[xy].state = -0.866025;
+        break;
+    case  7:
+        turing_u[xy].state = -0.5;
+        turing_v[xy].state = -0.866025;
+        break;
+    case  8:
+        turing_u[xy].state = -0.866025;
+        turing_v[xy].state = -0.5;
+        break;
+    case  9:
+        turing_u[xy].state = -0.866025;
+        turing_v[xy].state = -0.5;
+        break;
+    case 10:
+        turing_u[xy].state = -0.866025;
+        turing_v[xy].state = -0.5;
+        break;
+    case 11:
+        turing_u[xy].state = -1.0;
+        turing_v[xy].state = 0;
+        break;
+    case 12:
+        turing_u[xy].state = -1.0;
+        turing_v[xy].state = 0;
+        break;
+    case 13:
+        turing_u[xy].state = -1.0;
+        turing_v[xy].state = 0;
+        break;
+    case 14:
+        turing_u[xy].state = -0.866025;
+        turing_v[xy].state = 0.5;
+        break;
+    case 15:
+        turing_u[xy].state = -0.866025;
+        turing_v[xy].state = 0.5;
+        break;
+    case 16:
+        turing_u[xy].state = -0.866025;
+        turing_v[xy].state = 0.5;
+        break;
+    case 17:
+        turing_u[xy].state = -0.5;
+        turing_v[xy].state = 0.866025;
+        break;
+    case 18:
+        turing_u[xy].state = -0.5;
+        turing_v[xy].state = 0.866025;
+        break;
+    case 19:
+        turing_u[xy].state = -0.5;
+        turing_v[xy].state = 0.866025;
+        break;
+    case 20:
+        turing_u[xy].state = 0.00;
+        turing_v[xy].state = 1.0;
+        break;
+    case 21:
+        turing_u[xy].state = 0.00;
+        turing_v[xy].state = 1.0;
+        break;
+    case 22:
+        turing_u[xy].state = 0.00;
+        turing_v[xy].state = 1.0;
+        break;
+    case 23:
+        turing_u[xy].state = 0.5;
+        turing_v[xy].state = 0.866025;
+        break;
+    case 24:
+        turing_u[xy].state = 0.5;
+        turing_v[xy].state = 0.866025;
+        break;
+    case 25:
+        turing_u[xy].state = 0.5;
+        turing_v[xy].state = 0.866025;
+        break;
+    case 26:
+        turing_u[xy].state = 0.866025;
+        turing_v[xy].state = 0.5;
+        break;
+    case 27:
+        turing_u[xy].state = 0.866025;
+        turing_v[xy].state = 0.5;
+        break;
+    case 28:
+        turing_u[xy].state = 0.866025;
+        turing_v[xy].state = 0.5;
+        break;
+    case 29:
+        turing_u[xy].state = 1.0;
+        turing_v[xy].state = 0.0;
+        break;
+    case 30:
+        turing_u[xy].state = 1.0;
+        turing_v[xy].state = 0.0;
+        break;
+    case 31:
+        turing_u[xy].state = 1.0;
+        turing_v[xy].state = 0.0;
+        break;
+    case 32:
+        turing_u[xy].state = 0.866025;
+        turing_v[xy].state = -0.5;
+        break;
+    case 33:
+        turing_u[xy].state = 0.866025;
+        turing_v[xy].state = -0.5;
+        break;
+    case 34:
+        turing_u[xy].state = 0.866025;
+        turing_v[xy].state = -0.5;
+        break;
+    case 35:
+        turing_u[xy].state = 0.5;
+        turing_v[xy].state = -0.866025;
+        break;
+    }
+}
+
+int color_of_turing(int xy, turing_vector_t* turing_u, turing_vector_t* turing_v) {
+    int z;
+    
+    if (turing_u[xy].state > 0.965926) {
+        z = 6;
+    } else if (turing_u[xy].state >  0.707107) {
+        z = 5;
+    } else if (turing_u[xy].state >  0.258819) {
+        z = 4;
+    } else if (turing_u[xy].state > -0.258819) {
+        z = 3;
+    } else if (turing_u[xy].state > -0.707107) {
+        z = 2;
+    } else if (turing_u[xy].state > -0.965926) {
+        z = 1;
+    } else {
+        z = 0;
+    }
+    
+    if (turing_v[xy].state < 0) {
+        z *= -1;
+    }
+    
+    z = (16+z) % COLORS;
+    
+    return z;
+}
+
+int extra_color_of_turing(int xy, turing_vector_t* turing_u, turing_vector_t* turing_v) {
+    int z;
+    
+    if (turing_u[xy].state > 0.996195) {
+        z = 18;
+    } else if (turing_u[xy].state >  0.965926) {
+        z = 17;
+    } else if (turing_u[xy].state >  0.906308) {
+        z = 16;
+    } else if (turing_u[xy].state >  0.819152) {
+        z = 15;
+    } else if (turing_u[xy].state >  0.707107) {
+        z = 14;
+    } else if (turing_u[xy].state >  0.573576) {
+        z = 13;
+    } else if (turing_u[xy].state >  0.422618) {
+        z = 12;
+    } else if (turing_u[xy].state >  0.258819) {
+        z = 11;
+    } else if (turing_u[xy].state >  0.087156) {
+        z = 10;
+    } else if (turing_u[xy].state > -0.087156) {
+        z =  9;
+    } else if (turing_u[xy].state > -0.258819) {
+        z =  8;
+    } else if (turing_u[xy].state > -0.422618) {
+        z =  7;
+    } else if (turing_u[xy].state > -0.573576) {
+        z =  6;
+    } else if (turing_u[xy].state > -0.707107) {
+        z =  5;
+    } else if (turing_u[xy].state > -0.819152) {
+        z =  4;
+    } else if (turing_u[xy].state > -0.906308) {
+        z =  3;
+    } else if (turing_u[xy].state > -0.965926) {
+        z =  2;
+    } else if (turing_u[xy].state > -0.996195) {
+        z =  1;
+    } else {
+        z =  0;
+    }
+    
+    if (turing_v[xy].state < 0) {
+        z *= -1;
+    }
+    
+    z = (48+z) % EXTRA_COLORS;
+    
+    return EXTRA_COLOR + z;
+}
+
+// cyclic CA logic
 
 void min_equals1_f(double* x, double y, int* t0, int s0) {
     if (y < *x) {
@@ -220,6 +456,7 @@ int compute_cyclic(int* grid, int* impatience, int xy) {
     return (grid[xy] + inc) % COLORS;
 }
 
+// Euclidean-distance decay
 
 // hand-tuned to decay mostly like Euclidean distance
 void compute_decay(
@@ -280,73 +517,8 @@ void compute_decay(
     }
 }
 
-void compute_hanabi(hanabi_cell* grid, hanabi_cell* grid_next, int xy) {
-    int x = xy % COLS;
-    int y = xy / COLS;
-    int* offset = get_offset_array(x,y);
-    
-    int scratch;
-    int z_for_orth;
-    int z_for_diag;
-    int live_neighbors = 0;
-    
-    /*
-    if (grid[xy].orth > 0) {
-        grid_next[xy].orth *= -1;
-    } else if (grid[xy].orth < 0) {
-        grid_next[xy].orth = 0;
-    */
-    if (grid[xy].orth > 0) {
-        grid_next[xy].orth = 0;
-        grid_next[xy].diag = 0;
-    } else {
-        grid_next[xy].orth = 0;
-        grid_next[xy].diag = 0;
-        
-        for (int i = X_INIT(x,y); X_CONTINUE(x,y,i); ++i) {
-            if (offset[i] != 0) {
-                if (grid[xy+offset[i]].orth > 17) {
-                    if (i % 2) { // orthogonal neighbor
-                        z_for_orth = grid[xy+offset[i]].orth - 17;
-                        z_for_diag = grid[xy+offset[i]].orth - 17;
-                    } else { // diagonal neighbor
-                        z_for_orth = grid[xy+offset[i]].diag - 21;
-                        z_for_diag = grid[xy+offset[i]].diag - 24;
-                    }
-                    max_equals(
-                        &grid_next[xy].orth, z_for_orth,
-                        &grid_next[xy].color, grid[xy+offset[i]].color,
-                        &scratch, scratch
-                    );
-                    max_equals(
-                        &grid_next[xy].diag, z_for_diag,
-                        &grid_next[xy].color, grid[xy+offset[i]].color,
-                        &scratch, scratch
-                    );
-                    ++live_neighbors;
-                }
-            }
-        }
-        
-        if (live_neighbors != 2) {
-            grid_next[xy].orth = 0;
-            grid_next[xy].diag = 0;
-        }
-    }
-}
+// multiscale turing patterns logic
 
-void run_hanabi_spark(hanabi_cell* grid, int xy, int color) {
-    int x = xy % COLS;
-    int y = xy / COLS;
-    int* offset = get_offset_array(x,y);
-    
-    for (int i = X_INIT(x,y); X_CONTINUE(x,y,i); ++i) {
-        grid[xy+offset[i]].orth = grid[xy+offset[i]].diag = 170 * (rand() % 3 ? 1 : 0); // CR rrheingans-yoo: tune this
-        grid[xy+offset[i]].color = color;
-    }
-}
-
-// CR rrheingans-yoo: clean up
 void diffuse_turing_reagent_horiz(
     turing_vector_t* vv, int radius,
     double* reagent, int* n_neighbors
