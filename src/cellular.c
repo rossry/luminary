@@ -103,152 +103,151 @@ int* get_offset_array(int x, int y) {
 
 // cross-CA conversions
 
-// CR rrheingans-yoo: fix the off-0 substate cases
 void rainbow_to_turing(int xy, int* rainbow, turing_vector_t* turing_u, turing_vector_t* turing_v, int substate) {
     switch(3*rainbow[xy] + substate) {
     case  0:
-        turing_u[xy].state = 0.5;
+        turing_u[xy].state =  0.5;
         turing_v[xy].state = -0.866025;
         break;
     case  1:
-        turing_u[xy].state = 0.5;
-        turing_v[xy].state = -0.866025;
+        turing_u[xy].state =  0.342020;
+        turing_v[xy].state = -0.939693;
         break;
     case  2:
-        turing_u[xy].state = 0.0;
-        turing_v[xy].state = -1.0;
+        turing_u[xy].state =  0.173648;
+        turing_v[xy].state = -0.984808;
         break;
     case  3:
-        turing_u[xy].state = 0.0;
+        turing_u[xy].state =  0.0;
         turing_v[xy].state = -1.0;
         break;
     case  4:
-        turing_u[xy].state = 0.0;
-        turing_v[xy].state = -1.0;
+        turing_u[xy].state = -0.173648;
+        turing_v[xy].state = -0.984808;
         break;
     case  5:
-        turing_u[xy].state = -0.5;
-        turing_v[xy].state = -0.866025;
+        turing_u[xy].state = -0.342020;
+        turing_v[xy].state = -0.939693;
         break;
     case  6:
         turing_u[xy].state = -0.5;
         turing_v[xy].state = -0.866025;
         break;
     case  7:
-        turing_u[xy].state = -0.5;
-        turing_v[xy].state = -0.866025;
+        turing_u[xy].state = -0.642788;
+        turing_v[xy].state = -0.766044;
         break;
     case  8:
-        turing_u[xy].state = -0.866025;
-        turing_v[xy].state = -0.5;
+        turing_u[xy].state = -0.766044;
+        turing_v[xy].state = -0.642788;
         break;
     case  9:
         turing_u[xy].state = -0.866025;
         turing_v[xy].state = -0.5;
         break;
     case 10:
-        turing_u[xy].state = -0.866025;
-        turing_v[xy].state = -0.5;
+        turing_u[xy].state = -0.939693;
+        turing_v[xy].state = -0.342020;
         break;
     case 11:
-        turing_u[xy].state = -1.0;
-        turing_v[xy].state = 0;
+        turing_u[xy].state = -0.984808;
+        turing_v[xy].state = -0.173648;
         break;
     case 12:
         turing_u[xy].state = -1.0;
-        turing_v[xy].state = 0;
+        turing_v[xy].state =  0.0;
         break;
     case 13:
-        turing_u[xy].state = -1.0;
-        turing_v[xy].state = 0;
+        turing_u[xy].state = -0.984808;
+        turing_v[xy].state =  0.173648;
         break;
     case 14:
-        turing_u[xy].state = -0.866025;
-        turing_v[xy].state = 0.5;
+        turing_u[xy].state = -0.939693;
+        turing_v[xy].state =  0.342020;
         break;
     case 15:
         turing_u[xy].state = -0.866025;
-        turing_v[xy].state = 0.5;
+        turing_v[xy].state =  0.5;
         break;
     case 16:
-        turing_u[xy].state = -0.866025;
-        turing_v[xy].state = 0.5;
+        turing_u[xy].state = -0.766044;
+        turing_v[xy].state =  0.642788;
         break;
     case 17:
-        turing_u[xy].state = -0.5;
-        turing_v[xy].state = 0.866025;
+        turing_u[xy].state = -0.642788;
+        turing_v[xy].state =  0.766044;
         break;
     case 18:
         turing_u[xy].state = -0.5;
-        turing_v[xy].state = 0.866025;
+        turing_v[xy].state =  0.866025;
         break;
     case 19:
-        turing_u[xy].state = -0.5;
-        turing_v[xy].state = 0.866025;
+        turing_u[xy].state = -0.342020;
+        turing_v[xy].state =  0.939693;
         break;
     case 20:
-        turing_u[xy].state = 0.00;
-        turing_v[xy].state = 1.0;
+        turing_u[xy].state = -0.173648;
+        turing_v[xy].state =  0.984808;
         break;
     case 21:
-        turing_u[xy].state = 0.00;
-        turing_v[xy].state = 1.0;
+        turing_u[xy].state =  0.0;
+        turing_v[xy].state =  1.0;
         break;
     case 22:
-        turing_u[xy].state = 0.00;
-        turing_v[xy].state = 1.0;
+        turing_u[xy].state =  0.173648;
+        turing_v[xy].state =  0.984808;
         break;
     case 23:
-        turing_u[xy].state = 0.5;
-        turing_v[xy].state = 0.866025;
+        turing_u[xy].state =  0.342020;
+        turing_v[xy].state =  0.939693;
         break;
     case 24:
-        turing_u[xy].state = 0.5;
-        turing_v[xy].state = 0.866025;
+        turing_u[xy].state =  0.5;
+        turing_v[xy].state =  0.866025;
         break;
     case 25:
-        turing_u[xy].state = 0.5;
-        turing_v[xy].state = 0.866025;
+        turing_u[xy].state =  0.642788;
+        turing_v[xy].state =  0.766044;
         break;
     case 26:
-        turing_u[xy].state = 0.866025;
-        turing_v[xy].state = 0.5;
+        turing_u[xy].state =  0.766044;
+        turing_v[xy].state =  0.642788;
         break;
     case 27:
-        turing_u[xy].state = 0.866025;
-        turing_v[xy].state = 0.5;
+        turing_u[xy].state =  0.866025;
+        turing_v[xy].state =  0.5;
         break;
     case 28:
-        turing_u[xy].state = 0.866025;
-        turing_v[xy].state = 0.5;
+        turing_u[xy].state =  0.939693;
+        turing_v[xy].state =  0.342020;
         break;
     case 29:
-        turing_u[xy].state = 1.0;
-        turing_v[xy].state = 0.0;
+        turing_u[xy].state =  0.984808;
+        turing_v[xy].state =  0.173648;
         break;
     case 30:
-        turing_u[xy].state = 1.0;
-        turing_v[xy].state = 0.0;
+        turing_u[xy].state =  1.0;
+        turing_v[xy].state =  0.0;
         break;
     case 31:
-        turing_u[xy].state = 1.0;
-        turing_v[xy].state = 0.0;
+        turing_u[xy].state =  0.984808;
+        turing_v[xy].state = -0.173648;
         break;
     case 32:
-        turing_u[xy].state = 0.866025;
-        turing_v[xy].state = -0.5;
+        turing_u[xy].state = 0.939693;
+        turing_v[xy].state = -0.342020;
         break;
     case 33:
         turing_u[xy].state = 0.866025;
         turing_v[xy].state = -0.5;
         break;
     case 34:
-        turing_u[xy].state = 0.866025;
-        turing_v[xy].state = -0.5;
+        turing_u[xy].state = 0.766044;
+        turing_v[xy].state = -0.642788;
         break;
-    case 35:
-        turing_u[xy].state = 0.5;
-        turing_v[xy].state = -0.866025;
+    case 35: case -1:
+        turing_u[xy].state = 0.642788;
+        turing_v[xy].state = -0.766044;
         break;
     }
 }
@@ -386,7 +385,7 @@ int maybe_increment(int* grid, int xy, int target, int inc, int neighbors[COLORS
     if (inc == 2) {
         return inc;
     }
-    if (grid[target] == (grid[xy] + 2) % COLORS && rand() < 0.21*RAND_MAX) { // CR-someday rrheingans-yoo: was 0.2; 0.25 is a lot
+    if (grid[target] == (grid[xy] + 2) % COLORS && rand() < 0.2*RAND_MAX) { // CR-someday rrheingans-yoo: was 0.2; 0.25 is a lot
         return 2;
     }
     if (grid[target] == (grid[xy] + 1) % COLORS) {
