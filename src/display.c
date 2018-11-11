@@ -20,7 +20,7 @@ int petal_mapping[] = PETAL_MAPPING;
     ge_GIF *gif;
 #endif /* OUTPUT_GIF */
 
-uint8_t rgb_palette[128 * 3];
+uint8_t rgb_palette[256 * 3];
 
 #ifdef OUTPUT_CAIRO
     // cairo
@@ -157,7 +157,6 @@ void display_init() {
     display_init_color(11+MAKE_GREY+MAKE_DARKER, GREY_45, 0x00, 0x00, 0x00);
     display_init_color(12+MAKE_GREY+MAKE_DARKER, GREY_46, 0x00, 0x00, 0x00);
     
-    // EXTRA_COLOR
     // EXTRA_COLOR+(3*color) ~ color
     display_init_extra_color( 0+EXTRA_COLOR, RAINBOW_00, RAINBOW_00, 0x6d, 0x3f, 0xa9);
     display_init_extra_color( 1+EXTRA_COLOR, RAINBOW_01, RAINBOW_00, 0x83, 0x3e, 0xb0);
@@ -196,12 +195,49 @@ void display_init() {
     display_init_extra_color(34+EXTRA_COLOR, RAINBOW_00, RAINBOW_11, 0x5e, 0x57, 0xca);
     display_init_extra_color(35+EXTRA_COLOR, RAINBOW_11, RAINBOW_00, 0x67, 0x4a, 0xbb);
     
+    display_init_extra_color( 0+EXTRA_COLOR+MAKE_DARKER, RAINBOW_40, RAINBOW_40, 0x6d, 0x3f, 0xa9);
+    display_init_extra_color( 1+EXTRA_COLOR+MAKE_DARKER, RAINBOW_41, RAINBOW_40, 0x83, 0x3e, 0xb0);
+    display_init_extra_color( 2+EXTRA_COLOR+MAKE_DARKER, RAINBOW_40, RAINBOW_41, 0x9a, 0x3c, 0xb3);
+    display_init_extra_color( 3+EXTRA_COLOR+MAKE_DARKER, RAINBOW_41, RAINBOW_41, 0xb1, 0x3c, 0xb1);
+    display_init_extra_color( 4+EXTRA_COLOR+MAKE_DARKER, RAINBOW_42, RAINBOW_41, 0xc7, 0x3c, 0xab);
+    display_init_extra_color( 5+EXTRA_COLOR+MAKE_DARKER, RAINBOW_41, RAINBOW_42, 0xdc, 0x3f, 0xa2);
+    display_init_extra_color( 6+EXTRA_COLOR+MAKE_DARKER, RAINBOW_42, RAINBOW_42, 0xed, 0x43, 0x95);
+    display_init_extra_color( 7+EXTRA_COLOR+MAKE_DARKER, RAINBOW_43, RAINBOW_42, 0xfb, 0x49, 0x85);
+    display_init_extra_color( 8+EXTRA_COLOR+MAKE_DARKER, RAINBOW_42, RAINBOW_43, 0xff, 0x52, 0x74);
+    display_init_extra_color( 9+EXTRA_COLOR+MAKE_DARKER, RAINBOW_43, RAINBOW_43, 0xff, 0x5d, 0x63);
+    display_init_extra_color(10+EXTRA_COLOR+MAKE_DARKER, RAINBOW_44, RAINBOW_43, 0xff, 0x6b, 0x52);
+    display_init_extra_color(11+EXTRA_COLOR+MAKE_DARKER, RAINBOW_43, RAINBOW_44, 0xff, 0x7a, 0x43);
+    display_init_extra_color(12+EXTRA_COLOR+MAKE_DARKER, RAINBOW_44, RAINBOW_44, 0xff, 0x8b, 0x38);
+    display_init_extra_color(13+EXTRA_COLOR+MAKE_DARKER, RAINBOW_45, RAINBOW_44, 0xf5, 0x9d, 0x30);
+    display_init_extra_color(14+EXTRA_COLOR+MAKE_DARKER, RAINBOW_44, RAINBOW_45, 0xe8, 0xaf, 0x2e);
+    display_init_extra_color(15+EXTRA_COLOR+MAKE_DARKER, RAINBOW_45, RAINBOW_45, 0xd8, 0xc1, 0x31);
+    display_init_extra_color(16+EXTRA_COLOR+MAKE_DARKER, RAINBOW_46, RAINBOW_45, 0xc9, 0xd3, 0x39);
+    display_init_extra_color(17+EXTRA_COLOR+MAKE_DARKER, RAINBOW_45, RAINBOW_46, 0xbb, 0xe2, 0x47);
+    display_init_extra_color(18+EXTRA_COLOR+MAKE_DARKER, RAINBOW_46, RAINBOW_46, 0xaf, 0xef, 0x5a);
+    display_init_extra_color(19+EXTRA_COLOR+MAKE_DARKER, RAINBOW_47, RAINBOW_46, 0x94, 0xf3, 0x56);
+    display_init_extra_color(20+EXTRA_COLOR+MAKE_DARKER, RAINBOW_46, RAINBOW_47, 0x79, 0xf5, 0x58);
+    display_init_extra_color(21+EXTRA_COLOR+MAKE_DARKER, RAINBOW_47, RAINBOW_47, 0x60, 0xf6, 0x60);
+    display_init_extra_color(22+EXTRA_COLOR+MAKE_DARKER, RAINBOW_48, RAINBOW_47, 0x49, 0xf4, 0x6c);
+    display_init_extra_color(23+EXTRA_COLOR+MAKE_DARKER, RAINBOW_47, RAINBOW_48, 0x36, 0xf0, 0x7b);
+    display_init_extra_color(24+EXTRA_COLOR+MAKE_DARKER, RAINBOW_48, RAINBOW_48, 0x28, 0xea, 0x8c);
+    display_init_extra_color(25+EXTRA_COLOR+MAKE_DARKER, RAINBOW_49, RAINBOW_48, 0x1e, 0xe0, 0x9f);
+    display_init_extra_color(26+EXTRA_COLOR+MAKE_DARKER, RAINBOW_48, RAINBOW_49, 0x19, 0xd5, 0xb1);
+    display_init_extra_color(27+EXTRA_COLOR+MAKE_DARKER, RAINBOW_49, RAINBOW_49, 0x19, 0xc7, 0xc1);
+    display_init_extra_color(28+EXTRA_COLOR+MAKE_DARKER, RAINBOW_50, RAINBOW_49, 0x1d, 0xb7, 0xcf);
+    display_init_extra_color(29+EXTRA_COLOR+MAKE_DARKER, RAINBOW_49, RAINBOW_50, 0x25, 0xa7, 0xd9);
+    display_init_extra_color(30+EXTRA_COLOR+MAKE_DARKER, RAINBOW_50, RAINBOW_50, 0x2f, 0x96, 0xdf);
+    display_init_extra_color(31+EXTRA_COLOR+MAKE_DARKER, RAINBOW_51, RAINBOW_50, 0x3a, 0x85, 0xe1);
+    display_init_extra_color(32+EXTRA_COLOR+MAKE_DARKER, RAINBOW_50, RAINBOW_51, 0x47, 0x74, 0xde);
+    display_init_extra_color(33+EXTRA_COLOR+MAKE_DARKER, RAINBOW_51, RAINBOW_51, 0x53, 0x65, 0xd6);
+    display_init_extra_color(34+EXTRA_COLOR+MAKE_DARKER, RAINBOW_40, RAINBOW_51, 0x5e, 0x57, 0xca);
+    display_init_extra_color(35+EXTRA_COLOR+MAKE_DARKER, RAINBOW_51, RAINBOW_40, 0x67, 0x4a, 0xbb);
+    
     #ifdef OUTPUT_GIF
         gif = ge_new_gif(
             "demo/example8.gif",
             COLS * GIF_ZOOM, ROWS * GIF_ZOOM,
             rgb_palette,
-            7,              /* palette depth == log2(# of colors) */
+            8,              /* palette depth == log2(# of colors) */
             0               /* infinite loop */
         );
     #endif /* OUTPUT_GIF */
