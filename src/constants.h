@@ -19,7 +19,7 @@
 
 //#define PP_SERVER
 
-#define SPECTRARY
+//#define SPECTRARY
 
 // physical dimensions
 //  #define PETALS_ACTIVE

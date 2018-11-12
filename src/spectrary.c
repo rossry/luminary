@@ -84,7 +84,7 @@ void spectrary_update() {
             spectrary_scanf();
         }
         
-        spectrary_level[freq_i] = sum_val + spectrary_level[freq_i]/2.0;
+        spectrary_level[freq_i] = sum_val + spectrary_level[freq_i]*0.8;
         
         sum_avg_val += spectrary_level[freq_i];
     }

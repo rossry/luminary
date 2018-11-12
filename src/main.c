@@ -35,6 +35,7 @@ int main(int argc, char *argv[]) {
     display_init();
     #ifdef SPECTRARY
         spectrary_init("../spectrary/plots/light_before_we_land/3dft.dat");
+        //spectrary_init("../spectrary/plots/coming_in_from_the_cold/3dft.dat");
     #endif /* SPECTRARY */
     
     srand(5);
@@ -349,18 +350,24 @@ int main(int argc, char *argv[]) {
             
             #ifdef SPECTRARY
                 if (epoch > INITIALIZATION_EPOCHS) {
-                    int c = abs(color-EXTRA_COLOR - EXTRA_COLORS/2);
-                    int z = log(spectrary_level[c]);
+                    //int c = SPECTRARY_FREQS-abs(color-EXTRA_COLOR - EXTRA_COLORS/2);
+                    //int z = log(spectrary_level[c]);
+                    //c = (color-EXTRA_COLOR+EXTRA_COLORS/2)%EXTRA_COLORS+EXTRA_COLOR;
+                    int c = SPECTRARY_FREQS - abs(color - EXTRA_COLORS/2 - EXTRA_COLOR);
+                    int z = max(log(spectrary_level[c]),max(log(spectrary_level[max(c-1,0)]),log(spectrary_level[min(c+1,SPECTRARY_FREQS)])));
+                    c = (color+EXTRA_COLORS*3/4-EXTRA_COLOR)%EXTRA_COLORS+EXTRA_COLOR;
                     
                     display_color(
                         xy,
-                        z > 6.0 ? color : (z > 5.0 ? color+MAKE_DARKER : BLACK)
+                        z > 7.0 ? c : (z > 6.7 ? c+MAKE_DARKER : BLACK),
+                        color
                     );
                 }
             #else /* SPECTRARY */
                 if (epoch > INITIALIZATION_EPOCHS) {
                      display_color(
                         xy,
+                        color,
                         color
                     );
                 }
@@ -382,14 +389,18 @@ int main(int argc, char *argv[]) {
             waves_diag[xy] = waves_diag_next[xy];
         }
         
-        for (int freq_i=0; freq_i<SPECTRARY_FREQS; ++freq_i) {
-            mvprintw(freq_i, 2*DIAGNOSTIC_COLS-15, "%4.1f |     |     ", log(spectrary_level[freq_i]));
-            for (int kk=0; kk<log(spectrary_level[freq_i])-0.0; ++kk) {
-                attron(COLOR_PAIR(1 + EXTRA_COLOR + (EXTRA_COLORS/2 + (kk%2 ? freq_i : -freq_i) + 0)%EXTRA_COLORS));
-                mvprintw(freq_i, 2*DIAGNOSTIC_COLS-9+kk+(kk<5?0:1), "#");
-                attroff(COLOR_PAIR(1 + EXTRA_COLOR + (EXTRA_COLORS/2 + (kk%2 ? freq_i : -freq_i) + 0)%EXTRA_COLORS));
+        #ifdef SPECTRARY
+            for (int freq_i=0; freq_i<SPECTRARY_FREQS; ++freq_i) {
+                mvprintw(freq_i, 2*DIAGNOSTIC_COLS-15, "%4.1f |      |    ", log(spectrary_level[freq_i]));
+                for (int kk=1; kk<log(spectrary_level[freq_i]); ++kk) {
+                    //int c = (EXTRA_COLORS/2 + (kk%2 ? freq_i : -freq_i) + EXTRA_COLORS/2) % EXTRA_COLORS;
+                    int c = ((kk%2 ? freq_i : -freq_i) + EXTRA_COLORS/2 + EXTRA_COLORS*3/4)%EXTRA_COLORS + EXTRA_COLOR;
+                    attron(COLOR_PAIR(1+c));
+                    mvprintw(freq_i, 2*DIAGNOSTIC_COLS-10+kk+(kk<7?0:1), "#");
+                    attroff(COLOR_PAIR(1+c));
+                }
             }
-        }
+        #endif /* SPECTRARY */
         // end draw/increment mutex
         
         gettimeofday(&drawn, NULL);

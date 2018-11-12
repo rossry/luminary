@@ -507,7 +507,7 @@ int petal_mapping_pixel(int x_p, int y) {
     return 1;
 }
 
-void display_color(int xy, int color) {
+void display_color(int xy, int color, int state_color) {
     int x = xy % COLS;
     int y = xy / COLS;
     if (
@@ -517,7 +517,7 @@ void display_color(int xy, int color) {
             + PETAL_ROWS
         #endif /* DISPLAY_PETALS_MODE */
     ) {
-        if (display_current[xy] != color
+        if (display_current[xy] != state_color
             || rand() % 100 == 100
             || xy == COLS * (ROWS-1) + FLOOR_COLS - 1
         ) {
@@ -545,14 +545,14 @@ void display_color(int xy, int color) {
                     mvprintw(
                         ((y/DIAGNOSTIC_SAMPLING_RATE + (y > PETAL_ROWS ? 8 + PETAL_ROWS : 0)) / (y > PETAL_ROWS ? 2 : 1)),
                         2*x/DIAGNOSTIC_SAMPLING_RATE + ((x / PETAL_COLS) * 6),
-                        (display_current[xy] == color ?  " ," : " .")
+                        (display_current[xy] == state_color ?  "%%" : "##")
                     );
                     #ifndef DISPLAY_FLOOR_ALSO
                         } else {
                             mvprintw(
                                 2 + PETAL_ROWS/DIAGNOSTIC_SAMPLING_RATE + (((PETAL_ROWS-1-y)/DIAGNOSTIC_SAMPLING_RATE + ((PETAL_ROWS-1-y) > PETAL_ROWS ? 8 + PETAL_ROWS : 0)) / ((PETAL_ROWS-1-y) > PETAL_ROWS ? 2 : 1)),
                                 PETAL_COLS + 3 + 2*(COLS-1-x)/DIAGNOSTIC_SAMPLING_RATE + (((COLS-1-x) / PETAL_COLS) * 6),
-                                (display_current[xy] == color ?  " ," : " .")
+                                (display_current[xy] == state_color ?  "%%" : "##")
                             );
                         }
                     #endif /* DISPLAY_FLOOR_ALSO */
@@ -572,7 +572,7 @@ void display_color(int xy, int color) {
                 cairo_mask_surface(cairo_cr, cairo_blur, -CAIRO_BLUR_WIDTH + x * CAIRO_ZOOM, -CAIRO_BLUR_WIDTH + y * CAIRO_ZOOM);
             #endif /* OUTPUT_CAIRO_FULLSCREEN */
     
-            display_current[xy] = color;
+            display_current[xy] = state_color;
             
             n_dirty_pixels += 1;
             
