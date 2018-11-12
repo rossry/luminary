@@ -7,6 +7,10 @@
 #include "pattern.h"
 #include "display.h"
 
+#ifdef SPECTRARY
+    #include "spectrary.h"
+#endif /* SPECTRARY */
+
 #ifdef SACN_SERVER
     #include "sacn-server-luminary.h"
     #include "sacn-constants-luminary.h"
@@ -29,6 +33,9 @@ int main(int argc, char *argv[]) {
     int n_cores = sysconf(_SC_NPROCESSORS_ONLN);
     
     display_init();
+    #ifdef SPECTRARY
+        spectrary_init("../spectrary/plots/light_before_we_land/3dft.dat");
+    #endif /* SPECTRARY */
     
     srand(5);
     
@@ -295,7 +302,7 @@ int main(int argc, char *argv[]) {
             
             if (1
                 && (y > PETAL_ROWS && x < FLOOR_COLS) // CR-someday rrheingans-yoo for ntarleton: this should instead be pressure_switch_depressed(xy)
-                && rand() % (FLOOR_ROWS * FLOOR_COLS * 20) == 0 // CR-someday rrheingans-yoo for ntarleton: remove me
+                && rand() % (FLOOR_ROWS * FLOOR_COLS * 15) == 0 // CR-someday rrheingans-yoo for ntarleton: remove me
             ) {
                 pressure_self[xy] = PRESSURE_DELAY_EPOCHS;
             }
@@ -330,16 +337,34 @@ int main(int argc, char *argv[]) {
         }
         // end computing evolution
         
+        #ifdef SPECTRARY
+            spectrary_update();
+        #endif /* SPECTRARY */
+        
         gettimeofday(&computed, NULL);
         
         // begin draw/increment mutex
         for (int xy = 0; xy < ROWS * COLS; ++xy) {
-            if (epoch > INITIALIZATION_EPOCHS) {
-                 display_color(
-                    xy,
-                    extra_color_of_turing(xy, turing_u, turing_v)
-                );
-            }
+            int color = extra_color_of_turing(xy, turing_u, turing_v);
+            
+            #ifdef SPECTRARY
+                if (epoch > INITIALIZATION_EPOCHS) {
+                    int c = abs(color-EXTRA_COLOR - EXTRA_COLORS/2);
+                    int z = log(spectrary_level[c]);
+                    
+                    display_color(
+                        xy,
+                        z > 6.0 ? color : (z > 5.0 ? color+MAKE_DARKER : BLACK)
+                    );
+                }
+            #else /* SPECTRARY */
+                if (epoch > INITIALIZATION_EPOCHS) {
+                     display_color(
+                        xy,
+                        color
+                    );
+                }
+            #endif /* SPECTRARY */
             
             // increment all states
             control_directive_0[xy] = control_directive_0_next[xy];
@@ -355,6 +380,15 @@ int main(int argc, char *argv[]) {
             
             waves_orth[xy] = waves_orth_next[xy];
             waves_diag[xy] = waves_diag_next[xy];
+        }
+        
+        for (int freq_i=0; freq_i<SPECTRARY_FREQS; ++freq_i) {
+            mvprintw(freq_i, 2*DIAGNOSTIC_COLS-15, "%4.1f |     |     ", log(spectrary_level[freq_i]));
+            for (int kk=0; kk<log(spectrary_level[freq_i])-0.0; ++kk) {
+                attron(COLOR_PAIR(1 + EXTRA_COLOR + (EXTRA_COLORS/2 + (kk%2 ? freq_i : -freq_i) + 0)%EXTRA_COLORS));
+                mvprintw(freq_i, 2*DIAGNOSTIC_COLS-9+kk+(kk<5?0:1), "#");
+                attroff(COLOR_PAIR(1 + EXTRA_COLOR + (EXTRA_COLORS/2 + (kk%2 ? freq_i : -freq_i) + 0)%EXTRA_COLORS));
+            }
         }
         // end draw/increment mutex
         
@@ -616,6 +650,9 @@ int main(int argc, char *argv[]) {
         mvprintw(DIAGNOSTIC_ROWS+7, 2*DIAGNOSTIC_COLS-15, "Hz:  %7.1f/%d(/%d)  ", 1 / (total_avg / MILLION), DISPLAY_FLUSH_EPOCHS, WILDFIRE_SPEEDUP);
         mvprintw(DIAGNOSTIC_ROWS+8, 2*DIAGNOSTIC_COLS-15, "usable:%5.1fms  ", USABLE_MSEC_PER_EPOCH);
         mvprintw(DIAGNOSTIC_ROWS+9, 2*DIAGNOSTIC_COLS-15, "used:  %5.1fms  ", usec_time_elapsed(&start, &refreshed) / THOUSAND);
+        #ifdef SPECTRARY
+            mvprintw(DIAGNOSTIC_ROWS+10, 2*DIAGNOSTIC_COLS-15, "spectrary:%5.1fsec  ", spectrary_time);
+        #endif /* SPECTRARY */
         if (DIAGNOSTIC_SAMPLING_RATE != 1) {
             mvprintw(DIAGNOSTIC_ROWS+5, 2*DIAGNOSTIC_COLS-37, "terminal_display_");
             mvprintw(DIAGNOSTIC_ROWS+6, 2*DIAGNOSTIC_COLS-37, "downsampling: %d", DIAGNOSTIC_SAMPLING_RATE);

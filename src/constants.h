@@ -19,13 +19,13 @@
 
 //#define PP_SERVER
 
+#define SPECTRARY
+
 // physical dimensions
 //  #define PETALS_ACTIVE
 
 #define FLOOR_COLS 72
 #define FLOOR_ROWS 48
-
-
 
 #define FLOOR_COLS_SHOWN FLOOR_COLS
 #define FLOOR_ROWS_SHOWN FLOOR_ROWS
