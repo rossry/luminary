@@ -520,6 +520,7 @@ void display_color(int xy, int color, int state_color) {
         if (display_current[xy] != state_color
             || rand() % 100 == 100
             || xy == COLS * (ROWS-1) + FLOOR_COLS - 1
+            || xy < EXTRA_COLORS
         ) {
             // ncurses drawing
             if (y % DIAGNOSTIC_SAMPLING_RATE == 0
@@ -545,14 +546,14 @@ void display_color(int xy, int color, int state_color) {
                     mvprintw(
                         ((y/DIAGNOSTIC_SAMPLING_RATE + (y > PETAL_ROWS ? 8 + PETAL_ROWS : 0)) / (y > PETAL_ROWS ? 2 : 1)),
                         2*x/DIAGNOSTIC_SAMPLING_RATE + ((x / PETAL_COLS) * 6),
-                        (display_current[xy] == state_color ?  "%%" : "##")
+                        (display_current[xy] == state_color ?  "##" : "%%%%")
                     );
                     #ifndef DISPLAY_FLOOR_ALSO
                         } else {
                             mvprintw(
                                 2 + PETAL_ROWS/DIAGNOSTIC_SAMPLING_RATE + (((PETAL_ROWS-1-y)/DIAGNOSTIC_SAMPLING_RATE + ((PETAL_ROWS-1-y) > PETAL_ROWS ? 8 + PETAL_ROWS : 0)) / ((PETAL_ROWS-1-y) > PETAL_ROWS ? 2 : 1)),
                                 PETAL_COLS + 3 + 2*(COLS-1-x)/DIAGNOSTIC_SAMPLING_RATE + (((COLS-1-x) / PETAL_COLS) * 6),
-                                (display_current[xy] == state_color ?  "%%" : "##")
+                                (display_current[xy] == state_color ?  "##" : "%%%%")
                             );
                         }
                     #endif /* DISPLAY_FLOOR_ALSO */
@@ -561,7 +562,7 @@ void display_color(int xy, int color, int state_color) {
                     mvprintw(
                         y/DIAGNOSTIC_SAMPLING_RATE,
                         2*x/DIAGNOSTIC_SAMPLING_RATE,
-                        "##"
+                        "%%%%"
                     );
                 #endif /* DISPLAY_PETALS_MODE */
                 attroff(COLOR_PAIR(1+color));

@@ -441,13 +441,14 @@ int compute_cyclic(int* grid, int* impatience, int xy) {
         /* propagate re-shuffle */
         if (inc) {
             impatience[xy] /= 2;
-            if (impatience[xy] > 50) {
+            if (impatience[xy] > 60) {
                 return RAND_COLOR;
             }
         }
         
         /* precipitate re-shuffle */
         if (impatience[xy] > 200) {
+            impatience[xy] = 0;
             return RAND_COLOR;
         }
     }
@@ -480,14 +481,14 @@ void compute_decay(
     for (int i = X_INIT(x,y); X_CONTINUE(x,y,i); ++i) {
         if (offset[i] != 0) {
             if (i % 2) { // orthogonal neighbor
-                z_for_orth = orth[xy+offset[i]] - 17;
-                z_for_diag = orth[xy+offset[i]] - 17;
+                z_for_orth = orth[xy+offset[i]] - 17 + WAVES_INCREMENT;
+                z_for_diag = orth[xy+offset[i]] - 17 + WAVES_INCREMENT;
                 max_increment_orth = z_for_orth; // unbounded increment
                 max_increment_diag = z_for_diag; // unbounded increment
             } else { // diagonal neighbor
                 
-                z_for_orth = diag[xy+offset[i]] - 21;
-                z_for_diag = diag[xy+offset[i]] - 24;
+                z_for_orth = diag[xy+offset[i]] - 21 + WAVES_INCREMENT;
+                z_for_diag = diag[xy+offset[i]] - 24 + WAVES_INCREMENT;
                 #ifdef DECAY_SQUARE
                     max_increment_orth = z_for_orth; // unbounded increment
                     max_increment_diag = z_for_diag; // unbounded increment

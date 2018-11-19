@@ -5,6 +5,8 @@
 // before I #include <ncurses.h>
 #include <ncurses.h>
 
+#define BINARY_NAME "a.out"
+
 #define THOUSAND 1000
 #define MILLION  1000000
 #define RAND_DOUBLE ((double)rand() / (double)(RAND_MAX))
@@ -19,7 +21,7 @@
 
 //#define PP_SERVER
 
-//#define SPECTRARY
+#define SPECTRARY
 
 // physical dimensions
 //  #define PETALS_ACTIVE
@@ -157,8 +159,10 @@
 #define EXTRA_COLORS 36
 #define BLACK        15
 
+// array is 97 elements long
 #define WAVES_BASE_ARRAY  {-331,-319,-307,-295,-283,-271,-260,-249,-237,-226,-215,-205,-194,-184,-173,-163,-154,-144,-135,-125,-116,-108,-99,-91,-83,-75,-68,-61,-54,-47,-41,-35,-29,-24,-18,-14,-9,-5,-1,2,4,6,6,7,8,8,9,9,9,9,9,8,8,7,6,6,4,2,-1,-5,-9,-14,-18,-24,-29,-35,-41,-47,-54,-61,-68,-75,-83,-91,-99,-108,-116,-125,-135,-144,-154,-163,-173,-184,-194,-205,-215,-226,-237,-249,-260,-271,-283,-295,-307,-319,-331}
-#define WAVES_BASE_X_ORIG 16
+#define WAVES_BASE_X_ORIG ( 48 - FLOOR_COLS/2 )
+#define WAVES_INCREMENT   17
 
 #define PETAL_PIXEL_PATTERN 3
 

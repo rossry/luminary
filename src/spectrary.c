@@ -1,3 +1,6 @@
+#include <errno.h>
+#include <string.h>
+
 #include "spectrary.h"
 
 struct timeval start;
@@ -5,7 +8,7 @@ struct timeval start;
 double sum_avg_val;
 
 FILE *fp;
-int n_lines = 0;
+int spectrary_n_lines = 0;
 
 // double spectrary_time; // promoted to spectrary.h
 double freq;
@@ -14,7 +17,7 @@ double val;
 int spectrary_usec_elapsed() {
     struct timeval now;
     gettimeofday(&now, NULL);
-    return (now.tv_usec - start.tv_usec) + (now.tv_sec - start.tv_sec)*1000*1000;
+    return (now.tv_usec - start.tv_usec) + (now.tv_sec - start.tv_sec)*1000*1000;// + 60*1000*1000;
 }
 
 void spectrary_delay() {
@@ -31,11 +34,16 @@ void spectrary_delay() {
 }
 
 int spectrary_scanf() {
-    n_lines += 1;
+    spectrary_n_lines += 1;
     return fscanf(fp, "%lf\t%lf\t%lf", &spectrary_time, &freq, &val);
 }
 
 void spectrary_advance() {
+    if (freq > SPECTRARY_BASE_FREQ) {
+        while (freq > SPECTRARY_BASE_FREQ) {
+            spectrary_scanf();
+        }
+    }
     while (freq < SPECTRARY_BASE_FREQ) {
         spectrary_scanf();
     }
@@ -46,7 +54,7 @@ void spectrary_init(char* filename) {
     
     fp = fopen(filename, "r"); // read mode
     if (fp == NULL) {
-        perror("Error while opening the file.\n");
+        fprintf(stderr, "%s: %s\n", strerror(errno), filename);
         exit(EXIT_FAILURE);
     }
     
@@ -54,6 +62,12 @@ void spectrary_init(char* filename) {
     freq = 0.0;
     
     spectrary_advance();
+    
+    /*
+    while (spectrary_time*1000*1000 < spectrary_usec_elapsed()) {
+        spectrary_scanf();
+    }
+    */
 }
 
 void spectrary_destroy() {

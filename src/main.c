@@ -1,6 +1,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <sys/time.h>
+#include <math.h>
 
 #include "constants.h"
 #include "cellular.h"
@@ -32,11 +33,27 @@ double usec_time_elapsed(struct timeval *from, struct timeval *to) {
 int main(int argc, char *argv[]) {
     int n_cores = sysconf(_SC_NPROCESSORS_ONLN);
     
-    display_init();
     #ifdef SPECTRARY
-        spectrary_init("../spectrary/plots/light_before_we_land/3dft.dat");
-        //spectrary_init("../spectrary/plots/coming_in_from_the_cold/3dft.dat");
+        int spectrary_active;
+        
+        switch (argc) {
+        case 1:
+            spectrary_active = 0;
+            break;
+        case 2:
+            spectrary_active = 1;
+            if (spectrary_active) {
+                // this should be a 3dft.dat file, as produced by snd2fftw
+                spectrary_init(argv[1]);
+            }
+            break;
+        default:
+            printf("usage: %s [spectrary_file]\n", BINARY_NAME);
+            return 1;
+        }
     #endif /* SPECTRARY */
+    
+    display_init();
     
     srand(5);
     
@@ -74,9 +91,9 @@ int main(int argc, char *argv[]) {
     double excitement[ROWS * COLS];
     
     // hand-tuned to radiate from a center 84 cells above the midpoint of the top side
-    //int waves_base[] = WAVES_BASE_ARRAY;
+    int waves_base[] = WAVES_BASE_ARRAY;
     
-    int waves_base_z_orig = 0;
+    int waves_base_z_orig = 16;
     int waves_orth[ROWS * COLS];
     int waves_orth_next[ROWS * COLS];
     int waves_diag[ROWS * COLS];
@@ -229,6 +246,7 @@ int main(int argc, char *argv[]) {
                 excitement[xy] += pressure_orth[xy] * 2 / 3 / PRESSURE_RADIUS_TICKS;
                 if (
                     excitement[xy] > 1.0
+                    || ((waves_orth_next[xy] / 17) % 800) > 800 - 1 - 6
                 ) {
                     // evolve rainbow_0
                     rainbow_0_next[xy] = compute_cyclic(rainbow_0, impatience_0, xy);
@@ -246,10 +264,11 @@ int main(int argc, char *argv[]) {
                         switch (rainbow_0_next[xy] - rainbow_0[xy]) {
                         case 1: case 1-COLORS:
                         case 2: case 2-COLORS:
-                            rainbow_to_turing(xy, rainbow_0_next, turing_u, turing_v, 0);
+                            rainbow_to_turing(xy, rainbow_0_next, turing_u, turing_v, (rand()%3)-1);
                             break;
                         default:
-                            rainbow_to_turing(xy, rainbow_0_next, turing_u, turing_v, (rand()%3)-1);
+                            //rainbow_to_turing(xy, rainbow_0_next, turing_u, turing_v, (rand()%3)-1);
+                            rainbow_to_turing(xy, rainbow_0_next, turing_u, turing_v, 0);
                             break;
                         }
                         // CR rrheingans-yoo: maybe compute/apply turing a few
@@ -267,11 +286,13 @@ int main(int argc, char *argv[]) {
         compute_turing_all(turing_u, turing_v);
         
         // drive waves_(orth|diag)'s top row
-        waves_base_z_orig += 17;
+        waves_base_z_orig += WAVES_INCREMENT;
         for (int x = 0; x < FLOOR_COLS; ++x) {
-            int xy = (PETAL_ROWS+2)*COLS + x;
+            int xy = (PETAL_ROWS)*COLS + x;
             
-            waves_orth_next[xy] = waves_diag_next[xy] = max(waves_orth_next[xy],waves_orth[xy]) + 17;
+            //waves_orth_next[xy] = waves_diag_next[xy] = max(waves_orth_next[xy],waves_orth[xy]) + 17;
+            //waves_orth_next[ROWS*COLS/2 + COLS/2] = waves_diag_next[ROWS*COLS/2 + COLS/2] = waves_base_z_orig;
+            waves_orth_next[xy] = waves_diag_next[xy] = waves_base[x+WAVES_BASE_X_ORIG] + waves_base_z_orig;
             switch (control_directive_0_next[xy]) {
             case PATTERN_N_TONES+2: case PATTERN_N_TONES+3: case PATTERN_N_TONES+4:
                 control_directive_0_next[xy] = control_directive_1_next[xy] = PATTERN_N_TONES + 2 + (2*rainbow_tone[xy] + ((waves_orth_next[xy] / 17) / RAINBOW_TONE_EPOCHS) / COLORS) % 3;
@@ -308,8 +329,6 @@ int main(int argc, char *argv[]) {
                 pressure_self[xy] = PRESSURE_DELAY_EPOCHS;
             }
             
-            
-            
             if (control_directive_0[xy] == PATTERN_FULL_RAINBOW
                 || rainbow_0_next[xy] != rainbow_0[xy]
             ) {
@@ -339,7 +358,9 @@ int main(int argc, char *argv[]) {
         // end computing evolution
         
         #ifdef SPECTRARY
+        if (spectrary_active) {
             spectrary_update();
+        }
         #endif /* SPECTRARY */
         
         gettimeofday(&computed, NULL);
@@ -347,22 +368,67 @@ int main(int argc, char *argv[]) {
         // begin draw/increment mutex
         for (int xy = 0; xy < ROWS * COLS; ++xy) {
             int color = extra_color_of_turing(xy, turing_u, turing_v);
+            switch (rainbow_0_next[xy] - rainbow_0[xy]) {
+            case 1: case 1-COLORS:
+            case 2: case 2-COLORS:
+                color = (3*rainbow_0_next[xy] - 1 + EXTRA_COLORS)%EXTRA_COLORS + EXTRA_COLOR;
+            // default: // pass
+            }
+            
+            if (xy < EXTRA_COLORS) {
+                color = xy + EXTRA_COLOR;
+            }
             
             #ifdef SPECTRARY
+            if (spectrary_active) {
                 if (epoch > INITIALIZATION_EPOCHS) {
-                    //int c = SPECTRARY_FREQS-abs(color-EXTRA_COLOR - EXTRA_COLORS/2);
-                    //int z = log(spectrary_level[c]);
-                    //c = (color-EXTRA_COLOR+EXTRA_COLORS/2)%EXTRA_COLORS+EXTRA_COLOR;
-                    int c = SPECTRARY_FREQS - abs(color - EXTRA_COLORS/2 - EXTRA_COLOR);
-                    int z = max(log(spectrary_level[c]),max(log(spectrary_level[max(c-1,0)]),log(spectrary_level[min(c+1,SPECTRARY_FREQS)])));
-                    c = (color+EXTRA_COLORS*3/4-EXTRA_COLOR)%EXTRA_COLORS+EXTRA_COLOR;
+                    /* // 19-bin spectrary
+                    int freq = SPECTRARY_FREQS - abs(color - EXTRA_COLORS/2 - EXTRA_COLOR);
+                    int c = (color+EXTRA_COLORS*3/4-EXTRA_COLOR)%EXTRA_COLORS + EXTRA_COLOR;
+                    */
                     
-                    display_color(
+                    // 36-bin spectrary
+                    int freq = color-EXTRA_COLOR;
+                    int c = color;
+                    
+                    if (
+                        log(spectrary_level[freq]) > 7.0
+                        || ( (freq>0 && log(spectrary_level[freq-1]) > 7.0)
+                             && (freq < SPECTRARY_FREQS-1 && log(spectrary_level[freq+1]) > 7.0)
+                           )
+                    ) {
+                        display_color(
+                            xy,
+                            c,
+                            color
+                        );
+                    } else if (
+                        log(spectrary_level[freq]) > 6.0
+                        || (freq>0 && log(spectrary_level[freq-1]) > 6.0)
+                        || (freq < SPECTRARY_FREQS-1 && log(spectrary_level[freq+1]) > 6.0)
+                    ) {
+                        display_color(
+                            xy,
+                            c+MAKE_DARKER,
+                            color
+                        );
+                    } else {
+                        display_color(
+                            xy,
+                            BLACK,
+                            color
+                        );
+                    }
+                }
+            } else {
+                if (epoch > INITIALIZATION_EPOCHS) {
+                     display_color(
                         xy,
-                        z > 7.0 ? c : (z > 6.7 ? c+MAKE_DARKER : BLACK),
+                        color,
                         color
                     );
                 }
+            }
             #else /* SPECTRARY */
                 if (epoch > INITIALIZATION_EPOCHS) {
                      display_color(
@@ -372,6 +438,21 @@ int main(int argc, char *argv[]) {
                     );
                 }
             #endif /* SPECTRARY */
+            
+            /*
+            if (xy >= EXTRA_COLORS) {
+                display_color(xy, BLACK, BLACK);
+            }
+            */
+            
+            //display_color(xy, rainbow_0_next[xy], rainbow_0_next[xy]);
+            /*
+            display_color(
+                xy,
+                ((waves_orth_next[xy] / 17) / 800) % COLORS,
+                ((waves_orth_next[xy] / 17) / 800) % COLORS
+            );
+            */
             
             // increment all states
             control_directive_0[xy] = control_directive_0_next[xy];
@@ -390,16 +471,21 @@ int main(int argc, char *argv[]) {
         }
         
         #ifdef SPECTRARY
+        if (spectrary_active) {
             for (int freq_i=0; freq_i<SPECTRARY_FREQS; ++freq_i) {
-                mvprintw(freq_i, 2*DIAGNOSTIC_COLS-15, "%4.1f |      |    ", log(spectrary_level[freq_i]));
-                for (int kk=1; kk<log(spectrary_level[freq_i]); ++kk) {
-                    //int c = (EXTRA_COLORS/2 + (kk%2 ? freq_i : -freq_i) + EXTRA_COLORS/2) % EXTRA_COLORS;
+                mvprintw(freq_i, 2*DIAGNOSTIC_COLS-15, "%4.1f |            |  |            ", log(spectrary_level[freq_i]));
+                for (int kk=0; kk<log(spectrary_level[freq_i])*2; ++kk) {
+                    /* // 19-bin spectrary
                     int c = ((kk%2 ? freq_i : -freq_i) + EXTRA_COLORS/2 + EXTRA_COLORS*3/4)%EXTRA_COLORS + EXTRA_COLOR;
+                    */
+                    // 36-bin spectrary
+                    int c = freq_i+EXTRA_COLOR;
                     attron(COLOR_PAIR(1+c));
-                    mvprintw(freq_i, 2*DIAGNOSTIC_COLS-10+kk+(kk<7?0:1), "#");
+                    mvprintw(freq_i, 2*DIAGNOSTIC_COLS-9+kk+(kk<12?0:1)+(kk<14?0:1), "%%");
                     attroff(COLOR_PAIR(1+c));
                 }
             }
+        }
         #endif /* SPECTRARY */
         // end draw/increment mutex
         
@@ -662,7 +748,11 @@ int main(int argc, char *argv[]) {
         mvprintw(DIAGNOSTIC_ROWS+8, 2*DIAGNOSTIC_COLS-15, "usable:%5.1fms  ", USABLE_MSEC_PER_EPOCH);
         mvprintw(DIAGNOSTIC_ROWS+9, 2*DIAGNOSTIC_COLS-15, "used:  %5.1fms  ", usec_time_elapsed(&start, &refreshed) / THOUSAND);
         #ifdef SPECTRARY
+        if (spectrary_active) {
             mvprintw(DIAGNOSTIC_ROWS+10, 2*DIAGNOSTIC_COLS-15, "spectrary:%5.1fsec  ", spectrary_time);
+            mvprintw(DIAGNOSTIC_ROWS+11, 2*DIAGNOSTIC_COLS-15, "elapsed:  %5.1fsec  ", spectrary_usec_elapsed()/MILLION);
+            mvprintw(DIAGNOSTIC_ROWS+12, 2*DIAGNOSTIC_COLS-15, "line read:%d  ", spectrary_n_lines);
+        }
         #endif /* SPECTRARY */
         if (DIAGNOSTIC_SAMPLING_RATE != 1) {
             mvprintw(DIAGNOSTIC_ROWS+5, 2*DIAGNOSTIC_COLS-37, "terminal_display_");
