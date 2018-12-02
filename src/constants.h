@@ -5,8 +5,6 @@
 // before I #include <ncurses.h>
 #include <ncurses.h>
 
-#define BINARY_NAME "a.out"
-
 #define THOUSAND 1000
 #define MILLION  1000000
 #define RAND_DOUBLE ((double)rand() / (double)(RAND_MAX))

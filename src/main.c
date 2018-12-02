@@ -48,7 +48,7 @@ int main(int argc, char *argv[]) {
             }
             break;
         default:
-            printf("usage: %s [spectrary_file]\n", BINARY_NAME);
+            printf("usage: %s [spectrary_file]\n", argv[0]);
             return 1;
         }
     #endif /* SPECTRARY */
@@ -392,9 +392,9 @@ int main(int argc, char *argv[]) {
                     int c = color;
                     
                     if (
-                        log(spectrary_level[freq]) > 7.0
-                        || ( (freq>0 && log(spectrary_level[freq-1]) > 7.0)
-                             && (freq < SPECTRARY_FREQS-1 && log(spectrary_level[freq+1]) > 7.0)
+                        log(spectrary_level[freq]) > 4.9
+                        || ( log(spectrary_level[(freq-1+SPECTRARY_FREQS)%SPECTRARY_FREQS]) > 4.9
+                             && log(spectrary_level[(freq+1)%SPECTRARY_FREQS]) > 4.9
                            )
                     ) {
                         display_color(
@@ -403,9 +403,9 @@ int main(int argc, char *argv[]) {
                             color
                         );
                     } else if (
-                        log(spectrary_level[freq]) > 6.0
-                        || (freq>0 && log(spectrary_level[freq-1]) > 6.0)
-                        || (freq < SPECTRARY_FREQS-1 && log(spectrary_level[freq+1]) > 6.0)
+                        log(spectrary_level[freq]) > 4.6
+                        || log(spectrary_level[(freq-1+SPECTRARY_FREQS)%SPECTRARY_FREQS]) > 4.6
+                        || log(spectrary_level[(freq+1)%SPECTRARY_FREQS]) > 4.6
                     ) {
                         display_color(
                             xy,

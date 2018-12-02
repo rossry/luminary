@@ -8,6 +8,7 @@ struct timeval start;
 double sum_avg_val;
 
 FILE *fp;
+FILE *fp_cache;
 int spectrary_n_lines = 0;
 
 // double spectrary_time; // promoted to spectrary.h
@@ -58,6 +59,19 @@ void spectrary_init(char* filename) {
         exit(EXIT_FAILURE);
     }
     
+    if (strlen(filename) > 256) {
+        fprintf(stderr, "filename max length 256; was %d.", (int)strlen(filename));
+        exit(EXIT_FAILURE);
+    }
+    
+    char filename_cache[271];
+    sprintf(filename_cache, "%s.spectrary.tmp", filename);
+    fp_cache = fopen(filename_cache, "w"); // read mode
+    if (fp_cache == NULL) {
+        fprintf(stderr, "%s: %s\n", strerror(errno), filename_cache);
+        exit(EXIT_FAILURE);
+    }
+    
     spectrary_avg_level = 0.0;
     freq = 0.0;
     
@@ -98,10 +112,14 @@ void spectrary_update() {
             spectrary_scanf();
         }
         
-        spectrary_level[freq_i] = sum_val + spectrary_level[freq_i]*0.8;
+        fprintf(fp_cache, "%f\t%f\t%f\n", spectrary_time, freq_ubound, sum_val);
+        
+        //spectrary_level[freq_i] = sum_val + spectrary_level[freq_i]*0.8;
+        spectrary_level[freq_i] = sum_val;
         
         sum_avg_val += spectrary_level[freq_i];
     }
+    fflush(fp_cache);
     
     spectrary_advance();
     
