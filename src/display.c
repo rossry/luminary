@@ -1,14 +1,15 @@
 #include <stdlib.h>
 
+#include "display.h"
+
+#include "constants.h"
+#include "gifenc.h"
+
 #ifdef OUTPUT_CAIRO
     #include <cairo.h>
     #include <cairo-xlib.h>
 #endif /* OUTPUT_CAIRO */
 
-#include "display.h"
-
-#include "constants.h"
-#include "gifenc.h"
 //#include "pp-server-luminary.h"
 
 int display_current[ROWS * COLS];
@@ -195,42 +196,42 @@ void display_init() {
     display_init_extra_color(34+EXTRA_COLOR, RAINBOW_00, RAINBOW_11, 0x5e, 0x57, 0xca);
     display_init_extra_color(35+EXTRA_COLOR, RAINBOW_11, RAINBOW_00, 0x67, 0x4a, 0xbb);
     
-    display_init_extra_color( 0+EXTRA_COLOR+MAKE_DARKER, RAINBOW_40, RAINBOW_40, 0x6d, 0x3f, 0xa9);
-    display_init_extra_color( 1+EXTRA_COLOR+MAKE_DARKER, RAINBOW_41, RAINBOW_40, 0x83, 0x3e, 0xb0);
-    display_init_extra_color( 2+EXTRA_COLOR+MAKE_DARKER, RAINBOW_40, RAINBOW_41, 0x9a, 0x3c, 0xb3);
-    display_init_extra_color( 3+EXTRA_COLOR+MAKE_DARKER, RAINBOW_41, RAINBOW_41, 0xb1, 0x3c, 0xb1);
-    display_init_extra_color( 4+EXTRA_COLOR+MAKE_DARKER, RAINBOW_42, RAINBOW_41, 0xc7, 0x3c, 0xab);
-    display_init_extra_color( 5+EXTRA_COLOR+MAKE_DARKER, RAINBOW_41, RAINBOW_42, 0xdc, 0x3f, 0xa2);
-    display_init_extra_color( 6+EXTRA_COLOR+MAKE_DARKER, RAINBOW_42, RAINBOW_42, 0xed, 0x43, 0x95);
-    display_init_extra_color( 7+EXTRA_COLOR+MAKE_DARKER, RAINBOW_43, RAINBOW_42, 0xfb, 0x49, 0x85);
-    display_init_extra_color( 8+EXTRA_COLOR+MAKE_DARKER, RAINBOW_42, RAINBOW_43, 0xff, 0x52, 0x74);
-    display_init_extra_color( 9+EXTRA_COLOR+MAKE_DARKER, RAINBOW_43, RAINBOW_43, 0xff, 0x5d, 0x63);
-    display_init_extra_color(10+EXTRA_COLOR+MAKE_DARKER, RAINBOW_44, RAINBOW_43, 0xff, 0x6b, 0x52);
-    display_init_extra_color(11+EXTRA_COLOR+MAKE_DARKER, RAINBOW_43, RAINBOW_44, 0xff, 0x7a, 0x43);
-    display_init_extra_color(12+EXTRA_COLOR+MAKE_DARKER, RAINBOW_44, RAINBOW_44, 0xff, 0x8b, 0x38);
-    display_init_extra_color(13+EXTRA_COLOR+MAKE_DARKER, RAINBOW_45, RAINBOW_44, 0xf5, 0x9d, 0x30);
-    display_init_extra_color(14+EXTRA_COLOR+MAKE_DARKER, RAINBOW_44, RAINBOW_45, 0xe8, 0xaf, 0x2e);
-    display_init_extra_color(15+EXTRA_COLOR+MAKE_DARKER, RAINBOW_45, RAINBOW_45, 0xd8, 0xc1, 0x31);
-    display_init_extra_color(16+EXTRA_COLOR+MAKE_DARKER, RAINBOW_46, RAINBOW_45, 0xc9, 0xd3, 0x39);
-    display_init_extra_color(17+EXTRA_COLOR+MAKE_DARKER, RAINBOW_45, RAINBOW_46, 0xbb, 0xe2, 0x47);
-    display_init_extra_color(18+EXTRA_COLOR+MAKE_DARKER, RAINBOW_46, RAINBOW_46, 0xaf, 0xef, 0x5a);
-    display_init_extra_color(19+EXTRA_COLOR+MAKE_DARKER, RAINBOW_47, RAINBOW_46, 0x94, 0xf3, 0x56);
-    display_init_extra_color(20+EXTRA_COLOR+MAKE_DARKER, RAINBOW_46, RAINBOW_47, 0x79, 0xf5, 0x58);
-    display_init_extra_color(21+EXTRA_COLOR+MAKE_DARKER, RAINBOW_47, RAINBOW_47, 0x60, 0xf6, 0x60);
-    display_init_extra_color(22+EXTRA_COLOR+MAKE_DARKER, RAINBOW_48, RAINBOW_47, 0x49, 0xf4, 0x6c);
-    display_init_extra_color(23+EXTRA_COLOR+MAKE_DARKER, RAINBOW_47, RAINBOW_48, 0x36, 0xf0, 0x7b);
-    display_init_extra_color(24+EXTRA_COLOR+MAKE_DARKER, RAINBOW_48, RAINBOW_48, 0x28, 0xea, 0x8c);
-    display_init_extra_color(25+EXTRA_COLOR+MAKE_DARKER, RAINBOW_49, RAINBOW_48, 0x1e, 0xe0, 0x9f);
-    display_init_extra_color(26+EXTRA_COLOR+MAKE_DARKER, RAINBOW_48, RAINBOW_49, 0x19, 0xd5, 0xb1);
-    display_init_extra_color(27+EXTRA_COLOR+MAKE_DARKER, RAINBOW_49, RAINBOW_49, 0x19, 0xc7, 0xc1);
-    display_init_extra_color(28+EXTRA_COLOR+MAKE_DARKER, RAINBOW_50, RAINBOW_49, 0x1d, 0xb7, 0xcf);
-    display_init_extra_color(29+EXTRA_COLOR+MAKE_DARKER, RAINBOW_49, RAINBOW_50, 0x25, 0xa7, 0xd9);
-    display_init_extra_color(30+EXTRA_COLOR+MAKE_DARKER, RAINBOW_50, RAINBOW_50, 0x2f, 0x96, 0xdf);
-    display_init_extra_color(31+EXTRA_COLOR+MAKE_DARKER, RAINBOW_51, RAINBOW_50, 0x3a, 0x85, 0xe1);
-    display_init_extra_color(32+EXTRA_COLOR+MAKE_DARKER, RAINBOW_50, RAINBOW_51, 0x47, 0x74, 0xde);
-    display_init_extra_color(33+EXTRA_COLOR+MAKE_DARKER, RAINBOW_51, RAINBOW_51, 0x53, 0x65, 0xd6);
-    display_init_extra_color(34+EXTRA_COLOR+MAKE_DARKER, RAINBOW_40, RAINBOW_51, 0x5e, 0x57, 0xca);
-    display_init_extra_color(35+EXTRA_COLOR+MAKE_DARKER, RAINBOW_51, RAINBOW_40, 0x67, 0x4a, 0xbb);
+    display_init_extra_color( 0+EXTRA_COLOR+MAKE_DARKER, RAINBOW_40, RAINBOW_40, 0x38, 0x27, 0x4f);
+    display_init_extra_color( 1+EXTRA_COLOR+MAKE_DARKER, RAINBOW_41, RAINBOW_40, 0x42, 0x27, 0x53);
+    display_init_extra_color( 2+EXTRA_COLOR+MAKE_DARKER, RAINBOW_40, RAINBOW_41, 0x4c, 0x27, 0x56);
+    display_init_extra_color( 3+EXTRA_COLOR+MAKE_DARKER, RAINBOW_41, RAINBOW_41, 0x57, 0x28, 0x57);
+    display_init_extra_color( 4+EXTRA_COLOR+MAKE_DARKER, RAINBOW_42, RAINBOW_41, 0x62, 0x28, 0x56);
+    display_init_extra_color( 5+EXTRA_COLOR+MAKE_DARKER, RAINBOW_41, RAINBOW_42, 0x6c, 0x29, 0x54);
+    display_init_extra_color( 6+EXTRA_COLOR+MAKE_DARKER, RAINBOW_42, RAINBOW_42, 0x76, 0x2b, 0x4f);
+    display_init_extra_color( 7+EXTRA_COLOR+MAKE_DARKER, RAINBOW_43, RAINBOW_42, 0x7f, 0x2e, 0x49);
+    display_init_extra_color( 8+EXTRA_COLOR+MAKE_DARKER, RAINBOW_42, RAINBOW_43, 0x86, 0x32, 0x42);
+    display_init_extra_color( 9+EXTRA_COLOR+MAKE_DARKER, RAINBOW_43, RAINBOW_43, 0x8b, 0x36, 0x39);
+    display_init_extra_color(10+EXTRA_COLOR+MAKE_DARKER, RAINBOW_44, RAINBOW_43, 0x8e, 0x3d, 0x30);
+    display_init_extra_color(11+EXTRA_COLOR+MAKE_DARKER, RAINBOW_43, RAINBOW_44, 0x8f, 0x44, 0x27);
+    display_init_extra_color(12+EXTRA_COLOR+MAKE_DARKER, RAINBOW_44, RAINBOW_44, 0x8d, 0x4c, 0x1e);
+    display_init_extra_color(13+EXTRA_COLOR+MAKE_DARKER, RAINBOW_45, RAINBOW_44, 0x89, 0x56, 0x16);
+    display_init_extra_color(14+EXTRA_COLOR+MAKE_DARKER, RAINBOW_44, RAINBOW_45, 0x83, 0x60, 0x10);
+    display_init_extra_color(15+EXTRA_COLOR+MAKE_DARKER, RAINBOW_45, RAINBOW_45, 0x7a, 0x6b, 0x0b);
+    display_init_extra_color(16+EXTRA_COLOR+MAKE_DARKER, RAINBOW_46, RAINBOW_45, 0x70, 0x77, 0x0a);
+    display_init_extra_color(17+EXTRA_COLOR+MAKE_DARKER, RAINBOW_45, RAINBOW_46, 0x64, 0x82, 0x0b);
+    display_init_extra_color(18+EXTRA_COLOR+MAKE_DARKER, RAINBOW_46, RAINBOW_46, 0x57, 0x8e, 0x10);
+    display_init_extra_color(19+EXTRA_COLOR+MAKE_DARKER, RAINBOW_47, RAINBOW_46, 0x46, 0x90, 0x17);
+    display_init_extra_color(20+EXTRA_COLOR+MAKE_DARKER, RAINBOW_46, RAINBOW_47, 0x37, 0x90, 0x20);
+    display_init_extra_color(21+EXTRA_COLOR+MAKE_DARKER, RAINBOW_47, RAINBOW_47, 0x2a, 0x8e, 0x2b);
+    display_init_extra_color(22+EXTRA_COLOR+MAKE_DARKER, RAINBOW_48, RAINBOW_47, 0x21, 0x8b, 0x36);
+    display_init_extra_color(23+EXTRA_COLOR+MAKE_DARKER, RAINBOW_47, RAINBOW_48, 0x19, 0x86, 0x42);
+    display_init_extra_color(24+EXTRA_COLOR+MAKE_DARKER, RAINBOW_48, RAINBOW_48, 0x15, 0x81, 0x4d);
+    display_init_extra_color(25+EXTRA_COLOR+MAKE_DARKER, RAINBOW_49, RAINBOW_48, 0x13, 0x7a, 0x57);
+    display_init_extra_color(26+EXTRA_COLOR+MAKE_DARKER, RAINBOW_48, RAINBOW_49, 0x13, 0x72, 0x60);
+    display_init_extra_color(27+EXTRA_COLOR+MAKE_DARKER, RAINBOW_49, RAINBOW_49, 0x15, 0x6a, 0x67);
+    display_init_extra_color(28+EXTRA_COLOR+MAKE_DARKER, RAINBOW_50, RAINBOW_49, 0x19, 0x61, 0x6c);
+    display_init_extra_color(29+EXTRA_COLOR+MAKE_DARKER, RAINBOW_49, RAINBOW_50, 0x1d, 0x58, 0x6f);
+    display_init_extra_color(30+EXTRA_COLOR+MAKE_DARKER, RAINBOW_50, RAINBOW_50, 0x22, 0x50, 0x70);
+    display_init_extra_color(31+EXTRA_COLOR+MAKE_DARKER, RAINBOW_51, RAINBOW_50, 0x28, 0x47, 0x6e);
+    display_init_extra_color(32+EXTRA_COLOR+MAKE_DARKER, RAINBOW_50, RAINBOW_51, 0x2d, 0x3f, 0x6b);
+    display_init_extra_color(33+EXTRA_COLOR+MAKE_DARKER, RAINBOW_51, RAINBOW_51, 0x31, 0x38, 0x66);
+    display_init_extra_color(34+EXTRA_COLOR+MAKE_DARKER, RAINBOW_40, RAINBOW_51, 0x35, 0x32, 0x5f);
+    display_init_extra_color(35+EXTRA_COLOR+MAKE_DARKER, RAINBOW_51, RAINBOW_40, 0x37, 0x2c, 0x57);
     
     #ifdef OUTPUT_GIF
         gif = ge_new_gif(
@@ -294,20 +295,31 @@ void display_init() {
         for (int xi = 0; xi < CAIRO_ZOOM; ++xi) {
             for (int yi = 0; yi < CAIRO_ZOOM; ++yi) {
                 switch (yi*CAIRO_ZOOM + xi) {
-                #if CAIRO_ZOOM == 15 && CAIRO_BLUR_WIDTH == 4
+                #if CAIRO_ZOOM == 3 || CAIRO_ZOOM == 5 || CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15
                     case 1:
+                #endif
+                #if CAIRO_ZOOM == 5 || CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15
                     case 3:
+                #endif
+                #if CAIRO_ZOOM == 7
+                    // depth: 2
+                    case CAIRO_ZOOM+2:
+                #endif
+                #if CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15
                     case 5:
+                    // depth: 2
+                    case CAIRO_ZOOM+4:
+                #endif
+                #if CAIRO_ZOOM == 15
                     case 7:
                     case 9:
                     case 11:
                     case 13:
-                    //case CAIRO_ZOOM+2:
-                    case CAIRO_ZOOM+4:
+                    // depth: 2
                     case CAIRO_ZOOM+6:
                     case CAIRO_ZOOM+8:
                     case CAIRO_ZOOM+10:
-                    //case CAIRO_ZOOM+12:
+                    // depth: 3
                     case 2*CAIRO_ZOOM+1:
                     case 2*CAIRO_ZOOM+3:
                     case 2*CAIRO_ZOOM+5:
@@ -315,10 +327,12 @@ void display_init() {
                     case 2*CAIRO_ZOOM+9:
                     case 2*CAIRO_ZOOM+11:
                     case 2*CAIRO_ZOOM+13:
+                    // depth: 4
                     case 3*CAIRO_ZOOM+4:
                     case 3*CAIRO_ZOOM+6:
                     case 3*CAIRO_ZOOM+8:
                     case 3*CAIRO_ZOOM+10:
+                #endif
                         // up edge
                         cairo_rectangle(cairo_blur_cr,
                             CAIRO_BLUR_WIDTH + xi,
@@ -326,20 +340,32 @@ void display_init() {
                             1, 1
                         );
                         break;
-                        
+                
+                #if CAIRO_ZOOM == 3 || CAIRO_ZOOM == 5 || CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15
                     case 1*CAIRO_ZOOM:
+                #endif
+                #if CAIRO_ZOOM == 5 || CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15
                     case 3*CAIRO_ZOOM:
+                #endif
+                #if CAIRO_ZOOM == 7
+                    // depth: 2
+                    case 1+2*CAIRO_ZOOM:
+                #endif
+                #if CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15
                     case 5*CAIRO_ZOOM:
+                    // depth: 2
+                    case 1+4*CAIRO_ZOOM:
+                #endif
+                #if CAIRO_ZOOM == 15
                     case 7*CAIRO_ZOOM:
                     case 9*CAIRO_ZOOM:
                     case 11*CAIRO_ZOOM:
                     case 13*CAIRO_ZOOM:
-                    //case 1+2*CAIRO_ZOOM:
-                    case 1+4*CAIRO_ZOOM:
+                    // depth: 2
                     case 1+6*CAIRO_ZOOM:
                     case 1+8*CAIRO_ZOOM:
                     case 1+10*CAIRO_ZOOM:
-                    //case 1+12*CAIRO_ZOOM:
+                    // depth: 3
                     case 2+1*CAIRO_ZOOM:
                     case 2+3*CAIRO_ZOOM:
                     case 2+5*CAIRO_ZOOM:
@@ -347,10 +373,12 @@ void display_init() {
                     case 2+9*CAIRO_ZOOM:
                     case 2+11*CAIRO_ZOOM:
                     case 2+13*CAIRO_ZOOM:
+                    // depth: 4
                     case 3+4*CAIRO_ZOOM:
                     case 3+6*CAIRO_ZOOM:
                     case 3+8*CAIRO_ZOOM:
                     case 3+10*CAIRO_ZOOM:
+                #endif
                         // left edge
                         cairo_rectangle(cairo_blur_cr,
                             CAIRO_ZOOM + CAIRO_BLUR_WIDTH + xi,
@@ -358,20 +386,32 @@ void display_init() {
                             1, 1
                         );
                         break;
-                        
+                
+                #if CAIRO_ZOOM == 3 || CAIRO_ZOOM == 5 || CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15
                     case CAIRO_ZOOM*(CAIRO_ZOOM-1)+1:
+                #endif
+                #if CAIRO_ZOOM == 5 || CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15
                     case CAIRO_ZOOM*(CAIRO_ZOOM-1)+3:
+                #endif
+                #if CAIRO_ZOOM == 7
+                    // depth: 2
+                    case CAIRO_ZOOM*(CAIRO_ZOOM-2)+2:
+                #endif
+                #if CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15
                     case CAIRO_ZOOM*(CAIRO_ZOOM-1)+5:
+                    // depth: 2
+                    case CAIRO_ZOOM*(CAIRO_ZOOM-2)+4:
+                #endif
+                #if CAIRO_ZOOM == 15
                     case CAIRO_ZOOM*(CAIRO_ZOOM-1)+7:
                     case CAIRO_ZOOM*(CAIRO_ZOOM-1)+9:
                     case CAIRO_ZOOM*(CAIRO_ZOOM-1)+11:
                     case CAIRO_ZOOM*(CAIRO_ZOOM-1)+13:
-                    ///case CAIRO_ZOOM*(CAIRO_ZOOM-2)+2:
-                    case CAIRO_ZOOM*(CAIRO_ZOOM-2)+4:
+                    // depth: 2
                     case CAIRO_ZOOM*(CAIRO_ZOOM-2)+6:
                     case CAIRO_ZOOM*(CAIRO_ZOOM-2)+8:
                     case CAIRO_ZOOM*(CAIRO_ZOOM-2)+10:
-                    //case CAIRO_ZOOM*(CAIRO_ZOOM-2)+12:
+                    // depth: 3
                     case CAIRO_ZOOM*(CAIRO_ZOOM-3)+1:
                     case CAIRO_ZOOM*(CAIRO_ZOOM-3)+3:
                     case CAIRO_ZOOM*(CAIRO_ZOOM-3)+5:
@@ -379,10 +419,12 @@ void display_init() {
                     case CAIRO_ZOOM*(CAIRO_ZOOM-3)+9:
                     case CAIRO_ZOOM*(CAIRO_ZOOM-3)+11:
                     case CAIRO_ZOOM*(CAIRO_ZOOM-3)+13:
+                    // depth: 4
                     case CAIRO_ZOOM*(CAIRO_ZOOM-4)+4:
                     case CAIRO_ZOOM*(CAIRO_ZOOM-4)+6:
                     case CAIRO_ZOOM*(CAIRO_ZOOM-4)+8:
                     case CAIRO_ZOOM*(CAIRO_ZOOM-4)+10:
+                #endif
                         // down edge
                         cairo_rectangle(cairo_blur_cr,
                             CAIRO_BLUR_WIDTH + xi,
@@ -390,20 +432,32 @@ void display_init() {
                             1, 1
                         );
                         break;
-                        
+                
+                #if CAIRO_ZOOM == 3 || CAIRO_ZOOM == 5 || CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15
                     case (CAIRO_ZOOM-1)+1*CAIRO_ZOOM:
+                #endif
+                #if CAIRO_ZOOM == 5 || CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15
                     case (CAIRO_ZOOM-1)+3*CAIRO_ZOOM:
+                #endif
+                #if CAIRO_ZOOM == 7
+                    // depth: 2
+                    case (CAIRO_ZOOM-2)+2*CAIRO_ZOOM:
+                #endif
+                #if CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15
                     case (CAIRO_ZOOM-1)+5*CAIRO_ZOOM:
+                    // depth: 2
+                    case (CAIRO_ZOOM-2)+4*CAIRO_ZOOM:
+                #endif
+                #if CAIRO_ZOOM == 15
                     case (CAIRO_ZOOM-1)+7*CAIRO_ZOOM:
                     case (CAIRO_ZOOM-1)+9*CAIRO_ZOOM:
                     case (CAIRO_ZOOM-1)+11*CAIRO_ZOOM:
                     case (CAIRO_ZOOM-1)+13*CAIRO_ZOOM:
-                    //case (CAIRO_ZOOM-2)+2*CAIRO_ZOOM:
-                    case (CAIRO_ZOOM-2)+4*CAIRO_ZOOM:
+                    // depth: 2
                     case (CAIRO_ZOOM-2)+6*CAIRO_ZOOM:
                     case (CAIRO_ZOOM-2)+8*CAIRO_ZOOM:
                     case (CAIRO_ZOOM-2)+10*CAIRO_ZOOM:
-                    //case (CAIRO_ZOOM-2)+12*CAIRO_ZOOM:
+                    // depth: 3
                     case (CAIRO_ZOOM-3)+1*CAIRO_ZOOM:
                     case (CAIRO_ZOOM-3)+3*CAIRO_ZOOM:
                     case (CAIRO_ZOOM-3)+5*CAIRO_ZOOM:
@@ -411,10 +465,12 @@ void display_init() {
                     case (CAIRO_ZOOM-3)+9*CAIRO_ZOOM:
                     case (CAIRO_ZOOM-3)+11*CAIRO_ZOOM:
                     case (CAIRO_ZOOM-3)+13*CAIRO_ZOOM:
+                    // depth: 4
                     case (CAIRO_ZOOM-4)+4*CAIRO_ZOOM:
                     case (CAIRO_ZOOM-4)+6*CAIRO_ZOOM:
                     case (CAIRO_ZOOM-4)+8*CAIRO_ZOOM:
                     case (CAIRO_ZOOM-4)+10*CAIRO_ZOOM:
+                #endif
                         // right edge
                         cairo_rectangle(cairo_blur_cr,
                             -CAIRO_ZOOM + CAIRO_BLUR_WIDTH + xi,
@@ -422,36 +478,6 @@ void display_init() {
                             1, 1
                         );
                         break;
-                #elif CAIRO_ZOOM == 3 /* CAIRO_ZOOM == ? */
-                    case 1:
-                        cairo_rectangle(cairo_blur_cr,
-                            CAIRO_BLUR_WIDTH + xi,
-                            CAIRO_ZOOM + CAIRO_BLUR_WIDTH + yi,
-                            1, 1
-                        );
-                        break;
-                    case 3:
-                        cairo_rectangle(cairo_blur_cr,
-                            CAIRO_ZOOM + CAIRO_BLUR_WIDTH + xi,
-                            CAIRO_BLUR_WIDTH + yi,
-                            1, 1
-                        );
-                        break;
-                    case 7:
-                        cairo_rectangle(cairo_blur_cr,
-                            -CAIRO_ZOOM + CAIRO_BLUR_WIDTH + xi,
-                            CAIRO_BLUR_WIDTH + yi,
-                            1, 1
-                        );
-                        break;
-                    case 5:
-                        cairo_rectangle(cairo_blur_cr,
-                            CAIRO_BLUR_WIDTH + xi,
-                            -CAIRO_ZOOM + CAIRO_BLUR_WIDTH + yi,
-                            1, 1
-                        );
-                        break;
-                #endif /* CAIRO_ZOOM == ? */
                 default:
                     cairo_rectangle(cairo_blur_cr,
                         CAIRO_BLUR_WIDTH + xi,

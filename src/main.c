@@ -12,6 +12,10 @@
     #include "spectrary.h"
 #endif /* SPECTRARY */
 
+#ifdef UMBRARY
+    #include "umbrary.h"
+#endif /* UMBRARY */
+
 #ifdef SACN_SERVER
     #include "sacn-server-luminary.h"
     #include "sacn-constants-luminary.h"
@@ -52,6 +56,27 @@ int main(int argc, char *argv[]) {
             return 1;
         }
     #endif /* SPECTRARY */
+    
+    #ifdef UMBRARY
+        int umbrary_active;
+        
+        switch (argc) {
+        case 1:
+            umbrary_active = 0;
+            break;
+        case 2:
+            umbrary_active = 1;
+            if (umbrary_active) {
+                // this should be a printf pattern that points to a bmp when passed an int
+                // frame 1 needs to exist, and umbrary will scan until it finds a gap
+                umbrary_init(argv[1]);
+            }
+            break;
+        default:
+            printf("usage: %s [bmp format string]\n", argv[0]);
+            return 1;
+        }
+    #endif /* UMBRARY */
     
     display_init();
     
@@ -158,10 +183,10 @@ int main(int argc, char *argv[]) {
         #endif /* SACN_TEST_CLIENT */
     #endif /* SACN_SERVER */
     
-    struct timeval start, computed, drawn, refreshed, handled, slept, stop;
+    struct timeval start, computed, drawn, refreshed, handled, slept, stop, fio_start, fio_stop;
     int n_dirty_pixels;
-    double compute_avg, draw_avg, refresh_avg, wait_avg, sleep_avg, total_avg, n_dirty_pixels_avg;
-    compute_avg = draw_avg = refresh_avg = wait_avg = sleep_avg = total_avg = n_dirty_pixels_avg = 0.0;
+    double compute_avg, fio_avg, draw_avg, refresh_avg, wait_avg, sleep_avg, total_avg, n_dirty_pixels_avg;
+    compute_avg = fio_avg = draw_avg = refresh_avg = wait_avg = sleep_avg = total_avg = n_dirty_pixels_avg = 0.0;
     
     gettimeofday(&start, NULL);
     
@@ -244,9 +269,16 @@ int main(int argc, char *argv[]) {
                 
                 excitement[xy] += 1.0 / 3.0;
                 excitement[xy] += pressure_orth[xy] * 2 / 3 / PRESSURE_RADIUS_TICKS;
+                
                 if (
+                    #ifdef UMBRARY
+                        !umbrary_active && (
+                    #endif /* UMBRARY */
                     excitement[xy] > 1.0
                     || ((waves_orth_next[xy] / 17) % 800) > 800 - 1 - 6
+                    #ifdef UMBRARY
+                        )
+                    #endif /* UMBRARY */
                 ) {
                     // evolve rainbow_0
                     rainbow_0_next[xy] = compute_cyclic(rainbow_0, impatience_0, xy);
@@ -268,7 +300,7 @@ int main(int argc, char *argv[]) {
                             break;
                         default:
                             //rainbow_to_turing(xy, rainbow_0_next, turing_u, turing_v, (rand()%3)-1);
-                            rainbow_to_turing(xy, rainbow_0_next, turing_u, turing_v, 0);
+                            rainbow_to_turing(xy, rainbow_0_next, turing_u, turing_v, (rand()%3)-1);
                             break;
                         }
                         // CR rrheingans-yoo: maybe compute/apply turing a few
@@ -286,6 +318,7 @@ int main(int argc, char *argv[]) {
         compute_turing_all(turing_u, turing_v);
         
         // drive waves_(orth|diag)'s top row
+        /*
         waves_base_z_orig += WAVES_INCREMENT;
         for (int x = 0; x < FLOOR_COLS; ++x) {
             int xy = (PETAL_ROWS)*COLS + x;
@@ -317,6 +350,24 @@ int main(int argc, char *argv[]) {
                 }
             }
         }
+        */
+        
+        gettimeofday(&fio_start, NULL);
+        
+        #ifdef SPECTRARY
+        if (spectrary_active) {
+            spectrary_update();
+        }
+        #endif /* SPECTRARY */
+        
+        #ifdef UMBRARY
+        if (umbrary_active) {
+            //umbrary_update(0);
+            umbrary_update(epoch*22222);
+        }
+        #endif /* UMBRARY */
+        
+        gettimeofday(&fio_stop, NULL);
         
         for (int xy = 0; xy < ROWS * COLS; ++xy) {
             int x = xy % COLS;
@@ -354,14 +405,34 @@ int main(int argc, char *argv[]) {
                 //(double)rainbow_0_next[xy] / 12.0
                 (double)(epoch%1000)/(1000.0)
             );
+            
+            #ifdef UMBRARY
+                if (
+                    xy%COLS < UMBRARY_OUTPUT_COLS
+                    && xy/COLS < UMBRARY_OUTPUT_ROWS
+                ) {
+                    switch (umbrary_level[(xy/COLS)*UMBRARY_OUTPUT_COLS+(xy%COLS)]) {
+                    case 1:
+                        rainbow_0_next[xy] = (8+(epoch/900))%COLORS;
+                        rainbow_to_turing(xy, rainbow_0_next, turing_u, turing_v, (epoch/300)%3-1);
+                        break;
+                    case -1:
+                        rainbow_0_next[xy] = (2+(epoch/900))%COLORS;
+                        rainbow_to_turing(xy, rainbow_0_next, turing_u, turing_v, (epoch/300)%3-1);
+                        break;
+                    //default:
+                        // pass
+                    }
+                } else {
+                    display_color(
+                        xy,
+                        BLACK,
+                        BLACK
+                    );
+                }
+            #endif /* UMBRARY */
         }
         // end computing evolution
-        
-        #ifdef SPECTRARY
-        if (spectrary_active) {
-            spectrary_update();
-        }
-        #endif /* SPECTRARY */
         
         gettimeofday(&computed, NULL);
         
@@ -379,44 +450,26 @@ int main(int argc, char *argv[]) {
                 color = xy + EXTRA_COLOR;
             }
             
-            #ifdef SPECTRARY
-            if (spectrary_active) {
+            #ifdef UMBRARY
+            if (umbrary_active) {
                 if (epoch > INITIALIZATION_EPOCHS) {
-                    /* // 19-bin spectrary
-                    int freq = SPECTRARY_FREQS - abs(color - EXTRA_COLORS/2 - EXTRA_COLOR);
-                    int c = (color+EXTRA_COLORS*3/4-EXTRA_COLOR)%EXTRA_COLORS + EXTRA_COLOR;
-                    */
-                    
-                    // 36-bin spectrary
-                    int freq = color-EXTRA_COLOR;
-                    int c = color;
-                    
                     if (
-                        log(spectrary_level[freq]) > 4.9
-                        || ( log(spectrary_level[(freq-1+SPECTRARY_FREQS)%SPECTRARY_FREQS]) > 4.9
-                             && log(spectrary_level[(freq+1)%SPECTRARY_FREQS]) > 4.9
-                           )
+                        xy%COLS < UMBRARY_OUTPUT_COLS
+                        && xy/COLS < UMBRARY_OUTPUT_ROWS
                     ) {
-                        display_color(
-                            xy,
-                            c,
-                            color
-                        );
-                    } else if (
-                        log(spectrary_level[freq]) > 4.6
-                        || log(spectrary_level[(freq-1+SPECTRARY_FREQS)%SPECTRARY_FREQS]) > 4.6
-                        || log(spectrary_level[(freq+1)%SPECTRARY_FREQS]) > 4.6
-                    ) {
-                        display_color(
-                            xy,
-                            c+MAKE_DARKER,
-                            color
-                        );
+                        switch (umbrary_level[(xy/COLS)*UMBRARY_OUTPUT_COLS+(xy%COLS)]) {
+                        case 1:
+                        case -1:
+                            display_color(xy, color, color);
+                            break;
+                        default:
+                            display_color(xy, color+MAKE_DARKER, color+MAKE_DARKER);
+                        }
                     } else {
                         display_color(
                             xy,
                             BLACK,
-                            color
+                            BLACK
                         );
                     }
                 }
@@ -429,15 +482,67 @@ int main(int argc, char *argv[]) {
                     );
                 }
             }
-            #else /* SPECTRARY */
-                if (epoch > INITIALIZATION_EPOCHS) {
-                     display_color(
-                        xy,
-                        color,
-                        color
-                    );
+            #else /* UMBRARY */
+                #ifdef SPECTRARY
+                if (spectrary_active) {
+                    if (epoch > INITIALIZATION_EPOCHS) {
+                        /* // 19-bin spectrary
+                        int freq = SPECTRARY_FREQS - abs(color - EXTRA_COLORS/2 - EXTRA_COLOR);
+                        int c = (color+EXTRA_COLORS*3/4-EXTRA_COLOR)%EXTRA_COLORS + EXTRA_COLOR;
+                        */
+                        
+                        // 36-bin spectrary
+                        int freq = color-EXTRA_COLOR;
+                        int c = color;
+                        
+                        if (
+                            log(spectrary_level[freq]) > 4.9
+                            || ( log(spectrary_level[(freq-1+SPECTRARY_FREQS)%SPECTRARY_FREQS]) > 4.9
+                                 && log(spectrary_level[(freq+1)%SPECTRARY_FREQS]) > 4.9
+                               )
+                        ) {
+                            display_color(
+                                xy,
+                                c,
+                                color
+                            );
+                        } else if (
+                            log(spectrary_level[freq]) > 4.6
+                            || log(spectrary_level[(freq-1+SPECTRARY_FREQS)%SPECTRARY_FREQS]) > 4.6
+                            || log(spectrary_level[(freq+1)%SPECTRARY_FREQS]) > 4.6
+                        ) {
+                            display_color(
+                                xy,
+                                c+MAKE_DARKER,
+                                color
+                            );
+                        } else {
+                            display_color(
+                                xy,
+                                BLACK,
+                                color
+                            );
+                        }
+                    }
+                } else {
+                    if (epoch > INITIALIZATION_EPOCHS) {
+                         display_color(
+                            xy,
+                            color,
+                            color
+                        );
+                    }
                 }
-            #endif /* SPECTRARY */
+                #else /* SPECTRARY */
+                    if (epoch > INITIALIZATION_EPOCHS) {
+                         display_color(
+                            xy,
+                            color,
+                            color
+                        );
+                    }
+                #endif /* SPECTRARY */
+            #endif /* UMBRARY */
             
             /*
             if (xy >= EXTRA_COLORS) {
@@ -729,6 +834,7 @@ int main(int argc, char *argv[]) {
         
         // diagnostic printouts
         compute_avg = 0.99*compute_avg + 0.01*usec_time_elapsed(&start, &computed);
+        fio_avg = 0.99*fio_avg + 0.01*usec_time_elapsed(&fio_start, &fio_stop);
         draw_avg = 0.99*draw_avg + 0.01*usec_time_elapsed(&computed, &drawn);
         if (epoch % DISPLAY_FLUSH_EPOCHS == 0) {
             refresh_avg = 0.99*refresh_avg + 0.01*usec_time_elapsed(&drawn, &refreshed);
@@ -736,22 +842,29 @@ int main(int argc, char *argv[]) {
         wait_avg = 0.99*wait_avg + 0.01*usec_time_elapsed(&refreshed, &handled);
         sleep_avg = 0.99*sleep_avg + 0.01*usec_time_elapsed(&handled, &slept);
         total_avg = 0.99*total_avg + 0.01*usec_time_elapsed(&start, &stop);
-        mvprintw(DIAGNOSTIC_ROWS+0, 2*DIAGNOSTIC_COLS-15, "compute:%5.1fms", compute_avg / THOUSAND);
-        mvprintw(DIAGNOSTIC_ROWS+1, 2*DIAGNOSTIC_COLS-15, "draw:   %5.1fms", draw_avg / THOUSAND);
-        mvprintw(DIAGNOSTIC_ROWS+2, 2*DIAGNOSTIC_COLS-15, "refresh:%5.1fms/%d", refresh_avg / THOUSAND, DISPLAY_FLUSH_EPOCHS);
-        mvprintw(DIAGNOSTIC_ROWS+2, 2*DIAGNOSTIC_COLS+3, "(%dk%1dpx)   ", (int)n_dirty_pixels_avg/THOUSAND, ((int)n_dirty_pixels_avg % THOUSAND) / 100);
-        mvprintw(DIAGNOSTIC_ROWS+3, 2*DIAGNOSTIC_COLS-15, "wait:   %5.1fms", wait_avg / THOUSAND);
-        mvprintw(DIAGNOSTIC_ROWS+4, 2*DIAGNOSTIC_COLS-15, "sleep:  %5.1fms", sleep_avg / THOUSAND);
-        mvprintw(DIAGNOSTIC_ROWS+5, 2*DIAGNOSTIC_COLS-15, "[note: %d cores]", n_cores);
-        mvprintw(DIAGNOSTIC_ROWS+6, 2*DIAGNOSTIC_COLS-15, "epoch:%9d", epoch);
-        mvprintw(DIAGNOSTIC_ROWS+7, 2*DIAGNOSTIC_COLS-15, "Hz:  %7.1f/%d(/%d)  ", 1 / (total_avg / MILLION), DISPLAY_FLUSH_EPOCHS, WILDFIRE_SPEEDUP);
-        mvprintw(DIAGNOSTIC_ROWS+8, 2*DIAGNOSTIC_COLS-15, "usable:%5.1fms  ", USABLE_MSEC_PER_EPOCH);
-        mvprintw(DIAGNOSTIC_ROWS+9, 2*DIAGNOSTIC_COLS-15, "used:  %5.1fms  ", usec_time_elapsed(&start, &refreshed) / THOUSAND);
+        mvprintw(DIAGNOSTIC_ROWS+0, 2*DIAGNOSTIC_COLS-15, "compute:%5.1fms", (compute_avg - fio_avg) / THOUSAND);
+        mvprintw(DIAGNOSTIC_ROWS+1, 2*DIAGNOSTIC_COLS-15, "file io:%5.1fms", fio_avg / THOUSAND);
+        mvprintw(DIAGNOSTIC_ROWS+2, 2*DIAGNOSTIC_COLS-15, "draw:   %5.1fms", draw_avg / THOUSAND);
+        mvprintw(DIAGNOSTIC_ROWS+3, 2*DIAGNOSTIC_COLS-15, "refresh:%5.1fms/%d", refresh_avg / THOUSAND, DISPLAY_FLUSH_EPOCHS);
+        mvprintw(DIAGNOSTIC_ROWS+3, 2*DIAGNOSTIC_COLS+3, "(%dk%1dpx)   ", (int)n_dirty_pixels_avg/THOUSAND, ((int)n_dirty_pixels_avg % THOUSAND) / 100);
+        mvprintw(DIAGNOSTIC_ROWS+4, 2*DIAGNOSTIC_COLS-15, "wait:   %5.1fms", wait_avg / THOUSAND);
+        mvprintw(DIAGNOSTIC_ROWS+5, 2*DIAGNOSTIC_COLS-15, "sleep:  %5.1fms", sleep_avg / THOUSAND);
+        mvprintw(DIAGNOSTIC_ROWS+6, 2*DIAGNOSTIC_COLS-15, "[note: %d cores]", n_cores);
+        mvprintw(DIAGNOSTIC_ROWS+7, 2*DIAGNOSTIC_COLS-15, "epoch:%9d", epoch);
+        mvprintw(DIAGNOSTIC_ROWS+8, 2*DIAGNOSTIC_COLS-15, "Hz:  %7.1f/%d(/%d)  ", 1 / (total_avg / MILLION), DISPLAY_FLUSH_EPOCHS, WILDFIRE_SPEEDUP);
+        mvprintw(DIAGNOSTIC_ROWS+9, 2*DIAGNOSTIC_COLS-15, "usable:%5.1fms  ", USABLE_MSEC_PER_EPOCH);
+        mvprintw(DIAGNOSTIC_ROWS+10,2*DIAGNOSTIC_COLS-15, "used:  %5.1fms  ", usec_time_elapsed(&start, &refreshed) / THOUSAND);
+        
+        //#ifdef UMBRARY
+        //if (umbrary_active) {
+        //    mvprintw(DIAGNOSTIC_ROWS+11, 2*DIAGNOSTIC_COLS-15, "umbrary:%5.1fsec  ", umbrary_usec_elapsed() / MILLION);
+        //}
+        //#endif /* UMBRARY */
         #ifdef SPECTRARY
         if (spectrary_active) {
-            mvprintw(DIAGNOSTIC_ROWS+10, 2*DIAGNOSTIC_COLS-15, "spectrary:%5.1fsec  ", spectrary_time);
-            mvprintw(DIAGNOSTIC_ROWS+11, 2*DIAGNOSTIC_COLS-15, "elapsed:  %5.1fsec  ", spectrary_usec_elapsed()/MILLION);
-            mvprintw(DIAGNOSTIC_ROWS+12, 2*DIAGNOSTIC_COLS-15, "line read:%d  ", spectrary_n_lines);
+            mvprintw(DIAGNOSTIC_ROWS+12, 2*DIAGNOSTIC_COLS-15, "spectrary:%5.1fsec  ", spectrary_time);
+            mvprintw(DIAGNOSTIC_ROWS+13, 2*DIAGNOSTIC_COLS-15, "elapsed:  %5.1fsec  ", spectrary_usec_elapsed()/MILLION);
+            mvprintw(DIAGNOSTIC_ROWS+14, 2*DIAGNOSTIC_COLS-15, "line read:%d  ", spectrary_n_lines);
         }
         #endif /* SPECTRARY */
         if (DIAGNOSTIC_SAMPLING_RATE != 1) {

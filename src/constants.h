@@ -19,13 +19,15 @@
 
 //#define PP_SERVER
 
-#define SPECTRARY
+//#define SPECTRARY
+
+#define UMBRARY
 
 // physical dimensions
 //  #define PETALS_ACTIVE
 
-#define FLOOR_COLS 72
-#define FLOOR_ROWS 48
+#define FLOOR_COLS 128//214//80//72
+#define FLOOR_ROWS 72//120//45//48
 
 #define FLOOR_COLS_SHOWN FLOOR_COLS
 #define FLOOR_ROWS_SHOWN FLOOR_ROWS
@@ -139,13 +141,29 @@
 #endif /* OUTPUT_GIF */
 
 // cairo output
-//#define OUTPUT_CAIRO
+#define OUTPUT_CAIRO
 #ifdef OUTPUT_CAIRO
     //#define OUTPUT_CAIRO_FULLSCREEN
+    #define OUTPUT_CAIRO_ALL
+    #define CAIRO_SNAPSHOT_EPOCH 1323
+    
     #define CAIRO_BLUR
-    #define CAIRO_BLUR_WIDTH 4
-    #define CAIRO_ZOOM 15
-    #define CAIRO_SNAPSHOT_EPOCH 850
+    
+    //#define CAIRO_ZOOM 15
+    //#define CAIRO_ZOOM 3
+    #define CAIRO_ZOOM 7
+    
+    #if CAIRO_ZOOM == 15
+        #define CAIRO_BLUR_WIDTH 4
+    #elif CAIRO_ZOOM == 7 /* CAIRO_ZOOM == ? */
+        #define CAIRO_BLUR_WIDTH 2
+    #elif CAIRO_ZOOM == 5 /* CAIRO_ZOOM == ? */
+        #define CAIRO_BLUR_WIDTH 1
+    #elif CAIRO_ZOOM == 3 /* CAIRO_ZOOM == ? */
+        #define CAIRO_BLUR_WIDTH 1
+    #else /* CAIRO_ZOOM == ? */
+        #define CAIRO_BLUR_WIDTH 0
+    #endif /* CAIRO_ZOOM == ? */
 #endif /* OUTPUT_CAIRO */
 
 // other constants (probably don't mess with these)
