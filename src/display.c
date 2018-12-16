@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <unistd.h>
 
 #include "display.h"
 
@@ -24,24 +25,35 @@ int petal_mapping[] = PETAL_MAPPING;
 uint8_t rgb_palette[256 * 3];
 
 #ifdef OUTPUT_CAIRO
-    // cairo
-    cairo_surface_t *cairo_surface;
-    cairo_t *cairo_cr;
-    cairo_surface_t *cairo_blur;
-    cairo_t *cairo_blur_cr;
-    
+// cairo
+cairo_surface_t *cairo_blur;
+cairo_t *cairo_blur_cr;
+
+#ifdef OUTPUT_CAIRO_FULLSCREEN
+    cairo_surface_t *cairo_x_surface;
+    cairo_t *cairo_x_cr;
+
     Display *cairo_x_display;
     Window cairo_x_window;
     Visual *cairo_x_visual;
-    
-    void cairo_set_source_luminary(int id) {
-        cairo_set_source_rgb(
-            cairo_cr,
-            (uint8_t)rgb_palette[id * 3 + 0] / 255.0,
-            (uint8_t)rgb_palette[id * 3 + 1] / 255.0,
-            (uint8_t)rgb_palette[id * 3 + 2] / 255.0
-        );
-    }
+#endif /* OUTPUT_CAIRO_FULLSCREEN */
+
+#ifdef OUTPUT_CAIRO_VIDEO_FRAMES
+    cairo_surface_t *cairo_video_surface;
+    cairo_t *cairo_video_cr;
+
+    int cairo_video_started_yet;
+    int cairo_video_written_yet;
+#endif /* OUTPUT_CAIRO_VIDEO_FRAMES */
+
+void cairo_set_source_luminary(cairo_t* cr, int id) {
+    cairo_set_source_rgb(
+        cr,
+        (uint8_t)rgb_palette[id * 3 + 0] / 255.0,
+        (uint8_t)rgb_palette[id * 3 + 1] / 255.0,
+        (uint8_t)rgb_palette[id * 3 + 2] / 255.0
+    );
+}
 #endif /* OUTPUT_CAIRO */
 
 void print_sacn_message(char *message, int y) {
@@ -279,14 +291,72 @@ void display_init() {
                     COLS * CAIRO_ZOOM,
                     ROWS * CAIRO_ZOOM
                 );
-        #else /* OUTPUT_CAIRO_FULLSCREEN */
-            cairo_surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, COLS * CAIRO_ZOOM, ROWS * CAIRO_ZOOM);
-        #endif
-        cairo_cr = cairo_create(cairo_surface);
+            cairo_x_cr = cairo_create(cairo_x_surface);
 
-        cairo_set_source_rgb(cairo_cr, 0x00, 0x00, 0x00);
-        cairo_rectangle(cairo_cr, 0, 0, COLS * CAIRO_ZOOM, ROWS * CAIRO_ZOOM);
-        cairo_fill(cairo_cr);
+            cairo_set_source_rgb(cairo_x_cr, 0x00, 0x00, 0x00);
+            cairo_rectangle(cairo_x_cr, 0, 0, 14 + COLS * CAIRO_ZOOM, 14 + ROWS * CAIRO_ZOOM);
+            cairo_fill(cairo_x_cr);
+        //#else /* OUTPUT_CAIRO_FULLSCREEN */
+        //    cairo_surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, COLS * CAIRO_ZOOM, ROWS * CAIRO_ZOOM);
+        #endif /* OUTPUT_CAIRO_FULLSCREEN */
+        //cairo_cr = cairo_create(cairo_surface);
+        #ifdef OUTPUT_CAIRO_VIDEO_FRAMES
+            #ifdef OUTPUT_CAIRO_IAMAI
+                cairo_video_surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 5760, 3240);
+            #else /* OUTPUT_CAIRO_IAMAI */
+                cairo_video_surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 14 + COLS * CAIRO_ZOOM, 14 + ROWS * CAIRO_ZOOM);
+            #endif /* OUTPUT_CAIRO_IAMAI */
+            cairo_video_cr = cairo_create(cairo_video_surface);
+            
+            #ifdef OUTPUT_CAIRO_IAMAI
+                cairo_set_source_rgb(cairo_video_cr, 0x00, 0x00, 0x00);
+                cairo_rectangle(cairo_video_cr, 0, 0, 5760, 3240);
+                cairo_fill(cairo_video_cr);
+                
+                cairo_text_extents_t te;
+                cairo_set_source_rgb (cairo_video_cr, 0xff, 0xff, 0xff);
+                cairo_select_font_face (cairo_video_cr, "sans-serif",
+                    CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD);
+                cairo_set_font_size (cairo_video_cr, 20.0);
+                cairo_text_extents (cairo_video_cr, "Lorem ipsum", &te);
+                cairo_move_to (cairo_video_cr,
+                    100 - te.x_bearing,
+                    40 - te.y_bearing
+                );
+                cairo_show_text (cairo_video_cr, "luminary/8Q15");
+                cairo_move_to (cairo_video_cr,
+                    100 - te.x_bearing,
+                    60 - te.y_bearing
+                );
+                cairo_show_text (cairo_video_cr, "(c) 2018 Ross Rheingans-Yoo");
+                cairo_move_to (cairo_video_cr,
+                    100 - te.x_bearing,
+                    80 - te.y_bearing
+                );
+                cairo_show_text (cairo_video_cr, "licensed to Joe Crossley for display in I AM AI at Burning Man 2018 without limitation");
+                cairo_move_to (cairo_video_cr,
+                    100 - te.x_bearing,
+                    100 - te.y_bearing
+                );
+                cairo_show_text (cairo_video_cr, "all other rights reserved");
+                cairo_move_to (cairo_video_cr,
+                    100 - te.x_bearing,
+                    120 - te.y_bearing
+                );
+                cairo_show_text (cairo_video_cr, "audio: \"Behind Our Efforts, Let There Be Found Our Efforts\", (c) 2018 LG17, licensed CC BY 4.0");
+            #else /* OUTPUT_CAIRO_IAMAI */
+                cairo_set_source_rgb(cairo_video_cr, 0x00, 0x00, 0x00);
+                cairo_rectangle(cairo_video_cr, 0, 0, 14 + COLS * CAIRO_ZOOM, 14 + ROWS * CAIRO_ZOOM);
+                cairo_fill(cairo_video_cr);
+            #endif /* OUTPUT_CAIRO_IAMAI */
+
+            cairo_video_started_yet = 1;
+            cairo_video_written_yet = 0;
+        #endif /* OUTPUT_CAIRO_VIDEO_FRAMES */
+
+        //cairo_set_source_rgb(cairo_cr, 0x00, 0x00, 0x00);
+        //cairo_rectangle(cairo_cr, 0, 0, COLS * CAIRO_ZOOM, ROWS * CAIRO_ZOOM);
+        //cairo_fill(cairo_cr);
         
         cairo_blur = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, CAIRO_ZOOM + 2*CAIRO_BLUR_WIDTH, CAIRO_ZOOM + 2*CAIRO_BLUR_WIDTH);
         cairo_blur_cr = cairo_create(cairo_blur);
@@ -333,13 +403,13 @@ void display_init() {
                     case 3*CAIRO_ZOOM+8:
                     case 3*CAIRO_ZOOM+10:
                 #endif
-                        // up edge
-                        cairo_rectangle(cairo_blur_cr,
-                            CAIRO_BLUR_WIDTH + xi,
-                            CAIRO_ZOOM + CAIRO_BLUR_WIDTH + yi,
-                            1, 1
-                        );
-                        break;
+                    // up edge
+                    cairo_rectangle(cairo_blur_cr,
+                        CAIRO_BLUR_WIDTH + xi,
+                        CAIRO_ZOOM + CAIRO_BLUR_WIDTH + yi,
+                        1, 1
+                    );
+                    break;
                 
                 #if CAIRO_ZOOM == 3 || CAIRO_ZOOM == 5 || CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15
                     case 1*CAIRO_ZOOM:
@@ -379,13 +449,13 @@ void display_init() {
                     case 3+8*CAIRO_ZOOM:
                     case 3+10*CAIRO_ZOOM:
                 #endif
-                        // left edge
-                        cairo_rectangle(cairo_blur_cr,
-                            CAIRO_ZOOM + CAIRO_BLUR_WIDTH + xi,
-                            CAIRO_BLUR_WIDTH + yi,
-                            1, 1
-                        );
-                        break;
+                    // left edge
+                    cairo_rectangle(cairo_blur_cr,
+                        CAIRO_ZOOM + CAIRO_BLUR_WIDTH + xi,
+                        CAIRO_BLUR_WIDTH + yi,
+                        1, 1
+                    );
+                    break;
                 
                 #if CAIRO_ZOOM == 3 || CAIRO_ZOOM == 5 || CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15
                     case CAIRO_ZOOM*(CAIRO_ZOOM-1)+1:
@@ -425,13 +495,13 @@ void display_init() {
                     case CAIRO_ZOOM*(CAIRO_ZOOM-4)+8:
                     case CAIRO_ZOOM*(CAIRO_ZOOM-4)+10:
                 #endif
-                        // down edge
-                        cairo_rectangle(cairo_blur_cr,
-                            CAIRO_BLUR_WIDTH + xi,
-                            -CAIRO_ZOOM + CAIRO_BLUR_WIDTH + yi,
-                            1, 1
-                        );
-                        break;
+                    // down edge
+                    cairo_rectangle(cairo_blur_cr,
+                        CAIRO_BLUR_WIDTH + xi,
+                        -CAIRO_ZOOM + CAIRO_BLUR_WIDTH + yi,
+                        1, 1
+                    );
+                    break;
                 
                 #if CAIRO_ZOOM == 3 || CAIRO_ZOOM == 5 || CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15
                     case (CAIRO_ZOOM-1)+1*CAIRO_ZOOM:
@@ -471,13 +541,14 @@ void display_init() {
                     case (CAIRO_ZOOM-4)+8*CAIRO_ZOOM:
                     case (CAIRO_ZOOM-4)+10*CAIRO_ZOOM:
                 #endif
-                        // right edge
-                        cairo_rectangle(cairo_blur_cr,
-                            -CAIRO_ZOOM + CAIRO_BLUR_WIDTH + xi,
-                            CAIRO_BLUR_WIDTH + yi,
-                            1, 1
-                        );
-                        break;
+                    // right edge
+                    cairo_rectangle(cairo_blur_cr,
+                        -CAIRO_ZOOM + CAIRO_BLUR_WIDTH + xi,
+                        CAIRO_BLUR_WIDTH + yi,
+                        1, 1
+                    );
+                    break;
+                    
                 default:
                     cairo_rectangle(cairo_blur_cr,
                         CAIRO_BLUR_WIDTH + xi,
@@ -598,6 +669,27 @@ void display_color(int xy, int color, int state_color) {
                 cairo_set_source_luminary(color);
                 cairo_mask_surface(cairo_cr, cairo_blur, -CAIRO_BLUR_WIDTH + x * CAIRO_ZOOM, -CAIRO_BLUR_WIDTH + y * CAIRO_ZOOM);
             #endif /* OUTPUT_CAIRO_FULLSCREEN */
+            #ifdef OUTPUT_CAIRO_VIDEO_FRAMES
+                cairo_set_source_luminary(cairo_video_cr, color);
+                #ifdef OUTPUT_CAIRO_IAMAI
+                    if (x < COLS/2) {
+                        cairo_mask_surface(cairo_video_cr, cairo_blur, -CAIRO_BLUR_WIDTH + x * CAIRO_ZOOM, 454 -CAIRO_BLUR_WIDTH + y * CAIRO_ZOOM);
+                    } else {
+                        cairo_mask_surface(cairo_video_cr, cairo_blur, -CAIRO_BLUR_WIDTH + (x-COLS/2) * CAIRO_ZOOM, 1816 -CAIRO_BLUR_WIDTH + y * CAIRO_ZOOM);
+                    }
+                    if (x == COLS -1) {
+                        cairo_mask_surface(cairo_video_cr, cairo_blur, -CAIRO_BLUR_WIDTH + (-1) * CAIRO_ZOOM, 454 -CAIRO_BLUR_WIDTH + y * CAIRO_ZOOM);
+                    } else if (x == COLS/2) {
+                        cairo_mask_surface(cairo_video_cr, cairo_blur, -CAIRO_BLUR_WIDTH + (COLS/2) * CAIRO_ZOOM, 454 -CAIRO_BLUR_WIDTH + y * CAIRO_ZOOM);
+                    } else if (x == COLS/2 - 1) {
+                        cairo_mask_surface(cairo_video_cr, cairo_blur, -CAIRO_BLUR_WIDTH + (-1) * CAIRO_ZOOM, 1816 -CAIRO_BLUR_WIDTH + y * CAIRO_ZOOM);
+                    } else if (x == 0) {
+                        cairo_mask_surface(cairo_video_cr, cairo_blur, -CAIRO_BLUR_WIDTH + ((COLS)-COLS/2) * CAIRO_ZOOM, 1816 -CAIRO_BLUR_WIDTH + y * CAIRO_ZOOM);
+                    }
+                #else
+                    cairo_mask_surface(cairo_video_cr, cairo_blur, 7 -CAIRO_BLUR_WIDTH + x * CAIRO_ZOOM, 7 -CAIRO_BLUR_WIDTH + y * CAIRO_ZOOM);
+                #endif
+            #endif /* OUTPUT_CAIRO_VIDEO_FRAMES */
     
             display_current[xy] = state_color;
             
@@ -782,12 +874,68 @@ int display_flush(int epoch) {
     #ifdef OUTPUT_CAIRO
         #ifdef OUTPUT_CAIRO_FULLSCREEN
             // pass
-        #else /* OUTPUT_CAIRO_FULLSCREEN */
+        #elif defined OUTPUT_CAIRO_VIDEO_FRAMES /* OUTPUT_CAIRO_FULLSCREEN */
+            if (1 || epoch % WILDFIRE_SPEEDUP == 0) {
+                cairo_text_extents_t te;
+                cairo_set_source_rgb (cairo_video_cr, 0xff, 0xff, 0xff);
+                cairo_select_font_face (
+                      cairo_video_cr
+                    , "sans-serif"
+                    , CAIRO_FONT_SLANT_NORMAL
+                    //, CAIRO_FONT_WEIGHT_BOLD
+                    , CAIRO_FONT_WEIGHT_NORMAL
+                    );
+                cairo_set_font_size (cairo_video_cr, 20.0);
+                cairo_text_extents (cairo_video_cr, "Lorem ipsum", &te);
+                
+                cairo_move_to (cairo_video_cr,
+                    100 - te.x_bearing,
+                    40 - te.y_bearing
+                );
+                cairo_show_text (cairo_video_cr, "pre-print draft -- Spins Madly On -- pre-print draft");
+                
+                cairo_move_to (cairo_video_cr,
+                    100 - te.x_bearing,
+                    60 - te.y_bearing
+                );
+                cairo_show_text (cairo_video_cr, "(c) 2018 Ross Rheingans-Yoo");
+                
+                cairo_move_to (cairo_video_cr,
+                    100 - te.x_bearing,
+                    80 - te.y_bearing
+                );
+                cairo_show_text (cairo_video_cr, "not publicly releasable / all rights reserved");
+                
+                char s[37];
+                //sprintf(s, "/tmp/luminary-360-b/img%08d.png", epoch);
+                sprintf(s, "demo/thought_of_you/img%08d.png", epoch);
+                if (access( s, F_OK ) == -1) {
+                    /*
+                    for (int xy = 0; xy < ROWS * COLS; ++xy) {
+                        int x = xy % COLS;
+                        int y = xy / COLS;
+                        cairo_set_source_luminary(cairo_cr, display_current[xy]);
+                        cairo_mask_surface(cairo_cr, cairo_blur, 7 -CAIRO_BLUR_WIDTH + x * CAIRO_ZOOM, 7 -CAIRO_BLUR_WIDTH + y * CAIRO_ZOOM);
+                    }
+                    */
+                    
+                    if (1 || epoch == 90) {
+                        cairo_surface_write_to_png(cairo_video_surface, s);
+                    }
+                    
+                    mvprintw(DIAGNOSTIC_ROWS+4, 1, "wrote cairo (%d frames)", epoch/*/WILDFIRE_SPEEDUP*/);
+                } else {
+                    mvprintw(DIAGNOSTIC_ROWS+4, 1, "skip cairo (%d frames)", epoch/*/WILDFIRE_SPEEDUP*/);
+                }
+            }
+        #elif defined CAIRO_SNAPSHOT_EPOCH
+            cairo_surface_t *cairo_surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, COLS * CAIRO_ZOOM, ROWS * CAIRO_ZOOM);
+            cairo_t *cairo_cr = cairo_create(cairo_surface);
             if (epoch == CAIRO_SNAPSHOT_EPOCH) {
                 for (int xy = 0; xy < ROWS * COLS; ++xy) {
                     int x = xy % COLS;
                     int y = xy / COLS;
-                    cairo_set_source_luminary(display_current[xy]);
+                    cairo_set_source_luminary(cairo_cr, display_current[xy]);
                     cairo_mask_surface(cairo_cr, cairo_blur, -CAIRO_BLUR_WIDTH + x * CAIRO_ZOOM, -CAIRO_BLUR_WIDTH + y * CAIRO_ZOOM);
                 }
                 

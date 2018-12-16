@@ -144,7 +144,7 @@
 #define OUTPUT_CAIRO
 #ifdef OUTPUT_CAIRO
     //#define OUTPUT_CAIRO_FULLSCREEN
-    #define OUTPUT_CAIRO_ALL
+    #define OUTPUT_CAIRO_VIDEO_FRAMES
     #define CAIRO_SNAPSHOT_EPOCH 1323
     
     #define CAIRO_BLUR
