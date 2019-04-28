@@ -369,19 +369,19 @@ void display_init() {
                 #if CAIRO_BLUR_WIDTH > 0
                     #if CAIRO_ZOOM == 3 || CAIRO_ZOOM == 5 || CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15
                         case 1:
-                    #endif
+                    #endif /* CAIRO_ZOOM == 3 || CAIRO_ZOOM == 5 || CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15 */
                     #if CAIRO_ZOOM == 5 || CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15
                         case 3:
-                    #endif
+                    #endif /* CAIRO_ZOOM == 5 || CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15 */
                     #if CAIRO_ZOOM == 7
                         // depth: 2
                         case CAIRO_ZOOM+2:
-                    #endif
+                    #endif /* CAIRO_ZOOM == 7 */
                     #if CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15
                         case 5:
                         // depth: 2
                         case CAIRO_ZOOM+4:
-                    #endif
+                    #endif /* CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15 */
                     #if CAIRO_ZOOM == 15
                         case 7:
                         case 9:
@@ -404,7 +404,7 @@ void display_init() {
                         case 3*CAIRO_ZOOM+6:
                         case 3*CAIRO_ZOOM+8:
                         case 3*CAIRO_ZOOM+10:
-                    #endif
+                    #endif /* CAIRO_ZOOM == 15 */
                         // up edge
                         cairo_rectangle(cairo_blur_cr,
                             CAIRO_BLUR_WIDTH + xi,
@@ -415,19 +415,19 @@ void display_init() {
                     
                     #if CAIRO_ZOOM == 3 || CAIRO_ZOOM == 5 || CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15
                         case 1*CAIRO_ZOOM:
-                    #endif
+                    #endif /* CAIRO_ZOOM == 3 || CAIRO_ZOOM == 5 || CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15 */
                     #if CAIRO_ZOOM == 5 || CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15
                         case 3*CAIRO_ZOOM:
-                    #endif
+                    #endif /* CAIRO_ZOOM == 5 || CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15 */
                     #if CAIRO_ZOOM == 7
                         // depth: 2
                         case 1+2*CAIRO_ZOOM:
-                    #endif
+                    #endif /* CAIRO_ZOOM == 7 */
                     #if CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15
                         case 5*CAIRO_ZOOM:
                         // depth: 2
                         case 1+4*CAIRO_ZOOM:
-                    #endif
+                    #endif /* CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15 */
                     #if CAIRO_ZOOM == 15
                         case 7*CAIRO_ZOOM:
                         case 9*CAIRO_ZOOM:
@@ -450,7 +450,7 @@ void display_init() {
                         case 3+6*CAIRO_ZOOM:
                         case 3+8*CAIRO_ZOOM:
                         case 3+10*CAIRO_ZOOM:
-                    #endif
+                    #endif /* CAIRO_ZOOM == 15 */
                         // left edge
                         cairo_rectangle(cairo_blur_cr,
                             CAIRO_ZOOM + CAIRO_BLUR_WIDTH + xi,
@@ -461,19 +461,19 @@ void display_init() {
                     
                     #if CAIRO_ZOOM == 3 || CAIRO_ZOOM == 5 || CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15
                         case CAIRO_ZOOM*(CAIRO_ZOOM-1)+1:
-                    #endif
+                    #endif /* CAIRO_ZOOM == 3 || CAIRO_ZOOM == 5 || CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15 */
                     #if CAIRO_ZOOM == 5 || CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15
                         case CAIRO_ZOOM*(CAIRO_ZOOM-1)+3:
-                    #endif
+                    #endif /* CAIRO_ZOOM == 5 || CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15 */
                     #if CAIRO_ZOOM == 7
                         // depth: 2
                         case CAIRO_ZOOM*(CAIRO_ZOOM-2)+2:
-                    #endif
+                    #endif /* CAIRO_ZOOM == 7 */
                     #if CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15
                         case CAIRO_ZOOM*(CAIRO_ZOOM-1)+5:
                         // depth: 2
                         case CAIRO_ZOOM*(CAIRO_ZOOM-2)+4:
-                    #endif
+                    #endif /* CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15 */
                     #if CAIRO_ZOOM == 15
                         case CAIRO_ZOOM*(CAIRO_ZOOM-1)+7:
                         case CAIRO_ZOOM*(CAIRO_ZOOM-1)+9:
@@ -496,7 +496,7 @@ void display_init() {
                         case CAIRO_ZOOM*(CAIRO_ZOOM-4)+6:
                         case CAIRO_ZOOM*(CAIRO_ZOOM-4)+8:
                         case CAIRO_ZOOM*(CAIRO_ZOOM-4)+10:
-                    #endif
+                    #endif /* CAIRO_ZOOM == 15 */
                         // down edge
                         cairo_rectangle(cairo_blur_cr,
                             CAIRO_BLUR_WIDTH + xi,
@@ -507,19 +507,19 @@ void display_init() {
                     
                     #if CAIRO_ZOOM == 3 || CAIRO_ZOOM == 5 || CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15
                         case (CAIRO_ZOOM-1)+1*CAIRO_ZOOM:
-                    #endif
+                    #endif /* CAIRO_ZOOM == 3 || CAIRO_ZOOM == 5 || CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15 */
                     #if CAIRO_ZOOM == 5 || CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15
                         case (CAIRO_ZOOM-1)+3*CAIRO_ZOOM:
-                    #endif
+                    #endif /* CAIRO_ZOOM == 5 || CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15 */
                     #if CAIRO_ZOOM == 7
                         // depth: 2
                         case (CAIRO_ZOOM-2)+2*CAIRO_ZOOM:
-                    #endif
+                    #endif /* CAIRO_ZOOM == 7 */
                     #if CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15
                         case (CAIRO_ZOOM-1)+5*CAIRO_ZOOM:
                         // depth: 2
                         case (CAIRO_ZOOM-2)+4*CAIRO_ZOOM:
-                    #endif
+                    #endif /* CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15 */
                     #if CAIRO_ZOOM == 15
                         case (CAIRO_ZOOM-1)+7*CAIRO_ZOOM:
                         case (CAIRO_ZOOM-1)+9*CAIRO_ZOOM:
@@ -542,7 +542,7 @@ void display_init() {
                         case (CAIRO_ZOOM-4)+6*CAIRO_ZOOM:
                         case (CAIRO_ZOOM-4)+8*CAIRO_ZOOM:
                         case (CAIRO_ZOOM-4)+10*CAIRO_ZOOM:
-                    #endif
+                    #endif /* CAIRO_ZOOM == 15 */
                         // right edge
                         cairo_rectangle(cairo_blur_cr,
                             -CAIRO_ZOOM + CAIRO_BLUR_WIDTH + xi,
@@ -550,7 +550,7 @@ void display_init() {
                             1, 1
                         );
                         break;
-                #endif
+                #endif /* CAIRO_BLUR_WIDTH > 0 */
                 default:
                     cairo_rectangle(cairo_blur_cr,
                         CAIRO_BLUR_WIDTH + xi,
@@ -692,16 +692,16 @@ void display_color(int xy, int color, int state_color) {
                     cairo_mask_surface(cairo_video_cr, cairo_blur, 7 -CAIRO_BLUR_WIDTH + x * CAIRO_ZOOM, 7 -CAIRO_BLUR_WIDTH + y * CAIRO_ZOOM);
                 #endif
                 
-                char s[4];
-                sprintf(
-                      s
-                    , "%c%c%c"
-                    , 'A'+((color+1)%EXTRA_COLORS)/3
-                    , (color % 3 == 1 ? '+' : color % 3 == 2 ? '-' : ' ')
-                    , (color % 3 == 1 ? ' ' : color % 3 == 2 ? '-' : ' ')
-                 );
-                
                 #ifdef CAIRO_CELL_LABELS
+                    char s[4];
+                    sprintf(
+                          s
+                        , "%c%c%c"
+                        , 'A'+((color+1)%EXTRA_COLORS)/3
+                        , (color % 3 == 1 ? '+' : color % 3 == 2 ? '-' : ' ')
+                        , (color % 3 == 1 ? ' ' : color % 3 == 2 ? '-' : ' ')
+                     );
+                    
                     cairo_text_extents_t te;
                     cairo_set_source_rgb (cairo_video_cr, 0xff, 0xff, 0xff);
                     cairo_select_font_face (
