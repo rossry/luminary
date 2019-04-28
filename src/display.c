@@ -1,9 +1,10 @@
+#include "constants.h"
+
 #include <stdlib.h>
 #include <unistd.h>
 
 #include "display.h"
 
-#include "constants.h"
 #include "gifenc.h"
 
 #ifdef OUTPUT_CAIRO
@@ -365,190 +366,191 @@ void display_init() {
         for (int xi = 0; xi < CAIRO_ZOOM; ++xi) {
             for (int yi = 0; yi < CAIRO_ZOOM; ++yi) {
                 switch (yi*CAIRO_ZOOM + xi) {
-                #if CAIRO_ZOOM == 3 || CAIRO_ZOOM == 5 || CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15
-                    case 1:
-                #endif
-                #if CAIRO_ZOOM == 5 || CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15
-                    case 3:
-                #endif
-                #if CAIRO_ZOOM == 7
-                    // depth: 2
-                    case CAIRO_ZOOM+2:
-                #endif
-                #if CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15
-                    case 5:
-                    // depth: 2
-                    case CAIRO_ZOOM+4:
-                #endif
-                #if CAIRO_ZOOM == 15
-                    case 7:
-                    case 9:
-                    case 11:
-                    case 13:
-                    // depth: 2
-                    case CAIRO_ZOOM+6:
-                    case CAIRO_ZOOM+8:
-                    case CAIRO_ZOOM+10:
-                    // depth: 3
-                    case 2*CAIRO_ZOOM+1:
-                    case 2*CAIRO_ZOOM+3:
-                    case 2*CAIRO_ZOOM+5:
-                    case 2*CAIRO_ZOOM+7:
-                    case 2*CAIRO_ZOOM+9:
-                    case 2*CAIRO_ZOOM+11:
-                    case 2*CAIRO_ZOOM+13:
-                    // depth: 4
-                    case 3*CAIRO_ZOOM+4:
-                    case 3*CAIRO_ZOOM+6:
-                    case 3*CAIRO_ZOOM+8:
-                    case 3*CAIRO_ZOOM+10:
-                #endif
-                    // up edge
-                    cairo_rectangle(cairo_blur_cr,
-                        CAIRO_BLUR_WIDTH + xi,
-                        CAIRO_ZOOM + CAIRO_BLUR_WIDTH + yi,
-                        1, 1
-                    );
-                    break;
-                
-                #if CAIRO_ZOOM == 3 || CAIRO_ZOOM == 5 || CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15
-                    case 1*CAIRO_ZOOM:
-                #endif
-                #if CAIRO_ZOOM == 5 || CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15
-                    case 3*CAIRO_ZOOM:
-                #endif
-                #if CAIRO_ZOOM == 7
-                    // depth: 2
-                    case 1+2*CAIRO_ZOOM:
-                #endif
-                #if CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15
-                    case 5*CAIRO_ZOOM:
-                    // depth: 2
-                    case 1+4*CAIRO_ZOOM:
-                #endif
-                #if CAIRO_ZOOM == 15
-                    case 7*CAIRO_ZOOM:
-                    case 9*CAIRO_ZOOM:
-                    case 11*CAIRO_ZOOM:
-                    case 13*CAIRO_ZOOM:
-                    // depth: 2
-                    case 1+6*CAIRO_ZOOM:
-                    case 1+8*CAIRO_ZOOM:
-                    case 1+10*CAIRO_ZOOM:
-                    // depth: 3
-                    case 2+1*CAIRO_ZOOM:
-                    case 2+3*CAIRO_ZOOM:
-                    case 2+5*CAIRO_ZOOM:
-                    case 2+7*CAIRO_ZOOM:
-                    case 2+9*CAIRO_ZOOM:
-                    case 2+11*CAIRO_ZOOM:
-                    case 2+13*CAIRO_ZOOM:
-                    // depth: 4
-                    case 3+4*CAIRO_ZOOM:
-                    case 3+6*CAIRO_ZOOM:
-                    case 3+8*CAIRO_ZOOM:
-                    case 3+10*CAIRO_ZOOM:
-                #endif
-                    // left edge
-                    cairo_rectangle(cairo_blur_cr,
-                        CAIRO_ZOOM + CAIRO_BLUR_WIDTH + xi,
-                        CAIRO_BLUR_WIDTH + yi,
-                        1, 1
-                    );
-                    break;
-                
-                #if CAIRO_ZOOM == 3 || CAIRO_ZOOM == 5 || CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15
-                    case CAIRO_ZOOM*(CAIRO_ZOOM-1)+1:
-                #endif
-                #if CAIRO_ZOOM == 5 || CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15
-                    case CAIRO_ZOOM*(CAIRO_ZOOM-1)+3:
-                #endif
-                #if CAIRO_ZOOM == 7
-                    // depth: 2
-                    case CAIRO_ZOOM*(CAIRO_ZOOM-2)+2:
-                #endif
-                #if CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15
-                    case CAIRO_ZOOM*(CAIRO_ZOOM-1)+5:
-                    // depth: 2
-                    case CAIRO_ZOOM*(CAIRO_ZOOM-2)+4:
-                #endif
-                #if CAIRO_ZOOM == 15
-                    case CAIRO_ZOOM*(CAIRO_ZOOM-1)+7:
-                    case CAIRO_ZOOM*(CAIRO_ZOOM-1)+9:
-                    case CAIRO_ZOOM*(CAIRO_ZOOM-1)+11:
-                    case CAIRO_ZOOM*(CAIRO_ZOOM-1)+13:
-                    // depth: 2
-                    case CAIRO_ZOOM*(CAIRO_ZOOM-2)+6:
-                    case CAIRO_ZOOM*(CAIRO_ZOOM-2)+8:
-                    case CAIRO_ZOOM*(CAIRO_ZOOM-2)+10:
-                    // depth: 3
-                    case CAIRO_ZOOM*(CAIRO_ZOOM-3)+1:
-                    case CAIRO_ZOOM*(CAIRO_ZOOM-3)+3:
-                    case CAIRO_ZOOM*(CAIRO_ZOOM-3)+5:
-                    case CAIRO_ZOOM*(CAIRO_ZOOM-3)+7:
-                    case CAIRO_ZOOM*(CAIRO_ZOOM-3)+9:
-                    case CAIRO_ZOOM*(CAIRO_ZOOM-3)+11:
-                    case CAIRO_ZOOM*(CAIRO_ZOOM-3)+13:
-                    // depth: 4
-                    case CAIRO_ZOOM*(CAIRO_ZOOM-4)+4:
-                    case CAIRO_ZOOM*(CAIRO_ZOOM-4)+6:
-                    case CAIRO_ZOOM*(CAIRO_ZOOM-4)+8:
-                    case CAIRO_ZOOM*(CAIRO_ZOOM-4)+10:
-                #endif
-                    // down edge
-                    cairo_rectangle(cairo_blur_cr,
-                        CAIRO_BLUR_WIDTH + xi,
-                        -CAIRO_ZOOM + CAIRO_BLUR_WIDTH + yi,
-                        1, 1
-                    );
-                    break;
-                
-                #if CAIRO_ZOOM == 3 || CAIRO_ZOOM == 5 || CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15
-                    case (CAIRO_ZOOM-1)+1*CAIRO_ZOOM:
-                #endif
-                #if CAIRO_ZOOM == 5 || CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15
-                    case (CAIRO_ZOOM-1)+3*CAIRO_ZOOM:
-                #endif
-                #if CAIRO_ZOOM == 7
-                    // depth: 2
-                    case (CAIRO_ZOOM-2)+2*CAIRO_ZOOM:
-                #endif
-                #if CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15
-                    case (CAIRO_ZOOM-1)+5*CAIRO_ZOOM:
-                    // depth: 2
-                    case (CAIRO_ZOOM-2)+4*CAIRO_ZOOM:
-                #endif
-                #if CAIRO_ZOOM == 15
-                    case (CAIRO_ZOOM-1)+7*CAIRO_ZOOM:
-                    case (CAIRO_ZOOM-1)+9*CAIRO_ZOOM:
-                    case (CAIRO_ZOOM-1)+11*CAIRO_ZOOM:
-                    case (CAIRO_ZOOM-1)+13*CAIRO_ZOOM:
-                    // depth: 2
-                    case (CAIRO_ZOOM-2)+6*CAIRO_ZOOM:
-                    case (CAIRO_ZOOM-2)+8*CAIRO_ZOOM:
-                    case (CAIRO_ZOOM-2)+10*CAIRO_ZOOM:
-                    // depth: 3
-                    case (CAIRO_ZOOM-3)+1*CAIRO_ZOOM:
-                    case (CAIRO_ZOOM-3)+3*CAIRO_ZOOM:
-                    case (CAIRO_ZOOM-3)+5*CAIRO_ZOOM:
-                    case (CAIRO_ZOOM-3)+7*CAIRO_ZOOM:
-                    case (CAIRO_ZOOM-3)+9*CAIRO_ZOOM:
-                    case (CAIRO_ZOOM-3)+11*CAIRO_ZOOM:
-                    case (CAIRO_ZOOM-3)+13*CAIRO_ZOOM:
-                    // depth: 4
-                    case (CAIRO_ZOOM-4)+4*CAIRO_ZOOM:
-                    case (CAIRO_ZOOM-4)+6*CAIRO_ZOOM:
-                    case (CAIRO_ZOOM-4)+8*CAIRO_ZOOM:
-                    case (CAIRO_ZOOM-4)+10*CAIRO_ZOOM:
-                #endif
-                    // right edge
-                    cairo_rectangle(cairo_blur_cr,
-                        -CAIRO_ZOOM + CAIRO_BLUR_WIDTH + xi,
-                        CAIRO_BLUR_WIDTH + yi,
-                        1, 1
-                    );
-                    break;
+                #if CAIRO_BLUR_WIDTH > 0
+                    #if CAIRO_ZOOM == 3 || CAIRO_ZOOM == 5 || CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15
+                        case 1:
+                    #endif
+                    #if CAIRO_ZOOM == 5 || CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15
+                        case 3:
+                    #endif
+                    #if CAIRO_ZOOM == 7
+                        // depth: 2
+                        case CAIRO_ZOOM+2:
+                    #endif
+                    #if CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15
+                        case 5:
+                        // depth: 2
+                        case CAIRO_ZOOM+4:
+                    #endif
+                    #if CAIRO_ZOOM == 15
+                        case 7:
+                        case 9:
+                        case 11:
+                        case 13:
+                        // depth: 2
+                        case CAIRO_ZOOM+6:
+                        case CAIRO_ZOOM+8:
+                        case CAIRO_ZOOM+10:
+                        // depth: 3
+                        case 2*CAIRO_ZOOM+1:
+                        case 2*CAIRO_ZOOM+3:
+                        case 2*CAIRO_ZOOM+5:
+                        case 2*CAIRO_ZOOM+7:
+                        case 2*CAIRO_ZOOM+9:
+                        case 2*CAIRO_ZOOM+11:
+                        case 2*CAIRO_ZOOM+13:
+                        // depth: 4
+                        case 3*CAIRO_ZOOM+4:
+                        case 3*CAIRO_ZOOM+6:
+                        case 3*CAIRO_ZOOM+8:
+                        case 3*CAIRO_ZOOM+10:
+                    #endif
+                        // up edge
+                        cairo_rectangle(cairo_blur_cr,
+                            CAIRO_BLUR_WIDTH + xi,
+                            CAIRO_ZOOM + CAIRO_BLUR_WIDTH + yi,
+                            1, 1
+                        );
+                        break;
                     
+                    #if CAIRO_ZOOM == 3 || CAIRO_ZOOM == 5 || CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15
+                        case 1*CAIRO_ZOOM:
+                    #endif
+                    #if CAIRO_ZOOM == 5 || CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15
+                        case 3*CAIRO_ZOOM:
+                    #endif
+                    #if CAIRO_ZOOM == 7
+                        // depth: 2
+                        case 1+2*CAIRO_ZOOM:
+                    #endif
+                    #if CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15
+                        case 5*CAIRO_ZOOM:
+                        // depth: 2
+                        case 1+4*CAIRO_ZOOM:
+                    #endif
+                    #if CAIRO_ZOOM == 15
+                        case 7*CAIRO_ZOOM:
+                        case 9*CAIRO_ZOOM:
+                        case 11*CAIRO_ZOOM:
+                        case 13*CAIRO_ZOOM:
+                        // depth: 2
+                        case 1+6*CAIRO_ZOOM:
+                        case 1+8*CAIRO_ZOOM:
+                        case 1+10*CAIRO_ZOOM:
+                        // depth: 3
+                        case 2+1*CAIRO_ZOOM:
+                        case 2+3*CAIRO_ZOOM:
+                        case 2+5*CAIRO_ZOOM:
+                        case 2+7*CAIRO_ZOOM:
+                        case 2+9*CAIRO_ZOOM:
+                        case 2+11*CAIRO_ZOOM:
+                        case 2+13*CAIRO_ZOOM:
+                        // depth: 4
+                        case 3+4*CAIRO_ZOOM:
+                        case 3+6*CAIRO_ZOOM:
+                        case 3+8*CAIRO_ZOOM:
+                        case 3+10*CAIRO_ZOOM:
+                    #endif
+                        // left edge
+                        cairo_rectangle(cairo_blur_cr,
+                            CAIRO_ZOOM + CAIRO_BLUR_WIDTH + xi,
+                            CAIRO_BLUR_WIDTH + yi,
+                            1, 1
+                        );
+                        break;
+                    
+                    #if CAIRO_ZOOM == 3 || CAIRO_ZOOM == 5 || CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15
+                        case CAIRO_ZOOM*(CAIRO_ZOOM-1)+1:
+                    #endif
+                    #if CAIRO_ZOOM == 5 || CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15
+                        case CAIRO_ZOOM*(CAIRO_ZOOM-1)+3:
+                    #endif
+                    #if CAIRO_ZOOM == 7
+                        // depth: 2
+                        case CAIRO_ZOOM*(CAIRO_ZOOM-2)+2:
+                    #endif
+                    #if CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15
+                        case CAIRO_ZOOM*(CAIRO_ZOOM-1)+5:
+                        // depth: 2
+                        case CAIRO_ZOOM*(CAIRO_ZOOM-2)+4:
+                    #endif
+                    #if CAIRO_ZOOM == 15
+                        case CAIRO_ZOOM*(CAIRO_ZOOM-1)+7:
+                        case CAIRO_ZOOM*(CAIRO_ZOOM-1)+9:
+                        case CAIRO_ZOOM*(CAIRO_ZOOM-1)+11:
+                        case CAIRO_ZOOM*(CAIRO_ZOOM-1)+13:
+                        // depth: 2
+                        case CAIRO_ZOOM*(CAIRO_ZOOM-2)+6:
+                        case CAIRO_ZOOM*(CAIRO_ZOOM-2)+8:
+                        case CAIRO_ZOOM*(CAIRO_ZOOM-2)+10:
+                        // depth: 3
+                        case CAIRO_ZOOM*(CAIRO_ZOOM-3)+1:
+                        case CAIRO_ZOOM*(CAIRO_ZOOM-3)+3:
+                        case CAIRO_ZOOM*(CAIRO_ZOOM-3)+5:
+                        case CAIRO_ZOOM*(CAIRO_ZOOM-3)+7:
+                        case CAIRO_ZOOM*(CAIRO_ZOOM-3)+9:
+                        case CAIRO_ZOOM*(CAIRO_ZOOM-3)+11:
+                        case CAIRO_ZOOM*(CAIRO_ZOOM-3)+13:
+                        // depth: 4
+                        case CAIRO_ZOOM*(CAIRO_ZOOM-4)+4:
+                        case CAIRO_ZOOM*(CAIRO_ZOOM-4)+6:
+                        case CAIRO_ZOOM*(CAIRO_ZOOM-4)+8:
+                        case CAIRO_ZOOM*(CAIRO_ZOOM-4)+10:
+                    #endif
+                        // down edge
+                        cairo_rectangle(cairo_blur_cr,
+                            CAIRO_BLUR_WIDTH + xi,
+                            -CAIRO_ZOOM + CAIRO_BLUR_WIDTH + yi,
+                            1, 1
+                        );
+                        break;
+                    
+                    #if CAIRO_ZOOM == 3 || CAIRO_ZOOM == 5 || CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15
+                        case (CAIRO_ZOOM-1)+1*CAIRO_ZOOM:
+                    #endif
+                    #if CAIRO_ZOOM == 5 || CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15
+                        case (CAIRO_ZOOM-1)+3*CAIRO_ZOOM:
+                    #endif
+                    #if CAIRO_ZOOM == 7
+                        // depth: 2
+                        case (CAIRO_ZOOM-2)+2*CAIRO_ZOOM:
+                    #endif
+                    #if CAIRO_ZOOM == 7 || CAIRO_ZOOM == 15
+                        case (CAIRO_ZOOM-1)+5*CAIRO_ZOOM:
+                        // depth: 2
+                        case (CAIRO_ZOOM-2)+4*CAIRO_ZOOM:
+                    #endif
+                    #if CAIRO_ZOOM == 15
+                        case (CAIRO_ZOOM-1)+7*CAIRO_ZOOM:
+                        case (CAIRO_ZOOM-1)+9*CAIRO_ZOOM:
+                        case (CAIRO_ZOOM-1)+11*CAIRO_ZOOM:
+                        case (CAIRO_ZOOM-1)+13*CAIRO_ZOOM:
+                        // depth: 2
+                        case (CAIRO_ZOOM-2)+6*CAIRO_ZOOM:
+                        case (CAIRO_ZOOM-2)+8*CAIRO_ZOOM:
+                        case (CAIRO_ZOOM-2)+10*CAIRO_ZOOM:
+                        // depth: 3
+                        case (CAIRO_ZOOM-3)+1*CAIRO_ZOOM:
+                        case (CAIRO_ZOOM-3)+3*CAIRO_ZOOM:
+                        case (CAIRO_ZOOM-3)+5*CAIRO_ZOOM:
+                        case (CAIRO_ZOOM-3)+7*CAIRO_ZOOM:
+                        case (CAIRO_ZOOM-3)+9*CAIRO_ZOOM:
+                        case (CAIRO_ZOOM-3)+11*CAIRO_ZOOM:
+                        case (CAIRO_ZOOM-3)+13*CAIRO_ZOOM:
+                        // depth: 4
+                        case (CAIRO_ZOOM-4)+4*CAIRO_ZOOM:
+                        case (CAIRO_ZOOM-4)+6*CAIRO_ZOOM:
+                        case (CAIRO_ZOOM-4)+8*CAIRO_ZOOM:
+                        case (CAIRO_ZOOM-4)+10*CAIRO_ZOOM:
+                    #endif
+                        // right edge
+                        cairo_rectangle(cairo_blur_cr,
+                            -CAIRO_ZOOM + CAIRO_BLUR_WIDTH + xi,
+                            CAIRO_BLUR_WIDTH + yi,
+                            1, 1
+                        );
+                        break;
+                #endif
                 default:
                     cairo_rectangle(cairo_blur_cr,
                         CAIRO_BLUR_WIDTH + xi,
@@ -689,6 +691,36 @@ void display_color(int xy, int color, int state_color) {
                 #else
                     cairo_mask_surface(cairo_video_cr, cairo_blur, 7 -CAIRO_BLUR_WIDTH + x * CAIRO_ZOOM, 7 -CAIRO_BLUR_WIDTH + y * CAIRO_ZOOM);
                 #endif
+                
+                char s[4];
+                sprintf(
+                      s
+                    , "%c%c%c"
+                    , 'A'+((color+1)%EXTRA_COLORS)/3
+                    , (color % 3 == 1 ? '+' : color % 3 == 2 ? '-' : ' ')
+                    , (color % 3 == 1 ? ' ' : color % 3 == 2 ? '-' : ' ')
+                 );
+                
+                #ifdef CAIRO_CELL_LABELS
+                    cairo_text_extents_t te;
+                    cairo_set_source_rgb (cairo_video_cr, 0xff, 0xff, 0xff);
+                    cairo_select_font_face (
+                          cairo_video_cr
+                        , "sans-serif"
+                        , CAIRO_FONT_SLANT_NORMAL
+                        //, CAIRO_FONT_WEIGHT_BOLD
+                        , CAIRO_FONT_WEIGHT_NORMAL
+                        );
+                    cairo_set_font_size (cairo_video_cr, 8.0);
+                    cairo_text_extents (cairo_video_cr, s, &te);
+                    
+                    
+                    cairo_move_to (cairo_video_cr,
+                        7 + (x*CAIRO_ZOOM) +  1,
+                        7 + (y*CAIRO_ZOOM) + 11
+                    );
+                    cairo_show_text (cairo_video_cr, s);
+                #endif /* CAIRO_CELL_LABELS */
             #endif /* OUTPUT_CAIRO_VIDEO_FRAMES */
     
             display_current[xy] = state_color;
@@ -876,6 +908,7 @@ int display_flush(int epoch) {
             // pass
         #elif defined OUTPUT_CAIRO_VIDEO_FRAMES /* OUTPUT_CAIRO_FULLSCREEN */
             if (1 || epoch % WILDFIRE_SPEEDUP == 0) {
+                
                 cairo_text_extents_t te;
                 cairo_set_source_rgb (cairo_video_cr, 0xff, 0xff, 0xff);
                 cairo_select_font_face (
@@ -888,6 +921,7 @@ int display_flush(int epoch) {
                 cairo_set_font_size (cairo_video_cr, 20.0);
                 cairo_text_extents (cairo_video_cr, "Lorem ipsum", &te);
                 
+                /*
                 cairo_move_to (cairo_video_cr,
                     100 - te.x_bearing,
                     40 - te.y_bearing
@@ -905,10 +939,12 @@ int display_flush(int epoch) {
                     80 - te.y_bearing
                 );
                 cairo_show_text (cairo_video_cr, "not publicly releasable / all rights reserved");
+                */
                 
                 char s[37];
                 //sprintf(s, "/tmp/luminary-360-b/img%08d.png", epoch);
-                sprintf(s, "demo/thought_of_you/img%08d.png", epoch);
+                //sprintf(s, "demo/thought_of_you/img%08d.png", epoch);
+                sprintf(s, "demo/q9-3/img%08d.png", epoch);
                 if (access( s, F_OK ) == -1) {
                     /*
                     for (int xy = 0; xy < ROWS * COLS; ++xy) {

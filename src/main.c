@@ -1,9 +1,10 @@
+#include "constants.h"
+
 #include <unistd.h>
 #include <stdlib.h>
 #include <sys/time.h>
 #include <math.h>
 
-#include "constants.h"
 #include "cellular.h"
 #include "pattern.h"
 #include "display.h"
@@ -73,7 +74,7 @@ int main(int argc, char *argv[]) {
             }
             break;
         default:
-            printf("usage: %s [bmp format string]\n", argv[0]);
+            printf("usage: %s [bmp_format_string]\n", argv[0]);
             return 1;
         }
     #endif /* UMBRARY */
@@ -115,15 +116,17 @@ int main(int argc, char *argv[]) {
     
     double excitement[ROWS * COLS];
     
+    /*
+    // needed to drive waves_(orth|diag)'s top row
     // hand-tuned to radiate from a center 84 cells above the midpoint of the top side
     int waves_base[] = WAVES_BASE_ARRAY;
-    
     int waves_base_z_orig = 16;
+    */
     int waves_orth[ROWS * COLS];
     int waves_orth_next[ROWS * COLS];
     int waves_diag[ROWS * COLS];
     int waves_diag_next[ROWS * COLS];
-    
+
     turing_vector_t turing_u[ROWS * COLS];
     turing_vector_t turing_v[ROWS * COLS];
     
@@ -156,18 +159,20 @@ int main(int argc, char *argv[]) {
         waves_diag[xy] = 0;
         
         turing_u[xy].state = (double)rand() / (double)(RAND_MAX/2) - 1.0;
-        turing_u[xy].n_scales = 3;
+        turing_u[xy].n_scales = 5;
         turing_u[xy].increment[0] = 0.01;
-        turing_u[xy].increment[1] = 0.01;
-        turing_u[xy].increment[2] = 0.01;
-        turing_u[xy].increment[3] = 0.01;
+        turing_u[xy].increment[1] = 0.014;
+        turing_u[xy].increment[2] = 0.018;
+        turing_u[xy].increment[3] = 0.022;
+        turing_u[xy].increment[4] = 0.026;
         
         turing_v[xy].state = (double)rand() / (double)(RAND_MAX/2) - 1.0;
-        turing_v[xy].n_scales = 3;
+        turing_v[xy].n_scales = 5;
         turing_v[xy].increment[0] = 0.01;
-        turing_v[xy].increment[1] = 0.01;
-        turing_v[xy].increment[2] = 0.01;
-        turing_v[xy].increment[3] = 0.01;
+        turing_v[xy].increment[1] = 0.014;
+        turing_v[xy].increment[2] = 0.018;
+        turing_v[xy].increment[3] = 0.022;
+        turing_v[xy].increment[4] = 0.026;
     }
     
     #ifdef SACN_SERVER
@@ -271,14 +276,14 @@ int main(int argc, char *argv[]) {
                 excitement[xy] += pressure_orth[xy] * 2 / 3 / PRESSURE_RADIUS_TICKS;
                 
                 if (
+                    1
+                    && epoch % WILDFIRE_SPEEDUP == 0
                     #ifdef UMBRARY
-                        !umbrary_active && (
+                        && !umbrary_active
                     #endif /* UMBRARY */
-                    excitement[xy] > 1.0
-                    || ((waves_orth_next[xy] / 17) % 800) > 800 - 1 - 6
-                    #ifdef UMBRARY
-                        )
-                    #endif /* UMBRARY */
+                    && ( excitement[xy] > 1.0
+                         || ((waves_orth_next[xy] / 17) % 800) > 800 - 1 - 6
+                       )
                 ) {
                     // evolve rainbow_0
                     rainbow_0_next[xy] = compute_cyclic(rainbow_0, impatience_0, xy);

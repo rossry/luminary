@@ -1,6 +1,9 @@
 #ifndef CONSTANTS_H
 #define CONSTANTS_H
 
+// for warning "_BSD_SOURCE and _SVID_SOURCE are deprecated, use _DEFAULT_SOURCE"
+#define _DEFAULT_SOURCE 1
+
 // this has to go here because I want to #define COLS, and that can't happen
 // before I #include <ncurses.h>
 #include <ncurses.h>
@@ -21,13 +24,13 @@
 
 //#define SPECTRARY
 
-#define UMBRARY
+//#define UMBRARY
 
 // physical dimensions
 //  #define PETALS_ACTIVE
 
-#define FLOOR_COLS 128//214//80//72
-#define FLOOR_ROWS 72//120//45//48
+#define FLOOR_COLS 72//128//214//80//72
+#define FLOOR_ROWS 72// 72//120//45//48
 
 #define FLOOR_COLS_SHOWN FLOOR_COLS
 #define FLOOR_ROWS_SHOWN FLOOR_ROWS
@@ -74,7 +77,7 @@
     #define DIAGNOSTIC_ROWS (FLOOR_ROWS_SHOWN / DIAGNOSTIC_SAMPLING_RATE)
 #endif /* DISPLAY_PETALS_MODE */
 
-#define DIAGNOSTIC_COLS 80
+#define DIAGNOSTIC_COLS 72 //80
 
 // colors (for ncurses)
 #define RAINBOW_00  61
@@ -117,14 +120,14 @@
 #define GREY_46 250
 
 // speeds, times, distances
-#define BASE_HZ                    15
-#define WILDFIRE_SPEEDUP           3// wildfire effects propagate at this multiple of BASE_HZ
-#define DISPLAY_FLUSH_EPOCHS       3 // flush display every # epochs
+#define BASE_HZ                    5
+#define WILDFIRE_SPEEDUP           10// wildfire effects propagate at this multiple of BASE_HZ
+#define DISPLAY_FLUSH_EPOCHS       1 // flush display every # epochs
 #define TRANSITION_TICKS           400
 #define SECONDARY_TRANSITION_TICKS 300
 #define RAND_SECONDARY_TRANSITION  ( rand() % (ROWS * COLS) == 0 )
 #define HIBERNATION_TICKS          70000 // 70000 ticks ~ 103 seconds
-#define INITIALIZATION_EPOCHS      2 // ( 200 * WILDFIRE_SPEEDUP ) // run this many epochs on startup
+#define INITIALIZATION_EPOCHS      ( 20 * WILDFIRE_SPEEDUP ) // run this many epochs on startup
 #define PRESSURE_DELAY_EPOCHS      30
 #define PRESSURE_RADIUS_TICKS      150//76
 #define RAINBOW_TONE_EPOCHS        1200
@@ -141,7 +144,7 @@
 #endif /* OUTPUT_GIF */
 
 // cairo output
-#define OUTPUT_CAIRO
+//#define OUTPUT_CAIRO
 #ifdef OUTPUT_CAIRO
     //#define OUTPUT_CAIRO_FULLSCREEN
     #define OUTPUT_CAIRO_VIDEO_FRAMES
@@ -149,9 +152,14 @@
     
     #define CAIRO_BLUR
     
-    //#define CAIRO_ZOOM 15
-    //#define CAIRO_ZOOM 3
-    #define CAIRO_ZOOM 7
+    //#define CAIRO_CELL_LABELS
+    #ifdef CAIRO_CELL_LABELS
+        #define CAIRO_ZOOM 15
+    #else /* CAIRO_CELL_LABELS */
+        //#define CAIRO_ZOOM 15
+        //#define CAIRO_ZOOM 3
+        #define CAIRO_ZOOM 7
+    #endif /* CAIRO_CELL_LABELS */
     
     #if CAIRO_ZOOM == 15
         #define CAIRO_BLUR_WIDTH 4
@@ -164,6 +172,11 @@
     #else /* CAIRO_ZOOM == ? */
         #define CAIRO_BLUR_WIDTH 0
     #endif /* CAIRO_ZOOM == ? */
+    
+    #ifdef CAIRO_CELL_LABELS
+        #undef CAIRO_BLUR_WIDTH
+        #define CAIRO_BLUR_WIDTH 0
+    #endif /* CAIRO_CELL_LABELS */
 #endif /* OUTPUT_CAIRO */
 
 // other constants (probably don't mess with these)
@@ -175,10 +188,12 @@
 #define EXTRA_COLORS 36
 #define BLACK        15
 
+#define DECAYABLE_INCREMENT 17
+
 // array is 97 elements long
 #define WAVES_BASE_ARRAY  {-331,-319,-307,-295,-283,-271,-260,-249,-237,-226,-215,-205,-194,-184,-173,-163,-154,-144,-135,-125,-116,-108,-99,-91,-83,-75,-68,-61,-54,-47,-41,-35,-29,-24,-18,-14,-9,-5,-1,2,4,6,6,7,8,8,9,9,9,9,9,8,8,7,6,6,4,2,-1,-5,-9,-14,-18,-24,-29,-35,-41,-47,-54,-61,-68,-75,-83,-91,-99,-108,-116,-125,-135,-144,-154,-163,-173,-184,-194,-205,-215,-226,-237,-249,-260,-271,-283,-295,-307,-319,-331}
 #define WAVES_BASE_X_ORIG ( 48 - FLOOR_COLS/2 )
-#define WAVES_INCREMENT   17
+#define WAVES_INCREMENT   DECAYABLE_INCREMENT
 
 #define PETAL_PIXEL_PATTERN 3
 
@@ -373,3 +388,4 @@
         _a < _b ? _a : _b; })
 
 #endif /* CONSTANTS_H */
+TS_H */

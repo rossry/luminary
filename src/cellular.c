@@ -1,11 +1,10 @@
+#include "constants.h"
+
 #include <stdlib.h>
 #include <math.h>
-
 #include <assert.h>
 
 #include "cellular.h"
-
-#include "constants.h"
 
 // shared neighbors logic
 
@@ -373,7 +372,7 @@ void max_equals3(int* x, int y, int* t0, int s0, int* t1, int s1, int* t2, int s
     }
 }
 
-int maybe_increment(int* grid, int xy, int target, int inc, int neighbors[COLORS], int* n_neighbors) {
+int maybe_increment(int* grid, int xy, int target, int inc, int neighbors[COLORS], int* n_neighbors, int* impatience) {
     *n_neighbors += 1;
     
     if (grid[target] < 0) {
@@ -382,10 +381,10 @@ int maybe_increment(int* grid, int xy, int target, int inc, int neighbors[COLORS
     
     neighbors[grid[target]] += 1;
     
-    if (inc == 2) {
+    if (inc == 2 || rand() < (impatience[xy] < 10 ? 0.15*RAND_MAX : 0.05*RAND_MAX)) {
         return inc;
     }
-    if (grid[target] == (grid[xy] + 2) % COLORS && rand() < 0.2*RAND_MAX) { // CR-someday rrheingans-yoo: was 0.2; 0.25 is a lot
+    if (grid[target] == (grid[xy] + 2) % COLORS && rand() < 0.25*RAND_MAX) { // CR-someday rrheingans-yoo: was 0.2; 0.25 is a lot
         return 2;
     }
     if (grid[target] == (grid[xy] + 1) % COLORS) {
@@ -416,9 +415,9 @@ int compute_cyclic(int* grid, int* impatience, int xy) {
     for (int i = X_INIT(x,y); X_CONTINUE(x,y,i); ++i) {
         if (offset[i] != 0) {
             if (i % 2) { // orthogonal neighbor
-                inc = maybe_increment(grid, xy, xy+offset[i], inc, neighbors, &n_neighbors);
-            } else if (rand() < 0.6*RAND_MAX) { // diagonal neighbor (maybe)
-                inc = maybe_increment(grid, xy, xy+offset[i], inc, neighbors, &n_neighbors);
+                inc = maybe_increment(grid, xy, xy+offset[i], inc, neighbors, &n_neighbors, impatience);
+            } else if (rand() < 0.5*RAND_MAX) { // was 0.6 // diagonal neighbor (maybe)
+                inc = maybe_increment(grid, xy, xy+offset[i], inc, neighbors, &n_neighbors, impatience);
             }
         }
     }
@@ -447,7 +446,7 @@ int compute_cyclic(int* grid, int* impatience, int xy) {
         }
         
         /* precipitate re-shuffle */
-        if (impatience[xy] > 200) {
+        if (impatience[xy] > 300) {
             impatience[xy] = 0;
             return RAND_COLOR;
         }
@@ -481,14 +480,14 @@ void compute_decay(
     for (int i = X_INIT(x,y); X_CONTINUE(x,y,i); ++i) {
         if (offset[i] != 0) {
             if (i % 2) { // orthogonal neighbor
-                z_for_orth = orth[xy+offset[i]] - 17 + WAVES_INCREMENT;
-                z_for_diag = orth[xy+offset[i]] - 17 + WAVES_INCREMENT;
+                z_for_orth = orth[xy+offset[i]] - 17 + DECAYABLE_INCREMENT;
+                z_for_diag = orth[xy+offset[i]] - 17 + DECAYABLE_INCREMENT;
                 max_increment_orth = z_for_orth; // unbounded increment
                 max_increment_diag = z_for_diag; // unbounded increment
             } else { // diagonal neighbor
                 
-                z_for_orth = diag[xy+offset[i]] - 21 + WAVES_INCREMENT;
-                z_for_diag = diag[xy+offset[i]] - 24 + WAVES_INCREMENT;
+                z_for_orth = diag[xy+offset[i]] - 21 + DECAYABLE_INCREMENT;
+                z_for_diag = diag[xy+offset[i]] - 24 + DECAYABLE_INCREMENT;
                 #ifdef DECAY_SQUARE
                     max_increment_orth = z_for_orth; // unbounded increment
                     max_increment_diag = z_for_diag; // unbounded increment
@@ -628,6 +627,12 @@ void diffuse_turing_reagents(turing_vector_t* vv) {
     diffuse_turing_reagent_horiz(vv,  8, &vv[0].scale[2].activ, &vv[0].scale[2].n_activ);
     diffuse_turing_reagent_horiz(vv, 16, &vv[0].scale[2].inhib, &vv[0].scale[2].n_inhib);
     
+    diffuse_turing_reagent_horiz(vv, 16, &vv[0].scale[3].activ, &vv[0].scale[3].n_activ);
+    diffuse_turing_reagent_horiz(vv, 32, &vv[0].scale[3].inhib, &vv[0].scale[3].n_inhib);
+    
+    diffuse_turing_reagent_horiz(vv, 32, &vv[0].scale[4].activ, &vv[0].scale[4].n_activ);
+    diffuse_turing_reagent_horiz(vv, 64, &vv[0].scale[4].inhib, &vv[0].scale[4].n_inhib);
+    
     diffuse_turing_reagent_vert(vv,  2, &vv[0].scale[0].activ, &vv[0].scale[0].n_activ);
     diffuse_turing_reagent_vert(vv,  4, &vv[0].scale[0].inhib, &vv[0].scale[0].n_inhib);
     
@@ -636,6 +641,12 @@ void diffuse_turing_reagents(turing_vector_t* vv) {
     
     diffuse_turing_reagent_vert(vv,  8, &vv[0].scale[2].activ, &vv[0].scale[2].n_activ);
     diffuse_turing_reagent_vert(vv, 16, &vv[0].scale[2].inhib, &vv[0].scale[2].n_inhib);
+    
+    diffuse_turing_reagent_vert(vv, 16, &vv[0].scale[3].activ, &vv[0].scale[3].n_activ);
+    diffuse_turing_reagent_vert(vv, 32, &vv[0].scale[3].inhib, &vv[0].scale[3].n_inhib);
+    
+    diffuse_turing_reagent_vert(vv, 32, &vv[0].scale[4].activ, &vv[0].scale[4].n_activ);
+    diffuse_turing_reagent_vert(vv, 64, &vv[0].scale[4].inhib, &vv[0].scale[4].n_inhib);
 }
 
 void compute_turing_all(turing_vector_t* uu, turing_vector_t* vv) {
@@ -698,13 +709,14 @@ int turing_min_var(turing_vector_t* vec, double custom_factor) {
         if (vec->scale[ii].activ == 0 && vec->scale[ii].inhib == 0) {
             // pass
         } else {
-            double tt = (double)(ii)/(double)(vec->n_scales) - custom_factor + 1.0;
+            double tt;
             /*
             tt = tt - (int)tt;
             tt = tt - 0.5;
             tt = fabs(tt);
             tt = tt + 0.03;
             */
+            //tt = (double)(ii)/(double)(vec->n_scales) - custom_factor + 1.0;
             tt = 1.0;
             min_equals1_f(
                 &min_var,

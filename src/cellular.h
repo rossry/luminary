@@ -15,7 +15,7 @@ typedef struct turing_reagent {
     int n_inhib_tmp;
 } turing_reagent_t;
 
-#define MAX_TURING_SCALES 4
+#define MAX_TURING_SCALES 5
 
 typedef struct vector {
     double state;
