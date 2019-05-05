@@ -293,23 +293,35 @@ int main(int argc, char *argv[]) {
                         rainbow_0_next[xy] != rainbow_0[xy]
                         && rainbow_0_next[xy] != color_of_turing(xy, turing_u, turing_v)
                     ) {
-                        /* CR rrheingans-yoo: if you just incremented, then set
-                           to substate 0 (but display substate -1 for one round
-                           only). if you just randomized, then set to substate
-                           rand{-1,0,1}.
-                        */
-                        switch (rainbow_0_next[xy] - rainbow_0[xy]) {
-                        case 1: case 1-COLORS:
-                        case 2: case 2-COLORS:
-                            rainbow_to_turing(xy, rainbow_0_next, turing_u, turing_v, (rand()%3)-1);
-                            break;
-                        default:
-                            //rainbow_to_turing(xy, rainbow_0_next, turing_u, turing_v, (rand()%3)-1);
-                            rainbow_to_turing(xy, rainbow_0_next, turing_u, turing_v, (rand()%3)-1);
-                            break;
+                        if (
+                            (1 + rainbow_0_next[xy] - color_of_turing(xy, turing_u, turing_v) + COLORS)%COLORS
+                            <= 3
+                        ) {
+                            /* CR rrheingans-yoo: if you just incremented, then set
+                               to substate 0 (but display substate -1 for one round
+                               only). if you just randomized, then set to substate
+                               rand{-1,0,1}.
+                            */
+                            switch (rainbow_0_next[xy] - rainbow_0[xy]) {
+                            case 1: case 1-COLORS:
+                            case 2: case 2-COLORS:
+                                rainbow_to_turing(xy, rainbow_0_next, turing_u, turing_v, (rand()%3)-1);
+                                break;
+                            default:
+                                rainbow_to_turing(xy, rainbow_0_next, turing_u, turing_v, (rand()%3)-1);
+                                break;
+                            }
+                            // CR rrheingans-yoo: maybe compute/apply turing a few
+                            // times at [xy] right now?
+                        } else {
+                            extra_color_to_turing(
+                                xy,
+                                (extra_color_of_turing(xy, turing_u, turing_v)-3+EXTRA_COLORS)%EXTRA_COLORS,
+                                turing_u,
+                                turing_v
+                            );
+                            rainbow_0_next[xy] = rainbow_0[xy];
                         }
-                        // CR rrheingans-yoo: maybe compute/apply turing a few
-                        // times at [xy] right now?
                     }
                     
                     excitement[xy] -= 1.0;
@@ -450,6 +462,7 @@ int main(int argc, char *argv[]) {
                 color = (3*rainbow_0_next[xy] - 1 + EXTRA_COLORS)%EXTRA_COLORS + EXTRA_COLOR;
             // default: // pass
             }
+            //color = 3*rainbow_0_next[xy] + EXTRA_COLOR;
             
             if (xy < EXTRA_COLORS) {
                 color = xy + EXTRA_COLOR;
@@ -563,6 +576,8 @@ int main(int argc, char *argv[]) {
                 ((waves_orth_next[xy] / 17) / 800) % COLORS
             );
             */
+            
+            /* CR rrheingans-yoo: can we use double-buffering instead? */
             
             // increment all states
             control_directive_0[xy] = control_directive_0_next[xy];

@@ -102,8 +102,8 @@ int* get_offset_array(int x, int y) {
 
 // cross-CA conversions
 
-void rainbow_to_turing(int xy, int* rainbow, turing_vector_t* turing_u, turing_vector_t* turing_v, int substate) {
-    switch(3*rainbow[xy] + substate) {
+void extra_color_to_turing(int xy, int c, turing_vector_t* turing_u, turing_vector_t* turing_v) {
+    switch(c) {
     case  0:
         turing_u[xy].state =  0.5;
         turing_v[xy].state = -0.866025;
@@ -249,6 +249,10 @@ void rainbow_to_turing(int xy, int* rainbow, turing_vector_t* turing_u, turing_v
         turing_v[xy].state = -0.766044;
         break;
     }
+}
+
+void rainbow_to_turing(int xy, int* rainbow, turing_vector_t* turing_u, turing_vector_t* turing_v, int substate) {
+    extra_color_to_turing(xy, (3*rainbow[xy] + substate), turing_u, turing_v);
 }
 
 int color_of_turing(int xy, turing_vector_t* turing_u, turing_vector_t* turing_v) {

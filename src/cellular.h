@@ -26,6 +26,14 @@ typedef struct vector {
     int debug;
 } turing_vector_t;
 
+// sets (turing_u, turing_v) from c
+void extra_color_to_turing(
+    int xy,
+    int c,
+    turing_vector_t* turing_u,
+    turing_vector_t* turing_v
+);
+
 // sets (turing_u, turing_v) from rainbow
 void rainbow_to_turing(
     int xy,
