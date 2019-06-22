@@ -62,7 +62,9 @@ void print_sacn_message(char *message, int y) {
 }
 
 void display_init_color(int id, int xterm, uint8_t r, uint8_t g, uint8_t b) {
-    init_pair(id+1, xterm, xterm);
+    #ifdef OUTPUT_NCURSES
+        init_pair(id+1, xterm, xterm);
+    #endif /* OUTPUT_NCURSES */
     
     //#ifdef OUTPUT_GIF
     rgb_palette[id * 3 + 0] = r;
@@ -72,7 +74,9 @@ void display_init_color(int id, int xterm, uint8_t r, uint8_t g, uint8_t b) {
 }
 
 void display_init_extra_color(int id, int xterm_fg, int xterm_bg, uint8_t r, uint8_t g, uint8_t b) {
-    init_pair(id+1, xterm_fg, xterm_bg);
+    #ifdef OUTPUT_NCURSES
+        init_pair(id+1, xterm_fg, xterm_bg);
+    #endif /* OUTPUT_NCURSES */
     
     //#ifdef OUTPUT_GIF
     rgb_palette[id * 3 + 0] = r;
@@ -87,25 +91,27 @@ void display_init() {
     }
     n_dirty_pixels = 0;
     
-    // ncurses initialization
-    initscr();
-    raw();
-    cbreak();
-    timeout(10);
-    noecho();
-    curs_set(0);
-    
-    if (!has_colors()) {
-        endwin();
-		printf("Your terminal does not support color\n");
-		exit(1);
-	}
-    if (!can_change_color()) {
-        endwin();
-		printf("Your terminal does not support changing colors\n");
-		exit(1);
-	}
-	start_color();
+    #ifdef OUTPUT_NCURSES
+        // ncurses initialization
+        initscr();
+        raw();
+        cbreak();
+        timeout(10);
+        noecho();
+        curs_set(0);
+        
+        if (!has_colors()) {
+            endwin();
+    		printf("Your terminal does not support color\n");
+    		exit(1);
+    	}
+        if (!can_change_color()) {
+            endwin();
+    		printf("Your terminal does not support changing colors\n");
+    		exit(1);
+    	}
+	    start_color();
+    #endif /* OUTPUT_NCURSES */
 	
 	for (int ii = 0; ii < 128 * 3; ++ii) {
 	    rgb_palette[ii] = 0x00;
@@ -621,54 +627,56 @@ void display_color(int xy, int color, int state_color) {
             || xy == COLS * (ROWS-1) + FLOOR_COLS - 1
             || xy < EXTRA_COLORS
         ) {
-            // ncurses drawing
-            if (y % DIAGNOSTIC_SAMPLING_RATE == 0
-                && x % DIAGNOSTIC_SAMPLING_RATE == 0
-                && (y < PETAL_ROWS || x < FLOOR_COLS)
-                #ifdef DISPLAY_PETALS_MODE
-                    #ifndef DISPLAY_FLOOR_ALSO
-                        && y < PETAL_ROWS
-                    #endif /* DISPLAY_FLOOR_ALSO */
-                #endif /* DISPLAY_PETALS_MODE */
-            ) {
-                #ifdef DISPLAY_PETALS_MODE
-                    if (petal_mapping_pixel(x%PETAL_COLS,y)) {
-                        attron(COLOR_PAIR(1+color));
-                    } else if (y > PETAL_ROWS) {
-                        attron(COLOR_PAIR(1+color + (color < COLORS ? MAKE_DARKER : 0)));
-                    } else {
-                        attron(COLOR_PAIR(1+15));
-                    }
-                    #ifndef DISPLAY_FLOOR_ALSO
-                        if (x < 3*PETAL_COLS) {
-                    #endif /* DISPLAY_FLOOR_ALSO */
-                    mvprintw(
-                        ((y/DIAGNOSTIC_SAMPLING_RATE + (y > PETAL_ROWS ? 8 + PETAL_ROWS : 0)) / (y > PETAL_ROWS ? 2 : 1)),
-                        2*x/DIAGNOSTIC_SAMPLING_RATE + ((x / PETAL_COLS) * 6),
-                        (display_current[xy] == state_color ?  "##" : "%%%%")
-                    );
-                    #ifndef DISPLAY_FLOOR_ALSO
+            #ifdef OUTPUT_NCURSES
+                // ncurses drawing
+                if (y % DIAGNOSTIC_SAMPLING_RATE == 0
+                    && x % DIAGNOSTIC_SAMPLING_RATE == 0
+                    && (y < PETAL_ROWS || x < FLOOR_COLS)
+                    #ifdef DISPLAY_PETALS_MODE
+                        #ifndef DISPLAY_FLOOR_ALSO
+                            && y < PETAL_ROWS
+                        #endif /* DISPLAY_FLOOR_ALSO */
+                    #endif /* DISPLAY_PETALS_MODE */
+                ) {
+                    #ifdef DISPLAY_PETALS_MODE
+                        if (petal_mapping_pixel(x%PETAL_COLS,y)) {
+                            attron(COLOR_PAIR(1+color));
+                        } else if (y > PETAL_ROWS) {
+                            attron(COLOR_PAIR(1+color + (color < COLORS ? MAKE_DARKER : 0)));
                         } else {
-                            mvprintw(
-                                2 + PETAL_ROWS/DIAGNOSTIC_SAMPLING_RATE + (((PETAL_ROWS-1-y)/DIAGNOSTIC_SAMPLING_RATE + ((PETAL_ROWS-1-y) > PETAL_ROWS ? 8 + PETAL_ROWS : 0)) / ((PETAL_ROWS-1-y) > PETAL_ROWS ? 2 : 1)),
-                                PETAL_COLS + 3 + 2*(COLS-1-x)/DIAGNOSTIC_SAMPLING_RATE + (((COLS-1-x) / PETAL_COLS) * 6),
-                                (display_current[xy] == state_color ?  "##" : "%%%%")
-                            );
+                            attron(COLOR_PAIR(1+15));
                         }
-                    #endif /* DISPLAY_FLOOR_ALSO */
-                #else /* DISPLAY_PETALS_MODE */
-                    attron(COLOR_PAIR(1+color));
-                    mvprintw(
-                        y/DIAGNOSTIC_SAMPLING_RATE,
-                        2*x/DIAGNOSTIC_SAMPLING_RATE,
-                        "%%%%"
-                    );
-                #endif /* DISPLAY_PETALS_MODE */
-                attroff(COLOR_PAIR(1+color));
-            }
+                        #ifndef DISPLAY_FLOOR_ALSO
+                            if (x < 3*PETAL_COLS) {
+                        #endif /* DISPLAY_FLOOR_ALSO */
+                        mvprintw(
+                            ((y/DIAGNOSTIC_SAMPLING_RATE + (y > PETAL_ROWS ? 8 + PETAL_ROWS : 0)) / (y > PETAL_ROWS ? 2 : 1)),
+                            2*x/DIAGNOSTIC_SAMPLING_RATE + ((x / PETAL_COLS) * 6),
+                            (display_current[xy] == state_color ?  "##" : "%%%%")
+                        );
+                        #ifndef DISPLAY_FLOOR_ALSO
+                            } else {
+                                mvprintw(
+                                    2 + PETAL_ROWS/DIAGNOSTIC_SAMPLING_RATE + (((PETAL_ROWS-1-y)/DIAGNOSTIC_SAMPLING_RATE + ((PETAL_ROWS-1-y) > PETAL_ROWS ? 8 + PETAL_ROWS : 0)) / ((PETAL_ROWS-1-y) > PETAL_ROWS ? 2 : 1)),
+                                    PETAL_COLS + 3 + 2*(COLS-1-x)/DIAGNOSTIC_SAMPLING_RATE + (((COLS-1-x) / PETAL_COLS) * 6),
+                                    (display_current[xy] == state_color ?  "##" : "%%%%")
+                                );
+                            }
+                        #endif /* DISPLAY_FLOOR_ALSO */
+                    #else /* DISPLAY_PETALS_MODE */
+                        attron(COLOR_PAIR(1+color));
+                        mvprintw(
+                            y/DIAGNOSTIC_SAMPLING_RATE,
+                            2*x/DIAGNOSTIC_SAMPLING_RATE,
+                            "%%%%"
+                        );
+                    #endif /* DISPLAY_PETALS_MODE */
+                    attroff(COLOR_PAIR(1+color));
+                }
+            #endif /* OUTPUT_NCURSES */
     
             #ifdef OUTPUT_CAIRO_FULLSCREEN
-	        cairo_set_source_luminary(cairo_x_cr, color);
+	            cairo_set_source_luminary(cairo_x_cr, color);
                 cairo_mask_surface(cairo_x_cr, cairo_blur, -CAIRO_BLUR_WIDTH + x * CAIRO_ZOOM, -CAIRO_BLUR_WIDTH + y * CAIRO_ZOOM);
             #endif /* OUTPUT_CAIRO_FULLSCREEN */
             #ifdef OUTPUT_CAIRO_VIDEO_FRAMES
@@ -739,8 +747,10 @@ void display_light(int id, int color) {
 }
 
 int display_flush(int epoch) {
-    // ncurses flush
-    refresh();
+    #ifdef OUTPUT_NCURSES
+        // ncurses flush
+        refresh();
+    #endif /* OUTPUT_NCURSES */
     
     #ifdef OUTPUT_GIF
         if (

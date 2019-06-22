@@ -29,8 +29,8 @@
 // physical dimensions
 //  #define PETALS_ACTIVE
 
-#define FLOOR_COLS 96//128//214//80//72
-#define FLOOR_ROWS 64// 72//120//45//48
+#define FLOOR_COLS 72//128//214//80//72
+#define FLOOR_ROWS 72// 72//120//45//48
 
 #define FLOOR_COLS_SHOWN FLOOR_COLS
 #define FLOOR_ROWS_SHOWN FLOOR_ROWS
@@ -60,7 +60,7 @@
     
     #define PETAL_OF(xy) 0
     
-    #define DIAGNOSTIC_SAMPLING_RATE 2
+    #define DIAGNOSTIC_SAMPLING_RATE 1
 #endif /*PETALS_ACTIVE*/
 
 
@@ -120,8 +120,8 @@
 #define GREY_46 250
 
 // speeds, times, distances
-#define BASE_HZ                    2
-#define WILDFIRE_SPEEDUP           4// wildfire effects propagate at this multiple of BASE_HZ
+#define BASE_HZ                    5
+#define WILDFIRE_SPEEDUP           10// wildfire effects propagate at this multiple of BASE_HZ
 #define DISPLAY_FLUSH_EPOCHS       1 // flush display every # epochs
 #define TRANSITION_TICKS           400
 #define SECONDARY_TRANSITION_TICKS 300
@@ -134,6 +134,8 @@
 
 // #define DECAY_SQUARE // make decay/waves effects square rather than round
 
+//#define OUTPUT_NCURSES
+
 // gif output
 //#define OUTPUT_GIF
 #ifdef OUTPUT_GIF
@@ -144,10 +146,10 @@
 #endif /* OUTPUT_GIF */
 
 // cairo output
-#define OUTPUT_CAIRO
+//#define OUTPUT_CAIRO
 #ifdef OUTPUT_CAIRO
-    #define OUTPUT_CAIRO_FULLSCREEN
-    //#define OUTPUT_CAIRO_VIDEO_FRAMES
+    //#define OUTPUT_CAIRO_FULLSCREEN
+    #define OUTPUT_CAIRO_VIDEO_FRAMES
     #define CAIRO_SNAPSHOT_EPOCH 1323
     
     #define CAIRO_BLUR
@@ -156,7 +158,9 @@
     #ifdef CAIRO_CELL_LABELS
         #define CAIRO_ZOOM 15
     #else /* CAIRO_CELL_LABELS */
-        #define CAIRO_ZOOM 1
+        //#define CAIRO_ZOOM 15
+        //#define CAIRO_ZOOM 3
+        #define CAIRO_ZOOM 7
     #endif /* CAIRO_CELL_LABELS */
     
     #if CAIRO_ZOOM == 15
