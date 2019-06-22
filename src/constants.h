@@ -146,10 +146,10 @@
 #endif /* OUTPUT_GIF */
 
 // cairo output
-//#define OUTPUT_CAIRO
+#define OUTPUT_CAIRO
 #ifdef OUTPUT_CAIRO
     //#define OUTPUT_CAIRO_FULLSCREEN
-    #define OUTPUT_CAIRO_VIDEO_FRAMES
+    //#define OUTPUT_CAIRO_VIDEO_FRAMES
     #define CAIRO_SNAPSHOT_EPOCH 1323
     
     #define CAIRO_BLUR
@@ -158,9 +158,7 @@
     #ifdef CAIRO_CELL_LABELS
         #define CAIRO_ZOOM 15
     #else /* CAIRO_CELL_LABELS */
-        //#define CAIRO_ZOOM 15
-        //#define CAIRO_ZOOM 3
-        #define CAIRO_ZOOM 7
+        #define CAIRO_ZOOM 1
     #endif /* CAIRO_CELL_LABELS */
     
     #if CAIRO_ZOOM == 15

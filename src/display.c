@@ -679,6 +679,7 @@ void display_color(int xy, int color, int state_color) {
 	            cairo_set_source_luminary(cairo_x_cr, color);
                 cairo_mask_surface(cairo_x_cr, cairo_blur, -CAIRO_BLUR_WIDTH + x * CAIRO_ZOOM, -CAIRO_BLUR_WIDTH + y * CAIRO_ZOOM);
             #endif /* OUTPUT_CAIRO_FULLSCREEN */
+            
             #ifdef OUTPUT_CAIRO_VIDEO_FRAMES
                 cairo_set_source_luminary(cairo_video_cr, color);
                 #ifdef OUTPUT_CAIRO_IAMAI
@@ -730,14 +731,14 @@ void display_color(int xy, int color, int state_color) {
                     cairo_show_text (cairo_video_cr, s);
                 #endif /* CAIRO_CELL_LABELS */
             #endif /* OUTPUT_CAIRO_VIDEO_FRAMES */
-    
-            display_current[xy] = state_color;
-            
-            n_dirty_pixels += 1;
             
             #ifdef SACN_CLIENT
                 sacn_draw_color((x/PETAL_COLS)*512 + petal_mapping_pixel(x & PETAL_COLS, y), rgb_palette[color*3 + 0], rgb_palette[color*3 + 1], rgb_palette[color*3 + 2]);
             #endif /* SACN_CLIENT */
+    
+            display_current[xy] = state_color;
+            
+            n_dirty_pixels += 1;
         }
     }
 }
