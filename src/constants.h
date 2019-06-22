@@ -29,8 +29,8 @@
 // physical dimensions
 //  #define PETALS_ACTIVE
 
-#define FLOOR_COLS 72//128//214//80//72
-#define FLOOR_ROWS 72// 72//120//45//48
+#define FLOOR_COLS 64
+#define FLOOR_ROWS 96
 
 #define FLOOR_COLS_SHOWN FLOOR_COLS
 #define FLOOR_ROWS_SHOWN FLOOR_ROWS
@@ -60,7 +60,7 @@
     
     #define PETAL_OF(xy) 0
     
-    #define DIAGNOSTIC_SAMPLING_RATE 1
+    #define DIAGNOSTIC_SAMPLING_RATE 3
 #endif /*PETALS_ACTIVE*/
 
 
@@ -127,14 +127,14 @@
 #define SECONDARY_TRANSITION_TICKS 300
 #define RAND_SECONDARY_TRANSITION  ( rand() % (ROWS * COLS) == 0 )
 #define HIBERNATION_TICKS          70000 // 70000 ticks ~ 103 seconds
-#define INITIALIZATION_EPOCHS      ( 20 * WILDFIRE_SPEEDUP ) // run this many epochs on startup
+#define INITIALIZATION_EPOCHS      ( 1 * WILDFIRE_SPEEDUP ) // run this many epochs on startup
 #define PRESSURE_DELAY_EPOCHS      30
 #define PRESSURE_RADIUS_TICKS      150//76
 #define RAINBOW_TONE_EPOCHS        1200
 
 // #define DECAY_SQUARE // make decay/waves effects square rather than round
 
-//#define OUTPUT_NCURSES
+#define OUTPUT_NCURSES
 
 // gif output
 //#define OUTPUT_GIF
@@ -148,7 +148,7 @@
 // cairo output
 #define OUTPUT_CAIRO
 #ifdef OUTPUT_CAIRO
-    //#define OUTPUT_CAIRO_FULLSCREEN
+    #define OUTPUT_CAIRO_FULLSCREEN
     //#define OUTPUT_CAIRO_VIDEO_FRAMES
     #define CAIRO_SNAPSHOT_EPOCH 1323
     
