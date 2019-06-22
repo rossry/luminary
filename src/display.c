@@ -273,7 +273,7 @@ void display_init() {
                     CopyFromParent,
                     CopyFromParent,
                     CopyFromParent,
-                    CWBorderPixel|CWColormap|CWEventMask|CWOverrideRedirect,
+                    CWBorderPixel|CWEventMask|CWOverrideRedirect,
                     //BlackPixel(cairo_x_display, DefaultScreen(cairo_x_display)),
                     //BlackPixel(cairo_x_display, DefaultScreen(cairo_x_display))
                     &wa
