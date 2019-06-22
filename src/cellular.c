@@ -255,7 +255,7 @@ void rainbow_to_turing(int xy, int* rainbow, turing_vector_t* turing_u, turing_v
     extra_color_to_turing(xy, (3*rainbow[xy] + substate), turing_u, turing_v);
 }
 
-#define RA2T_I 0.5
+#define RA2T_I 0.2
 void rainbow_add_to_turing(int xy, int* rainbow, turing_vector_t* turing_u, turing_vector_t* turing_v) {
     switch(3*rainbow[xy]+0) {
     case  0:

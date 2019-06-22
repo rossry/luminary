@@ -60,7 +60,7 @@
     
     #define PETAL_OF(xy) 0
     
-    #define DIAGNOSTIC_SAMPLING_RATE 1
+    #define DIAGNOSTIC_SAMPLING_RATE 2
 #endif /*PETALS_ACTIVE*/
 
 
@@ -120,8 +120,8 @@
 #define GREY_46 250
 
 // speeds, times, distances
-#define BASE_HZ                    1
-#define WILDFIRE_SPEEDUP           5// wildfire effects propagate at this multiple of BASE_HZ
+#define BASE_HZ                    2
+#define WILDFIRE_SPEEDUP           4// wildfire effects propagate at this multiple of BASE_HZ
 #define DISPLAY_FLUSH_EPOCHS       1 // flush display every # epochs
 #define TRANSITION_TICKS           400
 #define SECONDARY_TRANSITION_TICKS 300
@@ -144,10 +144,10 @@
 #endif /* OUTPUT_GIF */
 
 // cairo output
-//#define OUTPUT_CAIRO
+#define OUTPUT_CAIRO
 #ifdef OUTPUT_CAIRO
-    //#define OUTPUT_CAIRO_FULLSCREEN
-    #define OUTPUT_CAIRO_VIDEO_FRAMES
+    #define OUTPUT_CAIRO_FULLSCREEN
+    //#define OUTPUT_CAIRO_VIDEO_FRAMES
     #define CAIRO_SNAPSHOT_EPOCH 1323
     
     #define CAIRO_BLUR
@@ -156,9 +156,7 @@
     #ifdef CAIRO_CELL_LABELS
         #define CAIRO_ZOOM 15
     #else /* CAIRO_CELL_LABELS */
-        //#define CAIRO_ZOOM 15
-        //#define CAIRO_ZOOM 3
-        #define CAIRO_ZOOM 7
+        #define CAIRO_ZOOM 1
     #endif /* CAIRO_CELL_LABELS */
     
     #if CAIRO_ZOOM == 15

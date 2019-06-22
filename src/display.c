@@ -284,7 +284,7 @@ void display_init() {
                     cairo_x_display,
                     DefaultScreen(cairo_x_display)
                 );
-            cairo_surface =
+            cairo_x_surface =
                 cairo_xlib_surface_create(
                     cairo_x_display,
                     cairo_x_window,
@@ -668,8 +668,8 @@ void display_color(int xy, int color, int state_color) {
             }
     
             #ifdef OUTPUT_CAIRO_FULLSCREEN
-                cairo_set_source_luminary(color);
-                cairo_mask_surface(cairo_cr, cairo_blur, -CAIRO_BLUR_WIDTH + x * CAIRO_ZOOM, -CAIRO_BLUR_WIDTH + y * CAIRO_ZOOM);
+	        cairo_set_source_luminary(cairo_x_cr, color);
+                cairo_mask_surface(cairo_x_cr, cairo_blur, -CAIRO_BLUR_WIDTH + x * CAIRO_ZOOM, -CAIRO_BLUR_WIDTH + y * CAIRO_ZOOM);
             #endif /* OUTPUT_CAIRO_FULLSCREEN */
             #ifdef OUTPUT_CAIRO_VIDEO_FRAMES
                 cairo_set_source_luminary(cairo_video_cr, color);
