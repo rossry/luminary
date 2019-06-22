@@ -43,6 +43,14 @@ void rainbow_to_turing(
     int substate // {-1,0,1}
 );
 
+// increments (turing_u, turing_v) by rainbow*scale
+void rainbow_add_to_turing(
+   int xy,
+   int* rainbow,
+   turing_vector_t* turing_u,
+   turing_vector_t* turing_v
+);
+
 // returns a color from (turing_u, turing_v)
 int color_of_turing(
     int xy,

@@ -944,7 +944,7 @@ int display_flush(int epoch) {
                 char s[37];
                 //sprintf(s, "/tmp/luminary-360-b/img%08d.png", epoch);
                 //sprintf(s, "demo/thought_of_you/img%08d.png", epoch);
-                sprintf(s, "demo/q9-3/img%08d.png", epoch);
+                sprintf(s, "demo/q9-3c/img%08d.png", epoch);
                 if (access( s, F_OK ) == -1) {
                     /*
                     for (int xy = 0; xy < ROWS * COLS; ++xy) {

@@ -160,19 +160,19 @@ int main(int argc, char *argv[]) {
         
         turing_u[xy].state = (double)rand() / (double)(RAND_MAX/2) - 1.0;
         turing_u[xy].n_scales = 5;
-        turing_u[xy].increment[0] = 0.01;
-        turing_u[xy].increment[1] = 0.014;
-        turing_u[xy].increment[2] = 0.018;
-        turing_u[xy].increment[3] = 0.022;
-        turing_u[xy].increment[4] = 0.026;
+        turing_u[xy].increment[0] = 0.01*2;
+        turing_u[xy].increment[1] = 0.014*2;
+        turing_u[xy].increment[2] = 0.018*2;
+        turing_u[xy].increment[3] = 0.022*2;
+        turing_u[xy].increment[4] = 0.026*2;
         
         turing_v[xy].state = (double)rand() / (double)(RAND_MAX/2) - 1.0;
         turing_v[xy].n_scales = 5;
-        turing_v[xy].increment[0] = 0.01;
-        turing_v[xy].increment[1] = 0.014;
-        turing_v[xy].increment[2] = 0.018;
-        turing_v[xy].increment[3] = 0.022;
-        turing_v[xy].increment[4] = 0.026;
+        turing_v[xy].increment[0] = 0.01*2;
+        turing_v[xy].increment[1] = 0.014*2;
+        turing_v[xy].increment[2] = 0.018*2;
+        turing_v[xy].increment[3] = 0.022*2;
+        turing_v[xy].increment[4] = 0.026*2;
     }
     
     #ifdef SACN_SERVER
@@ -293,7 +293,12 @@ int main(int argc, char *argv[]) {
                         rainbow_0_next[xy] != rainbow_0[xy]
                         && rainbow_0_next[xy] != color_of_turing(xy, turing_u, turing_v)
                     ) {
-                        if (
+		        if (1) {
+			    rainbow_add_to_turing(xy, rainbow_0_next, turing_u, turing_v);
+		            if ((rainbow_0_next[xy] - rainbow_0[xy] + COLORS)%COLORS == 2) {
+  			        rainbow_add_to_turing(xy, rainbow_0_next, turing_u, turing_v);
+			    }
+                        } else if (
                             (1 + rainbow_0_next[xy] - color_of_turing(xy, turing_u, turing_v) + COLORS)%COLORS
                             <= 3
                         ) {
@@ -314,12 +319,21 @@ int main(int argc, char *argv[]) {
                             // CR rrheingans-yoo: maybe compute/apply turing a few
                             // times at [xy] right now?
                         } else {
-                            extra_color_to_turing(
-                                xy,
-                                (extra_color_of_turing(xy, turing_u, turing_v)-3+EXTRA_COLORS)%EXTRA_COLORS,
-                                turing_u,
-                                turing_v
-                            );
+		  	    if ((rainbow_0[xy] + 1 - color_of_turing(xy, turing_u, turing_v))%EXTRA_COLORS < EXTRA_COLORS/2) {
+                                extra_color_to_turing(
+                                    xy,
+                                    (extra_color_of_turing(xy, turing_u, turing_v)-3+EXTRA_COLORS)%EXTRA_COLORS,
+                                    turing_u,
+                                    turing_v
+                                );
+			    } else {
+                                extra_color_to_turing(
+                                    xy,
+                                    (extra_color_of_turing(xy, turing_u, turing_v)+3+EXTRA_COLORS)%EXTRA_COLORS,
+                                    turing_u,
+                                    turing_v
+                                );
+			    }
                             rainbow_0_next[xy] = rainbow_0[xy];
                         }
                     }
@@ -456,12 +470,14 @@ int main(int argc, char *argv[]) {
         // begin draw/increment mutex
         for (int xy = 0; xy < ROWS * COLS; ++xy) {
             int color = extra_color_of_turing(xy, turing_u, turing_v);
-            switch (rainbow_0_next[xy] - rainbow_0[xy]) {
+	    /*
+	    switch (rainbow_0_next[xy] - rainbow_0[xy]) {
             case 1: case 1-COLORS:
             case 2: case 2-COLORS:
                 color = (3*rainbow_0_next[xy] - 1 + EXTRA_COLORS)%EXTRA_COLORS + EXTRA_COLOR;
             // default: // pass
             }
+            */
             //color = 3*rainbow_0_next[xy] + EXTRA_COLOR;
             
             if (xy < EXTRA_COLORS) {

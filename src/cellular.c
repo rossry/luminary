@@ -233,19 +233,19 @@ void extra_color_to_turing(int xy, int c, turing_vector_t* turing_u, turing_vect
         turing_v[xy].state = -0.173648;
         break;
     case 32:
-        turing_u[xy].state = 0.939693;
+        turing_u[xy].state =  0.939693;
         turing_v[xy].state = -0.342020;
         break;
     case 33:
-        turing_u[xy].state = 0.866025;
+        turing_u[xy].state =  0.866025;
         turing_v[xy].state = -0.5;
         break;
     case 34:
-        turing_u[xy].state = 0.766044;
+        turing_u[xy].state =  0.766044;
         turing_v[xy].state = -0.642788;
         break;
     case 35: case -1:
-        turing_u[xy].state = 0.642788;
+        turing_u[xy].state =  0.642788;
         turing_v[xy].state = -0.766044;
         break;
     }
@@ -253,6 +253,156 @@ void extra_color_to_turing(int xy, int c, turing_vector_t* turing_u, turing_vect
 
 void rainbow_to_turing(int xy, int* rainbow, turing_vector_t* turing_u, turing_vector_t* turing_v, int substate) {
     extra_color_to_turing(xy, (3*rainbow[xy] + substate), turing_u, turing_v);
+}
+
+#define RA2T_I 0.5
+void rainbow_add_to_turing(int xy, int* rainbow, turing_vector_t* turing_u, turing_vector_t* turing_v) {
+    switch(3*rainbow[xy]+0) {
+    case  0:
+        turing_u[xy].state +=  0.5      * RA2T_I;
+        turing_v[xy].state += -0.866025 * RA2T_I;
+        break;
+    case  1:
+        turing_u[xy].state +=  0.342020 * RA2T_I;
+        turing_v[xy].state += -0.939693 * RA2T_I;
+        break;
+    case  2:
+        turing_u[xy].state +=  0.173648 * RA2T_I;
+        turing_v[xy].state += -0.984808 * RA2T_I;
+        break;
+    case  3:
+        turing_u[xy].state +=  0.0      * RA2T_I;
+        turing_v[xy].state += -1.0      * RA2T_I;
+        break;
+    case  4:
+        turing_u[xy].state += -0.173648 * RA2T_I;
+        turing_v[xy].state += -0.984808 * RA2T_I;
+        break;
+    case  5:
+        turing_u[xy].state += -0.342020 * RA2T_I;
+        turing_v[xy].state += -0.939693 * RA2T_I;
+        break;
+    case  6:
+        turing_u[xy].state += -0.5      * RA2T_I;
+        turing_v[xy].state += -0.866025 * RA2T_I;
+        break;
+    case  7:
+        turing_u[xy].state += -0.642788 * RA2T_I;
+        turing_v[xy].state += -0.766044 * RA2T_I;
+        break;
+    case  8:
+        turing_u[xy].state += -0.766044 * RA2T_I;
+        turing_v[xy].state += -0.642788 * RA2T_I;
+        break;
+    case  9:
+        turing_u[xy].state += -0.866025 * RA2T_I;
+        turing_v[xy].state += -0.5      * RA2T_I;
+        break;
+    case 10:
+        turing_u[xy].state += -0.939693 * RA2T_I;
+        turing_v[xy].state += -0.342020 * RA2T_I;
+        break;
+    case 11:
+        turing_u[xy].state += -0.984808 * RA2T_I;
+        turing_v[xy].state += -0.173648 * RA2T_I;
+        break;
+    case 12:
+        turing_u[xy].state += -1.0      * RA2T_I;
+        turing_v[xy].state +=  0.0      * RA2T_I;
+        break;
+    case 13:
+        turing_u[xy].state += -0.984808 * RA2T_I;
+        turing_v[xy].state +=  0.173648 * RA2T_I;
+        break;
+    case 14:
+        turing_u[xy].state += -0.939693 * RA2T_I;
+        turing_v[xy].state +=  0.342020 * RA2T_I;
+        break;
+    case 15:
+        turing_u[xy].state += -0.866025 * RA2T_I;
+        turing_v[xy].state +=  0.5      * RA2T_I;
+        break;
+    case 16:
+        turing_u[xy].state += -0.766044 * RA2T_I;
+        turing_v[xy].state +=  0.642788 * RA2T_I;
+        break;
+    case 17:
+        turing_u[xy].state += -0.642788 * RA2T_I;
+        turing_v[xy].state +=  0.766044 * RA2T_I;
+        break;
+    case 18:
+        turing_u[xy].state += -0.5      * RA2T_I;
+        turing_v[xy].state +=  0.866025 * RA2T_I;
+        break;
+    case 19:
+        turing_u[xy].state += -0.342020 * RA2T_I;
+        turing_v[xy].state +=  0.939693 * RA2T_I;
+        break;
+    case 20:
+        turing_u[xy].state += -0.173648 * RA2T_I;
+        turing_v[xy].state +=  0.984808 * RA2T_I;
+        break;
+    case 21:
+        turing_u[xy].state +=  0.0      * RA2T_I;
+        turing_v[xy].state +=  1.0      * RA2T_I;
+        break;
+    case 22:
+        turing_u[xy].state +=  0.173648 * RA2T_I;
+        turing_v[xy].state +=  0.984808 * RA2T_I;
+        break;
+    case 23:
+        turing_u[xy].state +=  0.342020 * RA2T_I;
+        turing_v[xy].state +=  0.939693 * RA2T_I;
+        break;
+    case 24:
+        turing_u[xy].state +=  0.5      * RA2T_I;
+        turing_v[xy].state +=  0.866025 * RA2T_I;
+        break;
+    case 25:
+        turing_u[xy].state +=  0.642788 * RA2T_I;
+        turing_v[xy].state +=  0.766044 * RA2T_I;
+        break;
+    case 26:
+        turing_u[xy].state +=  0.766044 * RA2T_I;
+        turing_v[xy].state +=  0.642788 * RA2T_I;
+        break;
+    case 27:
+        turing_u[xy].state +=  0.866025 * RA2T_I;
+        turing_v[xy].state +=  0.5      * RA2T_I;
+        break;
+    case 28:
+        turing_u[xy].state +=  0.939693 * RA2T_I;
+        turing_v[xy].state +=  0.342020 * RA2T_I;
+        break;
+    case 29:
+        turing_u[xy].state +=  0.984808 * RA2T_I;
+        turing_v[xy].state +=  0.173648 * RA2T_I;
+        break;
+    case 30:
+        turing_u[xy].state +=  1.0      * RA2T_I;
+        turing_v[xy].state +=  0.0      * RA2T_I;
+        break;
+    case 31:
+        turing_u[xy].state +=  0.984808 * RA2T_I;
+        turing_v[xy].state += -0.173648 * RA2T_I;
+        break;
+    case 32:
+        turing_u[xy].state +=  0.939693 * RA2T_I;
+        turing_v[xy].state += -0.342020 * RA2T_I;
+        break;
+    case 33:
+        turing_u[xy].state +=  0.866025 * RA2T_I;
+        turing_v[xy].state += -0.5      * RA2T_I;
+        break;
+    case 34:
+        turing_u[xy].state +=  0.766044 * RA2T_I;
+        turing_v[xy].state += -0.642788 * RA2T_I;
+        break;
+    case 35: case -1:
+        turing_u[xy].state +=  0.642788 * RA2T_I;
+        turing_v[xy].state += -0.766044 * RA2T_I;
+        break;
+    }
 }
 
 int color_of_turing(int xy, turing_vector_t* turing_u, turing_vector_t* turing_v) {

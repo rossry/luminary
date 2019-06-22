@@ -29,8 +29,8 @@
 // physical dimensions
 //  #define PETALS_ACTIVE
 
-#define FLOOR_COLS 72//128//214//80//72
-#define FLOOR_ROWS 72// 72//120//45//48
+#define FLOOR_COLS 96//128//214//80//72
+#define FLOOR_ROWS 64// 72//120//45//48
 
 #define FLOOR_COLS_SHOWN FLOOR_COLS
 #define FLOOR_ROWS_SHOWN FLOOR_ROWS
@@ -120,8 +120,8 @@
 #define GREY_46 250
 
 // speeds, times, distances
-#define BASE_HZ                    5
-#define WILDFIRE_SPEEDUP           10// wildfire effects propagate at this multiple of BASE_HZ
+#define BASE_HZ                    1
+#define WILDFIRE_SPEEDUP           5// wildfire effects propagate at this multiple of BASE_HZ
 #define DISPLAY_FLUSH_EPOCHS       1 // flush display every # epochs
 #define TRANSITION_TICKS           400
 #define SECONDARY_TRANSITION_TICKS 300
