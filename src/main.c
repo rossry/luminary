@@ -159,7 +159,7 @@ int main(int argc, char *argv[]) {
         waves_diag[xy] = 0;
         
         turing_u[xy].state = (double)rand() / (double)(RAND_MAX/2) - 1.0;
-        turing_u[xy].n_scales = 5;
+        turing_u[xy].n_scales = 4;
         turing_u[xy].increment[0] = 0.01*2;
         turing_u[xy].increment[1] = 0.014*2;
         turing_u[xy].increment[2] = 0.018*2;
