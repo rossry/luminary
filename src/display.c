@@ -291,7 +291,7 @@ void display_init() {
                     0,
                     COLS * CAIRO_ZOOM, // width
                     ROWS * CAIRO_ZOOM, // height
-                    0,
+                    2,
                     CopyFromParent,
                     CopyFromParent,
                     CopyFromParent,

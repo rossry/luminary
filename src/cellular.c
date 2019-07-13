@@ -255,7 +255,6 @@ void rainbow_to_turing(int xy, int* rainbow, turing_vector_t* turing_u, turing_v
     extra_color_to_turing(xy, (3*rainbow[xy] + substate), turing_u, turing_v);
 }
 
-#define RA2T_I 0.2
 void rainbow_add_to_turing(int xy, int* rainbow, turing_vector_t* turing_u, turing_vector_t* turing_v) {
     switch(3*rainbow[xy]+0) {
     case  0:
@@ -600,7 +599,7 @@ int compute_cyclic(int* grid, int* impatience, int xy) {
         }
         
         /* precipitate re-shuffle */
-        if (impatience[xy] > 300) {
+        if (impatience[xy] > 100) {
             impatience[xy] = 0;
             return RAND_COLOR;
         }
@@ -824,7 +823,7 @@ void compute_turing_all(turing_vector_t* uu, turing_vector_t* vv) {
     }
     
     // diffuse reagents -- 3-pass box blur
-    for (int ii=0; ii<3; ++ii) {
+    for (int ii=0; ii<TURING_DIFFUSION_PASSES; ++ii) {
         diffuse_turing_reagents(uu);
         diffuse_turing_reagents(vv);
     }

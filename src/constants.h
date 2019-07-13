@@ -29,8 +29,8 @@
 // physical dimensions
 //  #define PETALS_ACTIVE
 
-#define FLOOR_COLS 72//128//214//80//72
-#define FLOOR_ROWS 72// 72//120//45//48
+#define FLOOR_COLS 124
+#define FLOOR_ROWS 92
 
 #define FLOOR_COLS_SHOWN FLOOR_COLS
 #define FLOOR_ROWS_SHOWN FLOOR_ROWS
@@ -60,7 +60,7 @@
     
     #define PETAL_OF(xy) 0
     
-    #define DIAGNOSTIC_SAMPLING_RATE 1
+    #define DIAGNOSTIC_SAMPLING_RATE 3
 #endif /*PETALS_ACTIVE*/
 
 
@@ -74,7 +74,7 @@
     #endif /* DISPLAY_FLOOR_ALSO */
 #else /* DISPLAY_PETALS_MODE */
     //#define DIAGNOSTIC_COLS_SUGGESTED (COLS / DIAGNOSTIC_SAMPLING_RATE)
-    #define DIAGNOSTIC_ROWS (FLOOR_ROWS_SHOWN / DIAGNOSTIC_SAMPLING_RATE)
+    #define DIAGNOSTIC_ROWS (((FLOOR_ROWS_SHOWN-1) / DIAGNOSTIC_SAMPLING_RATE) + 1)
 #endif /* DISPLAY_PETALS_MODE */
 
 #define DIAGNOSTIC_COLS 72 //80
@@ -120,21 +120,24 @@
 #define GREY_46 250
 
 // speeds, times, distances
-#define BASE_HZ                    5
-#define WILDFIRE_SPEEDUP           10// wildfire effects propagate at this multiple of BASE_HZ
+#define BASE_HZ                    4
+#define WILDFIRE_SPEEDUP           1// wildfire effects propagate at this multiple of BASE_HZ
 #define DISPLAY_FLUSH_EPOCHS       1 // flush display every # epochs
 #define TRANSITION_TICKS           400
 #define SECONDARY_TRANSITION_TICKS 300
 #define RAND_SECONDARY_TRANSITION  ( rand() % (ROWS * COLS) == 0 )
 #define HIBERNATION_TICKS          70000 // 70000 ticks ~ 103 seconds
-#define INITIALIZATION_EPOCHS      ( 20 * WILDFIRE_SPEEDUP ) // run this many epochs on startup
+#define INITIALIZATION_EPOCHS      ( 1 * WILDFIRE_SPEEDUP ) // run this many epochs on startup
 #define PRESSURE_DELAY_EPOCHS      30
 #define PRESSURE_RADIUS_TICKS      150//76
 #define RAINBOW_TONE_EPOCHS        1200
 
+// evolution parameters
 // #define DECAY_SQUARE // make decay/waves effects square rather than round
+#define TURING_DIFFUSION_PASSES    2 // 3
+#define RA2T_I                     0.35
 
-//#define OUTPUT_NCURSES
+#define OUTPUT_NCURSES
 
 // gif output
 //#define OUTPUT_GIF
@@ -148,7 +151,7 @@
 // cairo output
 #define OUTPUT_CAIRO
 #ifdef OUTPUT_CAIRO
-    //#define OUTPUT_CAIRO_FULLSCREEN
+    #define OUTPUT_CAIRO_FULLSCREEN
     //#define OUTPUT_CAIRO_VIDEO_FRAMES
     #define CAIRO_SNAPSHOT_EPOCH 1323
     
