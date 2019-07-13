@@ -936,7 +936,9 @@ int display_flush(int epoch) {
     
     #ifdef OUTPUT_CAIRO
         #ifdef OUTPUT_CAIRO_FULLSCREEN
-            cairo_mask_surface(cairo_x_cr, cairo_surface, 0, 0);
+            cairo_set_source_surface (cairo_x_cr, cairo_surface, 0, 0);
+        	cairo_rectangle (cairo_x_cr, 0, 0, 14 + COLS * CAIRO_ZOOM, 14 + ROWS * CAIRO_ZOOM);
+        	cairo_fill (cairo_x_cr);
         #elif defined OUTPUT_CAIRO_VIDEO_FRAMES /* OUTPUT_CAIRO_FULLSCREEN */
             if (1 || epoch % WILDFIRE_SPEEDUP == 0) {
                 
@@ -996,19 +998,19 @@ int display_flush(int epoch) {
                 }
             }
         #elif defined CAIRO_SNAPSHOT_EPOCH
-            cairo_surface_t *cairo_surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, COLS * CAIRO_ZOOM, ROWS * CAIRO_ZOOM);
-            cairo_t *cairo_cr = cairo_create(cairo_surface);
+            cairo_surface_t *cairo_shapshot_surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, COLS * CAIRO_ZOOM, ROWS * CAIRO_ZOOM);
+            cairo_t *cairo_shapshot_cr = cairo_create(cairo_shapshot_surface);
             if (epoch == CAIRO_SNAPSHOT_EPOCH) {
                 for (int xy = 0; xy < ROWS * COLS; ++xy) {
                     int x = xy % COLS;
                     int y = xy / COLS;
-                    cairo_set_source_luminary(cairo_cr, display_current[xy]);
-                    cairo_mask_surface(cairo_cr, cairo_blur, -CAIRO_BLUR_WIDTH + x * CAIRO_ZOOM, -CAIRO_BLUR_WIDTH + y * CAIRO_ZOOM);
+                    cairo_set_source_luminary(cairo_shapshot_cr, display_current[xy]);
+                    cairo_mask_surface(cairo_shapshot_cr, cairo_blur, -CAIRO_BLUR_WIDTH + x * CAIRO_ZOOM, -CAIRO_BLUR_WIDTH + y * CAIRO_ZOOM);
                 }
                 
-                cairo_destroy(cairo_cr);
-                cairo_surface_write_to_png(cairo_surface, "demo/cairo.png");
-                cairo_surface_destroy(cairo_surface);
+                cairo_destroy(cairo_shapshot_cr);
+                cairo_surface_write_to_png(cairo_shapshot_surface, "demo/cairo.png");
+                cairo_surface_destroy(cairo_shapshot_surface);
                 
                 mvprintw(DIAGNOSTIC_ROWS+4, 1, "wrote cairo (%d frames)", epoch);
             }
