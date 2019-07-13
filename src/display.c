@@ -30,22 +30,27 @@ uint8_t rgb_palette[256 * 3];
 cairo_surface_t *cairo_blur;
 cairo_t *cairo_blur_cr;
 
-#ifdef OUTPUT_CAIRO_FULLSCREEN
-    cairo_surface_t *cairo_x_surface;
-    cairo_t *cairo_x_cr;
+#ifdef OUTPUT_CAIRO
+    cairo_surface_t *cairo_surface;
+    cairo_t *cairo_cr;
 
-    Display *cairo_x_display;
-    Window cairo_x_window;
-    Visual *cairo_x_visual;
-#endif /* OUTPUT_CAIRO_FULLSCREEN */
+    #ifdef OUTPUT_CAIRO_FULLSCREEN
+        cairo_surface_t *cairo_x_surface;
+        cairo_t *cairo_x_cr;
+    
+        Display *cairo_x_display;
+        Window cairo_x_window;
+        Visual *cairo_x_visual;
+    #endif /* OUTPUT_CAIRO_FULLSCREEN */
 
-#ifdef OUTPUT_CAIRO_VIDEO_FRAMES
-    cairo_surface_t *cairo_video_surface;
-    cairo_t *cairo_video_cr;
-
-    int cairo_video_started_yet;
-    int cairo_video_written_yet;
-#endif /* OUTPUT_CAIRO_VIDEO_FRAMES */
+    #ifdef OUTPUT_CAIRO_VIDEO_FRAMES
+        cairo_surface_t *cairo_video_surface;
+        cairo_t *cairo_video_cr;
+    
+        int cairo_video_started_yet;
+        int cairo_video_written_yet;
+    #endif /* OUTPUT_CAIRO_VIDEO_FRAMES */
+#endif /* OUTPUT_CAIRO */
 
 void cairo_set_source_luminary(cairo_t* cr, int id) {
     cairo_set_source_rgb(
@@ -263,6 +268,17 @@ void display_init() {
     #endif /* OUTPUT_GIF */
     
     #ifdef OUTPUT_CAIRO
+        cairo_surface =
+            cairo_image_surface_create(
+                CAIRO_FORMAT_ARGB32,
+                COLS * CAIRO_ZOOM,
+                ROWS * CAIRO_ZOOM
+            );
+        cairo_cr = cairo_create(cairo_surface);
+        cairo_set_source_rgb(cairo_cr, 0x00, 0x00, 0x00);
+        cairo_rectangle(cairo_cr, 0, 0, 14 + COLS * CAIRO_ZOOM, 14 + ROWS * CAIRO_ZOOM);
+        cairo_fill(cairo_cr);
+        
         #ifdef OUTPUT_CAIRO_FULLSCREEN
             cairo_x_display = XOpenDisplay(0);
             XSetWindowAttributes wa;
@@ -674,10 +690,14 @@ void display_color(int xy, int color, int state_color) {
                     attroff(COLOR_PAIR(1+color));
                 }
             #endif /* OUTPUT_NCURSES */
-    
+            
+            
+            cairo_set_source_luminary(cairo_cr, color);
+            cairo_mask_surface(cairo_cr, cairo_blur, -CAIRO_BLUR_WIDTH + x * CAIRO_ZOOM, -CAIRO_BLUR_WIDTH + y * CAIRO_ZOOM);
+            
             #ifdef OUTPUT_CAIRO_FULLSCREEN
-	            cairo_set_source_luminary(cairo_x_cr, color);
-                cairo_mask_surface(cairo_x_cr, cairo_blur, -CAIRO_BLUR_WIDTH + x * CAIRO_ZOOM, -CAIRO_BLUR_WIDTH + y * CAIRO_ZOOM);
+            //    cairo_set_source_luminary(cairo_x_cr, color);
+            //    cairo_mask_surface(cairo_x_cr, cairo_blur, -CAIRO_BLUR_WIDTH + x * CAIRO_ZOOM, -CAIRO_BLUR_WIDTH + y * CAIRO_ZOOM);
             #endif /* OUTPUT_CAIRO_FULLSCREEN */
             
             #ifdef OUTPUT_CAIRO_VIDEO_FRAMES
@@ -698,7 +718,7 @@ void display_color(int xy, int color, int state_color) {
                         cairo_mask_surface(cairo_video_cr, cairo_blur, -CAIRO_BLUR_WIDTH + ((COLS)-COLS/2) * CAIRO_ZOOM, 1816 -CAIRO_BLUR_WIDTH + y * CAIRO_ZOOM);
                     }
                 #else
-                    cairo_mask_surface(cairo_video_cr, cairo_blur, 7 -CAIRO_BLUR_WIDTH + x * CAIRO_ZOOM, 7 -CAIRO_BLUR_WIDTH + y * CAIRO_ZOOM);
+                    cairo_mask_surface(cairo_video_cr, cairo_blur, 0, 0);
                 #endif
                 
                 #ifdef CAIRO_CELL_LABELS
@@ -916,7 +936,7 @@ int display_flush(int epoch) {
     
     #ifdef OUTPUT_CAIRO
         #ifdef OUTPUT_CAIRO_FULLSCREEN
-            // pass
+            cairo_mask_surface(cairo_x_cr, cairo_cr, -CAIRO_BLUR_WIDTH + x * CAIRO_ZOOM, -CAIRO_BLUR_WIDTH + y * CAIRO_ZOOM);
         #elif defined OUTPUT_CAIRO_VIDEO_FRAMES /* OUTPUT_CAIRO_FULLSCREEN */
             if (1 || epoch % WILDFIRE_SPEEDUP == 0) {
                 
