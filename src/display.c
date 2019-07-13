@@ -936,7 +936,7 @@ int display_flush(int epoch) {
     
     #ifdef OUTPUT_CAIRO
         #ifdef OUTPUT_CAIRO_FULLSCREEN
-            cairo_mask_surface(cairo_x_cr, cairo_cr, -CAIRO_BLUR_WIDTH + x * CAIRO_ZOOM, -CAIRO_BLUR_WIDTH + y * CAIRO_ZOOM);
+            cairo_mask_surface(cairo_x_cr, cairo_surface, 0, 0);
         #elif defined OUTPUT_CAIRO_VIDEO_FRAMES /* OUTPUT_CAIRO_FULLSCREEN */
             if (1 || epoch % WILDFIRE_SPEEDUP == 0) {
                 
