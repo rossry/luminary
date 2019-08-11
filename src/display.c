@@ -937,8 +937,12 @@ int display_flush(int epoch) {
     #ifdef OUTPUT_CAIRO
         #ifdef OUTPUT_CAIRO_FULLSCREEN
             cairo_set_source_surface (cairo_x_cr, cairo_surface, 0, 0);
-        	cairo_rectangle (cairo_x_cr, 0, 0, 14 + COLS * CAIRO_ZOOM, 14 + ROWS * CAIRO_ZOOM);
-        	cairo_fill (cairo_x_cr);
+            //cairo_rectangle (cairo_x_cr, 0, 0, 14 + COLS * CAIRO_ZOOM, 14 + ROWS * CAIRO_ZOOM);
+            //cairo_rectangle(cairo_x_cr, 0, 0, 50, 50);
+            //cairo_fill (cairo_x_cr);
+            cairo_paint_with_alpha(cairo_x_cr,CAIRO_PAINT_ALPHA);
+            cairo_surface_flush(cairo_x_surface);
+            XFlush(cairo_x_display);
         #elif defined OUTPUT_CAIRO_VIDEO_FRAMES /* OUTPUT_CAIRO_FULLSCREEN */
             if (1 || epoch % WILDFIRE_SPEEDUP == 0) {
                 

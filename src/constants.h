@@ -135,7 +135,7 @@
 // evolution parameters
 // #define DECAY_SQUARE // make decay/waves effects square rather than round
 #define TURING_DIFFUSION_PASSES    2 // 3
-#define RA2T_I                     0.35
+#define RA2T_I                     0.765 // 0.35
 
 #define OUTPUT_NCURSES
 
@@ -156,6 +156,7 @@
     #define CAIRO_SNAPSHOT_EPOCH 1323
     
     #define CAIRO_BLUR
+    #define CAIRO_PAINT_ALPHA 0.1
     
     //#define CAIRO_CELL_LABELS
     #ifdef CAIRO_CELL_LABELS

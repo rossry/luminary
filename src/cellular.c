@@ -1,6 +1,7 @@
 #include "constants.h"
 
 #include <stdlib.h>
+#include <unistd.h>
 #include <math.h>
 #include <assert.h>
 
@@ -696,7 +697,10 @@ void diffuse_turing_reagent_horiz(
         );
     }
     
-    for (int xy=0; xy<ROWS*COLS; ++xy) { 
+    for (int xy=0; xy<ROWS*COLS; ++xy) {
+        if (xy % 100 == 0) {
+            usleep(50);
+        } 
         *(
             (&vv[xy].scale[0].n_activ_tmp - &vv[0].scale[0].n_activ)
             + n_neighbors
@@ -749,6 +753,9 @@ void diffuse_turing_reagent_vert(
     }
     
     for (int xy=0; xy<ROWS*COLS; ++xy) {
+        if (xy % 100 == 0) {
+            usleep(50);
+        }
         *(
             (&vv[xy].scale[0].n_activ - &vv[0].scale[0].n_activ)
             + n_neighbors
@@ -805,6 +812,10 @@ void diffuse_turing_reagents(turing_vector_t* vv) {
 void compute_turing_all(turing_vector_t* uu, turing_vector_t* vv) {
     // initialize reagent arrays
     for (int xy=0; xy<ROWS*COLS; ++xy) {
+        if (xy % 100 == 0) {
+            usleep(50);
+        }
+        
         for (int scl=0; scl<uu[xy].n_scales; ++scl) {
             uu[xy].scale[scl].n_activ = 1;
             uu[xy].scale[scl].activ = uu[xy].state;
@@ -822,7 +833,7 @@ void compute_turing_all(turing_vector_t* uu, turing_vector_t* vv) {
         }
     }
     
-    // diffuse reagents -- 3-pass box blur
+    // diffuse reagents -- N-pass box blur
     for (int ii=0; ii<TURING_DIFFUSION_PASSES; ++ii) {
         diffuse_turing_reagents(uu);
         diffuse_turing_reagents(vv);
@@ -830,6 +841,9 @@ void compute_turing_all(turing_vector_t* uu, turing_vector_t* vv) {
     
     // normalize reagents
     for (int xy=0; xy<ROWS*COLS; ++xy) {
+        if (xy % 100) {
+            usleep(50);
+        }
         for (int scl=0; scl<uu[xy].n_scales; ++scl) {
             uu[xy].scale[scl].activ /= uu[xy].scale[scl].n_activ;
             uu[xy].scale[scl].inhib /= uu[xy].scale[scl].n_inhib;

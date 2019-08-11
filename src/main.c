@@ -200,6 +200,9 @@ int main(int argc, char *argv[]) {
         
         // begin computing evolution
         for (int xy = 0; xy < ROWS * COLS; ++xy) {
+            if (xy % 100) {
+                usleep(50);
+            }
             int x = xy % COLS;
             int y = xy / COLS;
             if (y < PETAL_ROWS || x < FLOOR_COLS) {
@@ -401,10 +404,14 @@ int main(int argc, char *argv[]) {
         gettimeofday(&fio_stop, NULL);
         
         for (int xy = 0; xy < ROWS * COLS; ++xy) {
+            if (xy % 100 == 0) {
+                usleep(50);
+            }
             int x = xy % COLS;
             int y = xy / COLS;
             
-            if (1
+            #ifdef NOT_FOR_GG
+            if (0
                 && (y > PETAL_ROWS && x < FLOOR_COLS) // CR-someday rrheingans-yoo for ntarleton: this should instead be pressure_switch_depressed(xy)
                 && rand() % (FLOOR_ROWS * FLOOR_COLS * 15) == 0 // CR-someday rrheingans-yoo for ntarleton: remove me
             ) {
@@ -426,6 +433,7 @@ int main(int argc, char *argv[]) {
                     rainbow_tone[xy] = ((waves_orth_next[xy] / 17) / RAINBOW_TONE_EPOCHS) % COLORS;
                 }
             }
+            #endif /* NOT_FOR_GG */
             
             apply_turing(
                 turing_u,
@@ -469,6 +477,9 @@ int main(int argc, char *argv[]) {
         
         // begin draw/increment mutex
         for (int xy = 0; xy < ROWS * COLS; ++xy) {
+            if (xy % 100 == 0) {
+                usleep(50);
+            }
             int color = extra_color_of_turing(xy, turing_u, turing_v);
 	    /*
 	    switch (rainbow_0_next[xy] - rainbow_0[xy]) {
