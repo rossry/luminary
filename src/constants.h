@@ -123,6 +123,13 @@
 #define BASE_HZ                    4
 #define WILDFIRE_SPEEDUP           1// wildfire effects propagate at this multiple of BASE_HZ
 #define DISPLAY_FLUSH_EPOCHS       1 // flush display every # epochs
+
+#define THROTTLE_LOOP
+#ifdef THROTTLE_LOOP
+    #define THROTTLE_LOOP_N 100
+    #define THROTTLE_LOOP_USEC 50
+#endif /* THROTTLE_LOOP*/
+
 #define TRANSITION_TICKS           400
 #define SECONDARY_TRANSITION_TICKS 300
 #define RAND_SECONDARY_TRANSITION  ( rand() % (ROWS * COLS) == 0 )

@@ -200,9 +200,11 @@ int main(int argc, char *argv[]) {
         
         // begin computing evolution
         for (int xy = 0; xy < ROWS * COLS; ++xy) {
-            if (xy % 100) {
-                usleep(50);
+            #ifdef THROTTLE_LOOP
+            if (xy % THROTTLE_LOOP_N) {
+                usleep(THROTTLE_LOOP_USEC);
             }
+            #endif /* THROTTLE_LOOP */
             int x = xy % COLS;
             int y = xy / COLS;
             if (y < PETAL_ROWS || x < FLOOR_COLS) {
@@ -404,9 +406,11 @@ int main(int argc, char *argv[]) {
         gettimeofday(&fio_stop, NULL);
         
         for (int xy = 0; xy < ROWS * COLS; ++xy) {
-            if (xy % 100 == 0) {
-                usleep(50);
+            #ifdef THROTTLE_LOOP
+            if (xy % THROTTLE_LOOP_N) {
+                usleep(THROTTLE_LOOP_USEC);
             }
+            #endif /* THROTTLE_LOOP */
             int x = xy % COLS;
             int y = xy / COLS;
             
@@ -477,9 +481,11 @@ int main(int argc, char *argv[]) {
         
         // begin draw/increment mutex
         for (int xy = 0; xy < ROWS * COLS; ++xy) {
-            if (xy % 100 == 0) {
-                usleep(50);
+            #ifdef THROTTLE_LOOP
+            if (xy % THROTTLE_LOOP_N) {
+                usleep(THROTTLE_LOOP_USEC);
             }
+            #endif /* THROTTLE_LOOP */
             int color = extra_color_of_turing(xy, turing_u, turing_v);
 	    /*
 	    switch (rainbow_0_next[xy] - rainbow_0[xy]) {
