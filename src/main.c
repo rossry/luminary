@@ -201,7 +201,7 @@ int main(int argc, char *argv[]) {
         // begin computing evolution
         for (int xy = 0; xy < ROWS * COLS; ++xy) {
             #ifdef THROTTLE_LOOP
-            if (xy % THROTTLE_LOOP_N) {
+            if (xy % THROTTLE_LOOP_N == 0) {
                 usleep(THROTTLE_LOOP_USEC);
             }
             #endif /* THROTTLE_LOOP */
@@ -407,7 +407,7 @@ int main(int argc, char *argv[]) {
         
         for (int xy = 0; xy < ROWS * COLS; ++xy) {
             #ifdef THROTTLE_LOOP
-            if (xy % THROTTLE_LOOP_N) {
+            if (xy % THROTTLE_LOOP_N == 0) {
                 usleep(THROTTLE_LOOP_USEC);
             }
             #endif /* THROTTLE_LOOP */
@@ -482,7 +482,7 @@ int main(int argc, char *argv[]) {
         // begin draw/increment mutex
         for (int xy = 0; xy < ROWS * COLS; ++xy) {
             #ifdef THROTTLE_LOOP
-            if (xy % THROTTLE_LOOP_N) {
+            if (xy % THROTTLE_LOOP_N == 0) {
                 usleep(THROTTLE_LOOP_USEC);
             }
             #endif /* THROTTLE_LOOP */

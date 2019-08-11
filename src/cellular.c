@@ -699,7 +699,7 @@ void diffuse_turing_reagent_horiz(
     
     for (int xy=0; xy<ROWS*COLS; ++xy) {
         #ifdef THROTTLE_LOOP
-        if (xy % THROTTLE_LOOP_N) {
+        if (xy % THROTTLE_LOOP_N == 0) {
             usleep(THROTTLE_LOOP_USEC);
         }
         #endif /* THROTTLE_LOOP */
@@ -756,7 +756,7 @@ void diffuse_turing_reagent_vert(
     
     for (int xy=0; xy<ROWS*COLS; ++xy) {
         #ifdef THROTTLE_LOOP
-        if (xy % THROTTLE_LOOP_N) {
+        if (xy % THROTTLE_LOOP_N == 0) {
             usleep(THROTTLE_LOOP_USEC);
         }
         #endif /* THROTTLE_LOOP */
@@ -817,7 +817,7 @@ void compute_turing_all(turing_vector_t* uu, turing_vector_t* vv) {
     // initialize reagent arrays
     for (int xy=0; xy<ROWS*COLS; ++xy) {
         #ifdef THROTTLE_LOOP
-        if (xy % THROTTLE_LOOP_N) {
+        if (xy % THROTTLE_LOOP_N == 0) {
             usleep(THROTTLE_LOOP_USEC);
         }
         #endif /* THROTTLE_LOOP */
@@ -848,7 +848,7 @@ void compute_turing_all(turing_vector_t* uu, turing_vector_t* vv) {
     // normalize reagents
     for (int xy=0; xy<ROWS*COLS; ++xy) {
         #ifdef THROTTLE_LOOP
-        if (xy % THROTTLE_LOOP_N) {
+        if (xy % THROTTLE_LOOP_N == 0) {
             usleep(THROTTLE_LOOP_USEC);
         }
         #endif /* THROTTLE_LOOP */
