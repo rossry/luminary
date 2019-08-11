@@ -127,7 +127,7 @@
 #define THROTTLE_LOOP
 #ifdef THROTTLE_LOOP
     #define THROTTLE_LOOP_N 100
-    #define THROTTLE_LOOP_USEC 50
+    #define THROTTLE_LOOP_USEC 350
 #endif /* THROTTLE_LOOP*/
 
 #define TRANSITION_TICKS           400

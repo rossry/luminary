@@ -7,6 +7,10 @@
 
 #include "cellular.h"
 
+#ifdef CAIRO_PAINT_BETWEEN_TURING_DIFFUSION_PASSES
+    #include "display.h"
+#endif /* CAIRO_PAINT_BETWEEN_TURING_DIFFUSION_PASSES */
+
 // shared neighbors logic
 
 int y_zero[] = {0, -1, -1+COLS, 0, 0, COLS, 0, 1, 1+COLS};
@@ -841,6 +845,11 @@ void compute_turing_all(turing_vector_t* uu, turing_vector_t* vv) {
     
     // diffuse reagents -- N-pass box blur
     for (int ii=0; ii<TURING_DIFFUSION_PASSES; ++ii) {
+        #ifdef CAIRO_PAINT_BETWEEN_TURING_DIFFUSION_PASSES
+            if (ii) {
+                display_flush();
+            }
+        #endif /* CAIRO_PAINT_BETWEEN_TURING_DIFFUSION_PASSES */
         diffuse_turing_reagents(uu);
         diffuse_turing_reagents(vv);
     }
