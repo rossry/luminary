@@ -20,8 +20,8 @@ launches an ncurses-based simulator.
 
 ## roadmap
 
-* add sACN server support for 2018-08-18 (rrheingans-yoo)
-* add downstream pixel controller support for 2018-08-18 (ntarleton)
-* tune pixel-petal mappings for 2018-08-18 (???)
+* add sACN server support for 2018-08-18
+* add downstream pixel controller support for 2018-08-18
+* tune pixel-petal mappings for 2018-08-18
 * pixel-pusher integration suspended until 2018-09-04
 * soft artistic feature freeze until 2018-09-04

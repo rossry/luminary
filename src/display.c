@@ -692,8 +692,10 @@ void display_color(int xy, int color, int state_color) {
             #endif /* OUTPUT_NCURSES */
             
             
-            cairo_set_source_luminary(cairo_cr, color);
-            cairo_mask_surface(cairo_cr, cairo_blur, -CAIRO_BLUR_WIDTH + x * CAIRO_ZOOM, -CAIRO_BLUR_WIDTH + y * CAIRO_ZOOM);
+            #ifdef OUTPUT_CAIRO
+                cairo_set_source_luminary(cairo_cr, color);
+                cairo_mask_surface(cairo_cr, cairo_blur, -CAIRO_BLUR_WIDTH + x * CAIRO_ZOOM, -CAIRO_BLUR_WIDTH + y * CAIRO_ZOOM);
+            #endif /* OUTPUT_CAIRO */
             
             #ifdef OUTPUT_CAIRO_FULLSCREEN
             //    cairo_set_source_luminary(cairo_x_cr, color);
@@ -718,7 +720,8 @@ void display_color(int xy, int color, int state_color) {
                         cairo_mask_surface(cairo_video_cr, cairo_blur, -CAIRO_BLUR_WIDTH + ((COLS)-COLS/2) * CAIRO_ZOOM, 1816 -CAIRO_BLUR_WIDTH + y * CAIRO_ZOOM);
                     }
                 #else
-                    cairo_mask_surface(cairo_video_cr, cairo_blur, 0, 0);
+                    //cairo_mask_surface(cairo_video_cr, cairo_blur, 14 -CAIRO_BLUR_WIDTH + x * CAIRO_ZOOM, 14 -CAIRO_BLUR_WIDTH + y * CAIRO_ZOOM);
+                    cairo_mask_surface(cairo_video_cr, cairo_blur, 7 -CAIRO_BLUR_WIDTH + x * CAIRO_ZOOM, 7 -CAIRO_BLUR_WIDTH + y * CAIRO_ZOOM);
                 #endif
                 
                 #ifdef CAIRO_CELL_LABELS
@@ -764,7 +767,7 @@ void display_color(int xy, int color, int state_color) {
 }
 
 void display_light(int id, int color) {
-    // CR rrheingans-yoo for ntarleton: set light id to color color
+    // CR rrheingans-yoo: set light id to color color
 }
 
 int display_flush(int epoch) {
@@ -981,7 +984,7 @@ int display_flush(int epoch) {
                 char s[37];
                 //sprintf(s, "/tmp/luminary-360-b/img%08d.png", epoch);
                 //sprintf(s, "demo/thought_of_you/img%08d.png", epoch);
-                sprintf(s, "demo/q9-3c/img%08d.png", epoch);
+                sprintf(s, "demo/v2-1a/img%08d.png", epoch);
                 if (access( s, F_OK ) == -1) {
                     /*
                     for (int xy = 0; xy < ROWS * COLS; ++xy) {
@@ -997,8 +1000,14 @@ int display_flush(int epoch) {
                     }
                     
                     mvprintw(DIAGNOSTIC_ROWS+4, 1, "wrote cairo (%d frames)", epoch/*/WILDFIRE_SPEEDUP*/);
+                    #ifdef CAIRO_PRINT_VERBOSE
+                        printf("wrote cairo (%d frames)\n", epoch);
+                    #endif /* CAIRO_PRINT_VERBOSE */
                 } else {
                     mvprintw(DIAGNOSTIC_ROWS+4, 1, "skip cairo (%d frames)", epoch/*/WILDFIRE_SPEEDUP*/);
+                    #ifdef CAIRO_PRINT_VERBOSE
+                        printf("skip cairo (%d frames)\n", epoch);
+                    #endif /* CAIRO_PRINT_VERBOSE */
                 }
             }
         #elif defined CAIRO_SNAPSHOT_EPOCH

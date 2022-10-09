@@ -416,8 +416,8 @@ int main(int argc, char *argv[]) {
             
             #ifdef NOT_FOR_GG
             if (0
-                && (y > PETAL_ROWS && x < FLOOR_COLS) // CR-someday rrheingans-yoo for ntarleton: this should instead be pressure_switch_depressed(xy)
-                && rand() % (FLOOR_ROWS * FLOOR_COLS * 15) == 0 // CR-someday rrheingans-yoo for ntarleton: remove me
+                && (y > PETAL_ROWS && x < FLOOR_COLS) // CR-someday rrheingans-yoo: this should instead be pressure_switch_depressed(xy)
+                && rand() % (FLOOR_ROWS * FLOOR_COLS * 15) == 0 // CR-someday rrheingans-yoo: remove me
             ) {
                 pressure_self[xy] = PRESSURE_DELAY_EPOCHS;
             }
