@@ -1,0 +1,5 @@
+{
+  "trunk": "main",
+  "ignore_branches": [],
+  "max_days_behind_trunk": 30
+}
