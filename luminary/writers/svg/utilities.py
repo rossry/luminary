@@ -19,23 +19,6 @@ def create_svg_header(viewbox: str, width: str, height: str) -> str:
     return f'<svg width="{width}" height="{height}" viewBox="{viewbox}" xmlns="http://www.w3.org/2000/svg">'
 
 
-def create_rect_svg(x: float, y: float, width: float, height: float, fill: str) -> str:
-    """
-    Generate background rectangle element.
-
-    Args:
-        x: X position
-        y: Y position
-        width: Rectangle width
-        height: Rectangle height
-        fill: Fill color
-
-    Returns:
-        SVG rect element string
-    """
-    return f'  <rect x="{x}" y="{y}" width="{width}" height="{height}" fill="{fill}"/>'
-
-
 def create_polygon_svg(
     points: List[Point], fill: str, opacity: float, stroke: str = "none"
 ) -> str:

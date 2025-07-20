@@ -4,7 +4,6 @@ import pytest
 from luminary.geometry.point import Point
 from luminary.writers.svg.utilities import (
     create_svg_header,
-    create_rect_svg,
     create_polygon_svg,
     create_circle_svg,
     create_line_svg,
@@ -20,17 +19,6 @@ class TestSVGUtilities:
         result = create_svg_header("-10 -10 120 120", "100%", "400")
         expected = '<svg width="100%" height="400" viewBox="-10 -10 120 120" xmlns="http://www.w3.org/2000/svg">'
         assert result == expected
-
-    def test_create_rect_svg(self):
-        """Test rectangle generation."""
-        result = create_rect_svg(10, 20, 100, 50, "white")
-        expected = '  <rect x="10" y="20" width="100" height="50" fill="white"/>'
-        assert result == expected
-
-        # Test with negative coordinates
-        result2 = create_rect_svg(-5, -10, 50, 25, "#FF0000")
-        expected2 = '  <rect x="-5" y="-10" width="50" height="25" fill="#FF0000"/>'
-        assert result2 == expected2
 
     def test_create_polygon_svg(self):
         """Test polygon generation."""
