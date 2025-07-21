@@ -7,19 +7,19 @@
 ### Branch Naming Convention
 
 **CRITICAL**: Branches MUST be named based on their hierarchy, showing feature dependencies.
-**REQUIRED**: All branch names MUST end with `/+` to avoid Git filesystem conflicts.
+**REQUIRED**: All branch names MUST end with `/_` to avoid Git filesystem conflicts.
 
 #### Correct Branch Naming Examples
-- Base feature: `foundation/+`
-- Stacked feature: `foundation/geometry/+` (geometry depends on foundation)  
-- Further stacked: `foundation/geometry/triangles/+` (triangles depend on geometry)
+- Base feature: `foundation/_`
+- Stacked feature: `foundation/geometry/_` (geometry depends on foundation)  
+- Further stacked: `foundation/geometry/triangles/_` (triangles depend on geometry)
 
 #### Incorrect Branch Naming
 - ❌ `feat/foundation` (do NOT prefix with `feat/`)
 - ❌ `feature/geometry` (do NOT prefix with `feature/`)
 - ❌ `geometry` (does NOT show dependency on foundation)
-- ❌ `foundation` (missing required `/+` suffix)
-- ❌ `foundation/geometry` (missing required `/+` suffix)
+- ❌ `foundation` (missing required `/_` suffix)
+- ❌ `foundation/geometry` (missing required `/_` suffix)
 
 ### Stack Structure Philosophy
 
@@ -41,9 +41,9 @@ The hierarchical naming (`/` separator) shows the dependency relationship in the
 ### Example Stack for SVG Pentagon Project
 
 ```
-foundation/+                         # Point class, SVG utilities, base classes
-└── foundation/geometry/+            # Triangle calculations, orientation detection  
-    └── foundation/geometry/assembly/+   # Net class, final SVG generation
+foundation/_                         # Point class, SVG utilities, base classes
+└── foundation/geometry/_            # Triangle calculations, orientation detection  
+    └── foundation/geometry/assembly/_   # Net class, final SVG generation
 ```
 
 ## When to Create a New Branch
@@ -54,3 +54,33 @@ Consider creating a new branch when:
 - The current work provides a stable foundation for subsequent features
 
 This ensures clean, reviewable commits and maintains clear feature boundaries.
+
+## Branch Folding and Release Guidelines
+
+When "releasing" a subbranch into its parent (non-trunk) branch, follow these guidelines:
+
+### Squash vs Keep Commits
+
+- **Use `gt fold --squash`** when integrating a completed subbranch
+- **Use `gt fold --keep`** only when preserving detailed development history is important
+
+### Squash Commit Message Format
+
+When squashing a subbranch, use this commit message format:
+
+```
+{subbranch-name}: {one-line description of the complete feature}
+
+{Optional detailed description of the integrated functionality}
+```
+
+**Examples:**
+```
+foundation/geometry/_: implement complete geometric processing and SVG generation
+
+Adds Triangle, Kite, and Net classes with JSON parsing, geometric calculations,
+and SVG output capabilities. Includes comprehensive validation system and
+CLI interface for generating SVG diagrams from JSON configurations.
+```
+
+**Do NOT use conventional commit prefixes** (feat:, fix:, etc.) for squashed subbranch integration. The subbranch name provides the context and scope.
