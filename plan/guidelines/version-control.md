@@ -7,16 +7,19 @@
 ### Branch Naming Convention
 
 **CRITICAL**: Branches MUST be named based on their hierarchy, showing feature dependencies.
+**REQUIRED**: All branch names MUST end with `/+` to avoid Git filesystem conflicts.
 
 #### Correct Branch Naming Examples
-- Base feature: `foundation`
-- Stacked feature: `foundation/geometry` (geometry depends on foundation)  
-- Further stacked: `foundation/geometry/triangles` (triangles depend on geometry)
+- Base feature: `foundation/+`
+- Stacked feature: `foundation/geometry/+` (geometry depends on foundation)  
+- Further stacked: `foundation/geometry/triangles/+` (triangles depend on geometry)
 
 #### Incorrect Branch Naming
 - ❌ `feat/foundation` (do NOT prefix with `feat/`)
 - ❌ `feature/geometry` (do NOT prefix with `feature/`)
 - ❌ `geometry` (does NOT show dependency on foundation)
+- ❌ `foundation` (missing required `/+` suffix)
+- ❌ `foundation/geometry` (missing required `/+` suffix)
 
 ### Stack Structure Philosophy
 
@@ -38,9 +41,9 @@ The hierarchical naming (`/` separator) shows the dependency relationship in the
 ### Example Stack for SVG Pentagon Project
 
 ```
-foundation                    # Point class, SVG utilities, base classes
-└── foundation/geometry       # Triangle calculations, orientation detection  
-    └── foundation/geometry/assembly    # Net class, final SVG generation
+foundation/+                         # Point class, SVG utilities, base classes
+└── foundation/geometry/+            # Triangle calculations, orientation detection  
+    └── foundation/geometry/assembly/+   # Net class, final SVG generation
 ```
 
 ## When to Create a New Branch
