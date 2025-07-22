@@ -6,7 +6,7 @@ from luminary.geometry.point import Point
 from luminary.writers.svg.svg_exportable import SVGExportable
 
 if TYPE_CHECKING:
-    from luminary.geometry.kite import Kite
+    from luminary.geometry.facet import Facet
 
 
 class Orientation(Enum):
@@ -43,8 +43,8 @@ class Triangle(SVGExportable):
         ]
         self.orientation = self._determine_orientation()
 
-        # Generate kites with proper labeling
-        self.kites: List["Kite"] = self._create_kites()
+        # Generate facets with proper labeling
+        self.facets: List["Facet"] = self._create_facets()
 
     def _calculate_incenter(self) -> Point:
         """
@@ -103,9 +103,9 @@ class Triangle(SVGExportable):
             else Orientation.NADIRWARD
         )
 
-    def _get_kite_labels(self) -> List[str]:
+    def _get_facet_labels(self) -> List[str]:
         """
-        Get kite labels based on orientation.
+        Get facet labels based on orientation.
 
         Returns:
             List of three label strings
@@ -157,18 +157,18 @@ class Triangle(SVGExportable):
         # Reverse to get clockwise (since we had it backwards before)
         return [ordered_indices[0], ordered_indices[2], ordered_indices[1]]
 
-    def _create_kites(self) -> List["Kite"]:
+    def _create_facets(self) -> List["Facet"]:
         """
-        Create 3 kites from triangle subdivision in counterclockwise order.
+        Create 3 facets from triangle subdivision in counterclockwise order.
 
         For APEXWARD triangles: A = closest to apex, then B, C counterclockwise
         For NADIRWARD triangles: D = furthest from apex, then E, F counterclockwise
 
         Returns:
-            List of Kite objects ordered counterclockwise from A/D kite
+            List of Facet objects ordered counterclockwise from A/D facet
         """
         # Import here to avoid circular imports
-        from luminary.geometry.kite import Kite
+        from luminary.geometry.facet import Facet
 
         # Find the starting vertex (A for apexward, D for nadirward)
         vertex_distances = []
@@ -187,10 +187,10 @@ class Triangle(SVGExportable):
         # Calculate counterclockwise order from the starting vertex
         ordered_vertices = self._get_counterclockwise_order(start_vertex_idx)
 
-        labels = self._get_kite_labels()
-        kites = []
+        labels = self._get_facet_labels()
+        facets = []
 
-        # Create kites in counterclockwise order
+        # Create facets in counterclockwise order
         for label_idx, vertex_idx in enumerate(ordered_vertices):
             vertex = self.vertices[vertex_idx]
 
@@ -209,20 +209,20 @@ class Triangle(SVGExportable):
                 midpoint1 = self.edge_midpoints[2]  # to v0
                 midpoint2 = self.edge_midpoints[1]  # to v1
 
-            kite_label = f"{self.triangle_id}{labels[label_idx]}"  # Prepend triangle ID
+            facet_label = f"{self.triangle_id}{labels[label_idx]}"  # Prepend triangle ID
 
-            kites.append(
-                Kite(
+            facets.append(
+                Facet(
                     vertex=vertex,
                     midpoint1=midpoint1,
                     incenter=self.incenter,
                     midpoint2=midpoint2,
                     color=vertex.color or "black",
-                    label=kite_label,
+                    label=facet_label,
                 )
             )
 
-        return kites
+        return facets
 
     def get_svg(self) -> List[str]:
         """
@@ -300,6 +300,6 @@ class Triangle(SVGExportable):
         """Return triangle vertices."""
         return self.vertices.copy()
 
-    def get_kites(self) -> List["Kite"]:
-        """Return triangle kites."""
-        return self.kites.copy()
+    def get_facets(self) -> List["Facet"]:
+        """Return triangle facets."""
+        return self.facets.copy()

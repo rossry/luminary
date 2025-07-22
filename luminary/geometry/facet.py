@@ -1,13 +1,22 @@
-"""Kite class for quadrilateral subdivisions of triangles."""
+"""Facet class for quadrilateral subdivisions of triangles."""
 
+from enum import IntEnum
 from typing import List
 from luminary.geometry.point import Point
 from luminary.writers.svg.svg_exportable import SVGExportable
 from luminary.writers.svg.utilities import create_polygon_svg, create_text_svg
 
 
-class Kite(SVGExportable):
-    """Kite quadrilateral formed by triangle subdivision."""
+class EdgeType(IntEnum):
+    """Canonical ordering of facet edges."""
+    MAJOR_STARBOARD = 0  # Right major edge
+    MINOR_STARBOARD = 1  # Right minor edge  
+    MINOR_PORT = 2       # Left minor edge
+    MAJOR_PORT = 3       # Left major edge
+
+
+class Facet(SVGExportable):
+    """Facet quadrilateral formed by triangle subdivision."""
 
     def __init__(
         self,
@@ -19,14 +28,14 @@ class Kite(SVGExportable):
         label: str,
     ):
         """
-        Initialize Kite with vertices in order: vertex → midpoint1 → incenter → midpoint2.
+        Initialize Facet with vertices in order: vertex → midpoint1 → incenter → midpoint2.
 
         Args:
-            vertex: Triangle vertex point
-            midpoint1: First edge midpoint
+            vertex: Triangle vertex point (primary vertex)
+            midpoint1: First edge midpoint (lateral vertex)
             incenter: Triangle incenter
-            midpoint2: Second edge midpoint
-            color: Fill color for the kite
+            midpoint2: Second edge midpoint (lateral vertex)
+            color: Fill color for the facet
             label: Text label (A-C or D-F)
         """
         self.vertices = [vertex, midpoint1, incenter, midpoint2]
@@ -49,7 +58,7 @@ class Kite(SVGExportable):
 
     def get_svg(self) -> List[str]:
         """
-        Generate SVG elements for kite in back-to-front order.
+        Generate SVG elements for facet in back-to-front order.
 
         Returns:
             List of SVG element strings:
@@ -69,9 +78,21 @@ class Kite(SVGExportable):
         return svg_elements
 
     def get_centroid(self) -> Point:
-        """Return kite centroid."""
+        """Return facet centroid."""
         return self.centroid
 
     def get_vertices(self) -> List[Point]:
-        """Return copy of kite vertices."""
+        """Return copy of facet vertices."""
         return self.vertices.copy()
+    
+    def get_primary_vertex(self) -> Point:
+        """Return primary vertex (shared with triangle)."""
+        return self.vertices[0]
+    
+    def get_incenter(self) -> Point:
+        """Return incenter vertex."""
+        return self.vertices[2]
+    
+    def get_lateral_vertices(self) -> List[Point]:
+        """Return the two lateral vertices."""
+        return [self.vertices[1], self.vertices[3]]

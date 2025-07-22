@@ -205,20 +205,38 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 
 ### Complete Squash-Then-Fold Workflow
 
+**CRITICAL**: You MUST squash before folding. Do NOT make multiple commits then fold - this violates the one-commit-per-subbranch principle.
+
 ```bash
-# 1. On your subbranch, squash commits (using either method above)
-git rebase -i <base-commit>  # or git reset --soft <base-commit>
+# 1. BEFORE folding, check if you have multiple commits on the subbranch
+git log --oneline -10
 
-# 2. Verify the squashed commit looks good
-git log -1
+# 2. If you see multiple commits since branching, STOP and squash first
+# Find the base commit (parent branch point) - usually 2-3 commits back
+git reset --soft <base-commit>
 
-# 3. Now fold into parent branch
+# 3. Create single commit with proper subbranch message format  
+git commit -m "foundation/light-layout/update-schema/_: complete terminology migration
+
+[Detailed description of all changes in the subbranch]"
+
+# 4. Verify you now have exactly ONE commit on this subbranch
+git log --oneline -5
+
+# 5. NOW fold into parent branch
 gt fold
 
-# 4. Check and fix fold commit message if needed
+# 6. Check and fix fold commit message if needed
 git log -1
 git commit --amend -m "..." # if needed
 ```
+
+### Why This Order Is Critical
+- **One subbranch = one logical unit of work = one commit**
+- Multiple commits on a subbranch indicate either:
+  - Work-in-progress commits that should be squashed
+  - Multiple features that should have been separate subbranches
+- Folding multiple commits makes the parent branch history messy and hard to review
 
 ### Why This Order Matters
 

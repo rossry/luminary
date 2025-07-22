@@ -242,7 +242,7 @@ def main():
             print(f"\nGenerated SVG contains:")
             print(f"  • {stats['points']} points")
             print(f"  • {stats['triangles']} triangles")
-            print(f"  • {stats['kites']} kites")
+            print(f"  • {stats['facets']} facets")
             print(f"  • {stats['geometric_lines']} geometric lines")
             print(f"  • {stats['series']} triangle series")
 
