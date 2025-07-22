@@ -226,7 +226,7 @@ class Triangle(SVGExportable):
 
     def get_svg(self) -> List[str]:
         """
-        Generate SVG elements for triangle in back-to-front order.
+        Generate SVG elements for triangle base components (without edge lines).
 
         Returns:
             List of SVG element strings
@@ -244,8 +244,35 @@ class Triangle(SVGExportable):
             f'  <circle cx="{self.incenter.x}" cy="{self.incenter.y}" r="1.5" fill="black"/>'
         )
 
-        # 3. Geometric lines from incenter to edge midpoints - MOVED TO FRONT (after kites)
-        # These will be added later in the Net class rendering order
+        # 3. Construction lines from incenter to edge midpoints
+        for midpoint in self.edge_midpoints:
+            svg_elements.append(
+                f'  <line x1="{self.incenter.x}" y1="{self.incenter.y}" '
+                f'x2="{midpoint.x}" y2="{midpoint.y}" '
+                f'stroke="black" stroke-width="1"/>'
+            )
+
+        return svg_elements
+
+    def get_edge_lines_svg(self) -> List[str]:
+        """
+        Generate SVG elements for triangle edges.
+        These should be rendered on top of everything else.
+
+        Returns:
+            List of SVG line element strings
+        """
+        svg_elements = []
+
+        # Draw triangle edges (full-width, black)
+        for i in range(3):
+            v1 = self.vertices[i]
+            v2 = self.vertices[(i + 1) % 3]
+            svg_elements.append(
+                f'  <line x1="{v1.x}" y1="{v1.y}" '
+                f'x2="{v2.x}" y2="{v2.y}" '
+                f'stroke="black" stroke-width="2"/>'
+            )
 
         return svg_elements
 

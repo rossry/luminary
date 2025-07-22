@@ -147,16 +147,16 @@ class Net(SVGExportable):
                     )
                     svg_content += element_svg + "\n"
 
-        # Render triangle construction lines (incenter to midpoints) - AFTER kites, in front
+        # Render triangle edge lines - AFTER all kites, on top
         for triangle in self.triangles:
-            construction_lines = triangle.get_construction_lines_svg()
-            for line in construction_lines:
+            edge_lines = triangle.get_edge_lines_svg()
+            for line in edge_lines:
                 svg_content += line + "\n"
 
-        # Render geometric lines
+        # Render geometric lines (standalone lines)
         svg_content += self._render_geometric_lines()
 
-        # Render vertex circles
+        # Render vertex circles (standalone vertices)
         svg_content += self._render_vertex_circles()
 
         # End SVG

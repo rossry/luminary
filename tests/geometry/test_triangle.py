@@ -127,7 +127,7 @@ class TestTriangle:
         triangle = Triangle(p1, p2, p3, 7, apex)
         svg_elements = triangle.get_svg()
 
-        assert len(svg_elements) == 2
+        assert len(svg_elements) == 5
         assert "polygon" in svg_elements[0]
         assert 'fill-opacity="0.4"' in svg_elements[0]
         assert "circle" in svg_elements[1]
