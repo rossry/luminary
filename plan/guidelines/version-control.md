@@ -55,6 +55,20 @@ Consider creating a new branch when:
 
 This ensures clean, reviewable commits and maintains clear feature boundaries.
 
+## Creating New Branches
+
+When creating new branches with Graphite, always use the `--no-interactive` flag to avoid interactive prompts:
+
+```bash
+# Correct - non-interactive branch creation
+gt create foundation/new-feature/_ --no-interactive
+
+# Avoid - will trigger interactive prompts for staging decisions
+gt create foundation/new-feature/_
+```
+
+This prevents interruption of automated workflows and scripted operations.
+
 ## How to "Release into Parent"
 
 **"Release into parent"** means integrating a completed subbranch into its parent branch with a squash merge.
