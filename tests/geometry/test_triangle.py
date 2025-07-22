@@ -24,7 +24,7 @@ class TestTriangle:
         assert triangle.incenter is not None
         assert len(triangle.edge_midpoints) == 3
         assert triangle.orientation in [Orientation.APEXWARD, Orientation.NADIRWARD]
-        assert len(triangle.kites) == 3  # Should create 3 kites
+        assert len(triangle.facets) == 3  # Should create 3 facets
 
     def test_incenter_calculation_equilateral(self):
         """Test incenter calculation for equilateral triangle."""
@@ -146,26 +146,26 @@ class TestTriangle:
         assert vertices == [p1, p2, p3]
         assert vertices is not triangle.vertices  # Should be a copy
 
-    def test_get_kites(self):
-        """Test get_kites returns three kites."""
+    def test_get_facets(self):
+        """Test get_facets returns three facets."""
         p1 = Point(0, 0, "#FF0000")
         p2 = Point(1, 0, "#00FF00")
         p3 = Point(0.5, 1, "#0000FF")
         apex = Point(0.5, 0.5)
 
         triangle = Triangle(p1, p2, p3, 9, apex)
-        kites = triangle.get_kites()
+        facets = triangle.get_facets()
 
-        assert len(kites) == 3  # Triangle should create 3 kites
-        assert kites is not triangle.kites  # Should be a copy
+        assert len(facets) == 3  # Triangle should create 3 facets
+        assert facets is not triangle.facets  # Should be a copy
 
-        # Check that kites inherit vertex colors (order may vary due to counterclockwise ordering)
-        colors = [kite.color for kite in kites]
+        # Check that facets inherit vertex colors (order may vary due to counterclockwise ordering)
+        colors = [facet.color for facet in facets]
         expected_colors = {"#FF0000", "#00FF00", "#0000FF"}
         assert set(colors) == expected_colors  # All colors should be present
 
-    def test_kite_labeling_by_orientation(self):
-        """Test that kites get correct labels based on triangle orientation."""
+    def test_facet_labeling_by_orientation(self):
+        """Test that facets get correct labels based on triangle orientation."""
         apex = Point(250, 200)
 
         # APEXWARD triangle should get A-C labels
@@ -175,8 +175,8 @@ class TestTriangle:
         triangle1 = Triangle(t1_p1, t1_p2, t1_p3, 1, apex)
 
         assert triangle1.orientation == Orientation.APEXWARD
-        kites1 = triangle1.get_kites()
-        assert [kite.label for kite in kites1] == [
+        facets1 = triangle1.get_facets()
+        assert [facet.label for facet in facets1] == [
             "1A",
             "1B",
             "1C",
@@ -189,15 +189,15 @@ class TestTriangle:
         triangle2 = Triangle(t2_p1, t2_p2, t2_p3, 2, apex)
 
         assert triangle2.orientation == Orientation.NADIRWARD
-        kites2 = triangle2.get_kites()
-        assert [kite.label for kite in kites2] == [
+        facets2 = triangle2.get_facets()
+        assert [facet.label for facet in facets2] == [
             "2D",
             "2E",
             "2F",
         ]  # Labels now include triangle ID
 
-    def test_counterclockwise_kite_ordering(self):
-        """Test that kites are ordered counterclockwise from A/D kite."""
+    def test_counterclockwise_facet_ordering(self):
+        """Test that facets are ordered counterclockwise from A/D facet."""
         apex = Point(5, 5)  # Place apex away from triangle
 
         # Test APEXWARD triangle - only 1 vertex close to apex
@@ -207,16 +207,16 @@ class TestTriangle:
         triangle = Triangle(p1, p2, p3, 1, apex)
 
         assert triangle.orientation == Orientation.APEXWARD
-        kites = triangle.get_kites()
+        facets = triangle.get_facets()
 
-        # A kite should be the one closest to apex (p1 = red)
-        assert kites[0].color == "red"
-        assert kites[0].label == "1A"
+        # A facet should be the one closest to apex (p1 = red)
+        assert facets[0].color == "red"
+        assert facets[0].label == "1A"
 
         # Verify all three colors are present and counterclockwise ordering
-        colors = [kite.color for kite in kites]
-        labels = [kite.label for kite in kites]
-        assert colors[0] == "red"  # A kite (closest to apex)
+        colors = [facet.color for facet in facets]
+        labels = [facet.label for facet in facets]
+        assert colors[0] == "red"  # A facet (closest to apex)
         assert labels == ["1A", "1B", "1C"]  # Counterclockwise order
         assert len(set(colors)) == 3  # All three colors present
 
@@ -227,14 +227,14 @@ class TestTriangle:
         triangle2 = Triangle(p4, p5, p6, 2, apex)
 
         assert triangle2.orientation == Orientation.NADIRWARD
-        kites2 = triangle2.get_kites()
+        facets2 = triangle2.get_facets()
 
-        # D kite should be the one furthest from apex (p4 = red)
-        assert kites2[0].color == "red"
-        assert kites2[0].label == "2D"
+        # D facet should be the one furthest from apex (p4 = red)
+        assert facets2[0].color == "red"
+        assert facets2[0].label == "2D"
 
         # Verify counterclockwise ordering for NADIRWARD
-        labels2 = [kite.label for kite in kites2]
+        labels2 = [facet.label for facet in facets2]
         assert labels2 == ["2D", "2E", "2F"]  # Counterclockwise order
 
     def test_validation_triangle_orientations(self):

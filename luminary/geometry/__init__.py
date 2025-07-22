@@ -2,7 +2,7 @@
 
 from .point import Point
 from .triangle import Triangle
-from .kite import Kite
+from .facet import Facet
 from .net import Net
 
-__all__ = ["Point", "Triangle", "Kite", "Net"]
+__all__ = ["Point", "Triangle", "Facet", "Net"]

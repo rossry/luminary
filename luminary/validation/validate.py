@@ -32,8 +32,8 @@ def create_validation_svgs() -> None:
     # Validation 4: Triangle geometry test
     create_triangle_geometry_svg(output_dir)
 
-    # Validation 5: Kite subdivision test
-    create_kite_subdivision_svg(output_dir)
+    # Validation 5: Facet subdivision test
+    create_facet_subdivision_svg(output_dir)
 
     # Validation 6: Net reference validation
     create_net_reference_svg(output_dir)
@@ -320,8 +320,8 @@ def create_triangle_geometry_svg(output_dir: Path) -> None:
         f.write("\n".join(svg_elements))
 
 
-def create_kite_subdivision_svg(output_dir: Path) -> None:
-    """Create SVG demonstrating Kite subdivision of triangles."""
+def create_facet_subdivision_svg(output_dir: Path) -> None:
+    """Create SVG demonstrating Facet subdivision of triangles."""
     # Background
     bg_points = [Point(0, 0), Point(600, 0), Point(600, 400), Point(0, 400)]
 
@@ -366,20 +366,20 @@ def create_kite_subdivision_svg(output_dir: Path) -> None:
         # Draw apex reference point
         create_circle_svg(apex, 6, "#E74C3C", "darkred", 2),
         create_text_svg("APEX", Point(apex.x, apex.y - 15), 14, "darkred", 1.0),
-        # Triangle 1: Draw triangle fill first (behind kites)
+        # Triangle 1: Draw triangle fill first (behind facets)
         create_polygon_svg(triangle1.vertices, "black", 0.4),
         create_circle_svg(triangle1.incenter, 3, "black"),
-        # Triangle 1: Draw all kites
-        *[svg for kite in triangle1.kites for svg in kite.get_svg()],
+        # Triangle 1: Draw all facets
+        *[svg for facet in triangle1.facets for svg in facet.get_svg()],
         # Triangle 1: Labels and info
         create_text_svg(
             f"T1 {triangle1.orientation.value}", Point(300, 140), 16, "#2874A6", 1.0
         ),
-        # Triangle 2: Draw triangle fill first (behind kites)
+        # Triangle 2: Draw triangle fill first (behind facets)
         create_polygon_svg(triangle2.vertices, "black", 0.4),
         create_circle_svg(triangle2.incenter, 3, "black"),
-        # Triangle 2: Draw all kites
-        *[svg for kite in triangle2.kites for svg in kite.get_svg()],
+        # Triangle 2: Draw all facets
+        *[svg for facet in triangle2.facets for svg in facet.get_svg()],
         # Triangle 2: Labels and info
         create_text_svg(
             f"T2 {triangle2.orientation.value}", Point(300, 340), 16, "#27AE60", 1.0

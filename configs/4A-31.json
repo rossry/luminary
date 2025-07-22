@@ -332,7 +332,8 @@
       0.0,
       0.0
     ],
-    "lines": []
+    "lines": [],
+    "default_beam_counts": [7, 4, 4, 7]
   },
   "rendering": {
     "svg": {

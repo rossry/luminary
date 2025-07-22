@@ -47,7 +47,7 @@ class StyleConfig(BaseModel):
     """Rendering style configuration."""
 
     triangle_fill_opacity: float = Field(default=0.4, ge=0.0, le=1.0)
-    kite_fill_opacity: float = Field(default=0.6, ge=0.0, le=1.0)
+    facet_fill_opacity: float = Field(default=0.6, ge=0.0, le=1.0)  # Renamed from kite_fill_opacity
     text_opacity: float = Field(default=0.7, ge=0.0, le=1.0)
     line_width: float = Field(default=2.0, gt=0.0)
     vertex_circle_radius: float = Field(default=8.0, gt=0.0)
@@ -77,6 +77,12 @@ class GeometryConfig(BaseModel):
     apex: ApexTuple = Field(..., description="Apex point as (x, y) tuple")
     lines: List[GeometricLine] = Field(
         default_factory=list, description="Structural lines as [from, to] tuples"
+    )
+    default_beam_counts: List[int] = Field(
+        default=[7, 4, 4, 7], 
+        min_length=4, 
+        max_length=4,
+        description="Default beam counts per facet edge [major_starboard, minor_starboard, minor_port, major_port]"
     )
 
     @model_validator(mode="after")
@@ -167,7 +173,7 @@ class NetConfiguration(BaseModel):
                         "height": "400",
                         "viewBox": "-450 -100 1100 370",
                     },
-                    "styles": {"triangle_fill_opacity": 0.4, "kite_fill_opacity": 0.6},
+                    "styles": {"triangle_fill_opacity": 0.4, "facet_fill_opacity": 0.6},
                 },
             }
         }

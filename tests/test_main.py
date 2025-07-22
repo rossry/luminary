@@ -32,7 +32,7 @@ class TestMainCLI:
             config_data = {
                 "points": [{"id": "p1", "x": 0, "y": 0}],
                 "triangles": [],
-                "kites": [],
+                "facets": [],
                 "series": [],
             }
             with open(config_file, "w") as f:
@@ -43,7 +43,7 @@ class TestMainCLI:
             mock_net.get_stats.return_value = {
                 "points": 1,
                 "triangles": 0,
-                "kites": 0,
+                "facets": 0,
                 "geometric_lines": 0,
                 "series": 0,
             }
@@ -70,7 +70,7 @@ class TestMainCLI:
             config_data = {
                 "points": [{"id": "p1", "x": 0, "y": 0}],
                 "triangles": [],
-                "kites": [],
+                "facets": [],
                 "series": [],
             }
             with open(config_file, "w") as f:
@@ -83,7 +83,7 @@ class TestMainCLI:
             mock_net.get_stats.return_value = {
                 "points": 1,
                 "triangles": 0,
-                "kites": 0,
+                "facets": 0,
                 "geometric_lines": 0,
                 "series": 0,
             }
@@ -127,7 +127,7 @@ class TestMainCLI:
             config_data = {
                 "points": [{"id": "p1", "x": 0, "y": 0}],
                 "triangles": [],
-                "kites": [],
+                "facets": [],
                 "series": [],
             }
             with open(config_file, "w") as f:
@@ -138,7 +138,7 @@ class TestMainCLI:
             mock_net.get_stats.return_value = {
                 "points": 1,
                 "triangles": 0,
-                "kites": 0,
+                "facets": 0,
                 "geometric_lines": 0,
                 "series": 0,
             }

@@ -138,16 +138,16 @@ class Net(SVGExportable):
 
         # Render all kites (with fill opacity)
         for triangle in self.triangles:
-            for kite in triangle.kites:
-                kite_elements = kite.get_svg()
-                for element in kite_elements:
+            for facet in triangle.facets:
+                facet_elements = facet.get_svg()
+                for element in facet_elements:
                     element_svg = element.replace(
                         'fill-opacity="0.6"',
-                        f'fill-opacity="{style_config.kite_fill_opacity}"',
+                        f'fill-opacity="{style_config.facet_fill_opacity}"',
                     )
                     svg_content += element_svg + "\n"
 
-        # Render triangle edge lines - AFTER all kites, on top
+        # Render triangle edge lines - AFTER all facets, on top
         for triangle in self.triangles:
             edge_lines = triangle.get_edge_lines_svg()
             for line in edge_lines:
@@ -172,11 +172,11 @@ class Net(SVGExportable):
 
     def get_stats(self) -> Dict[str, int]:
         """Get statistics about the Net."""
-        total_kites = sum(len(triangle.kites) for triangle in self.triangles)
+        total_facets = sum(len(triangle.facets) for triangle in self.triangles)
         return {
             "points": len(self.points),
             "triangles": len(self.triangles),
-            "kites": total_kites,
+            "facets": total_facets,
             "geometric_lines": len(self.config.geometry.lines),
             "series": len(self.config.geometry.triangles),
         }
