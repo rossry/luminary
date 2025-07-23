@@ -929,7 +929,7 @@ def create_dual_extent_beam_validation_svg(output_dir: Path) -> None:
             ],
             "apex": [0.0, 0.0],
             "lines": [],
-            "default_beam_counts": [6, 4, 4, 6]  # More beams to show dual extent effect
+            "default_beam_counts": [7, 4, 4, 7]  # More beams to show dual extent effect
         },
         "rendering": {
             "svg": {
