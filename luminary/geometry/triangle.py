@@ -4,6 +4,7 @@ from enum import Enum
 from typing import List, Tuple, TYPE_CHECKING
 from luminary.geometry.point import Point
 from luminary.writers.svg.svg_exportable import SVGExportable
+from luminary.writers.svg.utilities import create_line_svg
 
 if TYPE_CHECKING:
     from luminary.geometry.facet import Facet
@@ -261,9 +262,7 @@ class Triangle(SVGExportable):
         # 3. Construction lines from incenter to edge midpoints
         for midpoint in self.edge_midpoints:
             svg_elements.append(
-                f'  <line x1="{self.incenter.x}" y1="{self.incenter.y}" '
-                f'x2="{midpoint.x}" y2="{midpoint.y}" '
-                f'stroke="black" stroke-width="1"/>'
+                create_line_svg(self.incenter, midpoint, "black", 1)
             )
 
         return svg_elements
@@ -283,9 +282,7 @@ class Triangle(SVGExportable):
             v1 = self.vertices[i]
             v2 = self.vertices[(i + 1) % 3]
             svg_elements.append(
-                f'  <line x1="{v1.x}" y1="{v1.y}" '
-                f'x2="{v2.x}" y2="{v2.y}" '
-                f'stroke="black" stroke-width="2"/>'
+                create_line_svg(v1, v2, "black", 2)
             )
 
         return svg_elements
@@ -303,9 +300,7 @@ class Triangle(SVGExportable):
         # Geometric lines from incenter to edge midpoints (half-width, black)
         for midpoint in self.edge_midpoints:
             svg_elements.append(
-                f'  <line x1="{self.incenter.x}" y1="{self.incenter.y}" '
-                f'x2="{midpoint.x}" y2="{midpoint.y}" '
-                f'stroke="black" stroke-width="1"/>'
+                create_line_svg(self.incenter, midpoint, "black", 1)
             )
 
         return svg_elements

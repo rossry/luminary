@@ -189,6 +189,12 @@ def main():
         action="store_true",
         help="Generate extended view showing individual beam subdivisions",
     )
+    svg_parser.add_argument(
+        "--show-vertices",
+        action="store_true",
+        default=False,
+        help="Draw circles for triangle vertices (incenters always shown)",
+    )
 
     # SVG index subcommand
     index_parser = subparsers.add_parser(
@@ -242,7 +248,7 @@ def main():
             args.output.parent.mkdir(parents=True, exist_ok=True)
 
             # Save SVG
-            net.save_svg(args.output, extended=args.extended)
+            net.save_svg(args.output, extended=args.extended, show_vertices=args.show_vertices)
             print(f"SVG saved to {args.output}")
             if args.extended:
                 print("Extended mode: Generated individual beam subdivisions")

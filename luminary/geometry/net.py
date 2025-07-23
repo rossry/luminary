@@ -137,11 +137,12 @@ class Net(SVGExportable):
 
         return svg_content
 
-    def get_svg(self, extended: bool = False) -> List[str]:
+    def get_svg(self, extended: bool = False, show_vertices: bool = False) -> List[str]:
         """Generate complete SVG representation of the Net.
 
         Args:
             extended: If True, render individual beam subdivisions instead of facets
+            show_vertices: If True, draw circles for triangle vertices (incenters always shown)
         """
         svg_config = self.config.rendering.svg
         style_config = self.config.rendering.styles
@@ -197,22 +198,24 @@ class Net(SVGExportable):
         # Render geometric lines (standalone lines)
         svg_content += self._render_geometric_lines()
 
-        # Render vertex circles (standalone vertices)
-        svg_content += self._render_vertex_circles()
+        # Render vertex circles (standalone vertices) - only if requested
+        if show_vertices:
+            svg_content += self._render_vertex_circles()
 
         # End SVG
         svg_content += "</svg>"
 
         return [svg_content]
 
-    def save_svg(self, output_path: Path, extended: bool = False) -> None:
+    def save_svg(self, output_path: Path, extended: bool = False, show_vertices: bool = False) -> None:
         """Save SVG to file.
 
         Args:
             output_path: Path to write SVG file
             extended: If True, render individual beam subdivisions
+            show_vertices: If True, draw circles for triangle vertices
         """
-        svg_elements = self.get_svg(extended=extended)
+        svg_elements = self.get_svg(extended=extended, show_vertices=show_vertices)
         svg_content = "".join(svg_elements)
         output_path.write_text(svg_content)
 
