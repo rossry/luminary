@@ -252,6 +252,9 @@ class Facet(SVGExportable):
             port_bisector_line,
         ]
 
+        # Track sequential beam parity across all edges
+        global_beam_parity = 0
+        
         # CLAUDE TODO: make this a nested `for` first over edge_idx and then over beam_counts[edge_idx]
         for edge_idx, beam_count in enumerate(beam_counts):
             edge_type = EdgeType(edge_idx)
@@ -353,16 +356,20 @@ class Facet(SVGExportable):
                     ),  # Second extent (bisectors)
                 ]
 
-                # Create beam
+                # Create beam with sequential parity
                 beam = Beam(
                     extent_pairs=extent_pairs,
                     beam_index=beam_idx,
                     edge_index=edge_idx,
                     anchor_point=anchor,
                     starboard_vector=beamstarboard_vector,
+                    parity=global_beam_parity,
                 )
 
                 edge_beams.append(beam)
+                
+                # Alternate parity for next beam
+                global_beam_parity = 1 - global_beam_parity
 
             all_beams.append(edge_beams)
 

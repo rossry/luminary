@@ -22,6 +22,7 @@ class Beam(SVGExportable):
         edge_index: int,
         anchor_point: Point,
         starboard_vector: Point,  # Vector along baseline, one beam width
+        parity: int,  # 0 or 1, assigned sequentially during generation
     ):
         """Initialize a beam with extent pairs and calculate full geometry.
 
@@ -32,6 +33,7 @@ class Beam(SVGExportable):
             edge_index: Index of the parent edge (0-3 for MAJOR_STARBOARD to MAJOR_PORT)
             anchor_point: Reference point on baseline, centered
             starboard_vector: Vector along baseline (starboard direction), one beam width
+            parity: 0 or 1, assigned sequentially during generation
         """
         # Validate extent requirements for current implementation
         if len(extent_pairs) not in (1, 2):
@@ -46,6 +48,7 @@ class Beam(SVGExportable):
         self.starboard_vector = (
             starboard_vector  # Points along baseline (starboard direction)
         )
+        self.parity = parity
 
         # Calculate forward vector (perpendicular to starboard vector, pointing into facet interior)
         self.forward_vector = Point(-starboard_vector.y, starboard_vector.x)
@@ -66,6 +69,14 @@ class Beam(SVGExportable):
         if len(self.extent_pairs) == 1:
             # Single extent: use it directly
             forward_port, forward_starboard = self.extent_pairs[0]
+            
+            # Create 4-sided polygon
+            vertices = [
+                baseline_port,      # Start of baseline (port side)
+                baseline_starboard, # End of baseline (starboard side)
+                forward_starboard,  # Forward edge starboard point
+                forward_port,       # Forward edge port point
+            ]
         else:
             # Dual extents: determine which extent is closer on each side
             extent0_port, extent0_starboard = self.extent_pairs[0]
@@ -84,29 +95,68 @@ class Beam(SVGExportable):
             if closer_port_extent == closer_starboard_extent:
                 # Same extent is closer on both sides - use that extent
                 forward_port, forward_starboard = self.extent_pairs[closer_port_extent]
+                
+                # Create 4-sided polygon
+                vertices = [
+                    baseline_port,      # Start of baseline (port side)
+                    baseline_starboard, # End of baseline (starboard side)
+                    forward_starboard,  # Forward edge starboard point
+                    forward_port,       # Forward edge port point
+                ]
             else:
-                # Different extents are closer - use extent 0 for now
-                # CLAUDE TODO: should use 5-sided polygon with both extents to correctly account for both
-                forward_port, forward_starboard = self.extent_pairs[0]
-
-        # Create 4-sided polygon
-        vertices = [
-            baseline_port,      # Start of baseline (port side)
-            baseline_starboard, # End of baseline (starboard side)
-            forward_starboard,  # Forward edge starboard point
-            forward_port,       # Forward edge port point
-        ]
+                # Different extents are closer - create 5-sided polygon
+                # Get the nearest intersections
+                port_nearest = self.extent_pairs[closer_port_extent][0]  # port side of closer extent
+                starboard_nearest = self.extent_pairs[closer_starboard_extent][1]  # starboard side of closer extent
+                
+                # Calculate intersection between the two extents
+                extent1_extent2_intersection = self._line_intersection(
+                    self.extent_pairs[0],  # (extent0_port, extent0_starboard)
+                    self.extent_pairs[1]   # (extent1_port, extent1_starboard)
+                )
+                
+                # Create 5-sided polygon: baseline_port, baseline_starboard, starboard_nearest, intersection, port_nearest
+                vertices = [
+                    baseline_port,               # Start of baseline (port side)
+                    baseline_starboard,          # End of baseline (starboard side)
+                    starboard_nearest,           # Starboard nearest intersection
+                    extent1_extent2_intersection, # Intersection between extents
+                    port_nearest,                # Port nearest intersection
+                ]
 
         return vertices
 
-    def get_fill_color_multiplier(self) -> float:
-        """Calculate color multiplier based on parity.
+    def _line_intersection(self, line1: Tuple[Point, Point], line2: Tuple[Point, Point]) -> Point:
+        """Calculate intersection of two lines.
+
+        Args:
+            line1: First line as (point1, point2)
+            line2: Second line as (point1, point2)
 
         Returns:
-            1.2 for bright beams, 0.8 for dim beams (±20% from base)
+            Intersection point
         """
-        parity = (self.beam_index + self.edge_index) % 2
-        return 1.2 if parity == 0 else 0.8
+        p1, p2 = line1
+        p3, p4 = line2
+
+        denom = (p1.x - p2.x) * (p3.y - p4.y) - (p1.y - p2.y) * (p3.x - p4.x)
+        if abs(denom) < 1e-10:
+            # Lines are parallel - return midpoint as fallback
+            return Point((p1.x + p3.x) / 2, (p1.y + p3.y) / 2)
+
+        t = ((p1.x - p3.x) * (p3.y - p4.y) - (p1.y - p3.y) * (p3.x - p4.x)) / denom
+
+        intersection_x = p1.x + t * (p2.x - p1.x)
+        intersection_y = p1.y + t * (p2.y - p1.y)
+        return Point(intersection_x, intersection_y)
+
+    def get_fill_color_multiplier(self) -> float:
+        """Calculate color multiplier based on sequential parity.
+
+        Returns:
+            1.2 for bright beams (parity 0), 0.8 for dim beams (parity 1)
+        """
+        return 1.2 if self.parity == 0 else 0.8
 
     # CLAUDE TODO: point-in-polygonvertexlist should go to the Point class
     def _point_in_geometry(self, point: Point) -> bool:

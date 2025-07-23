@@ -18,6 +18,7 @@ class TestBeam:
             edge_index=0,
             anchor_point=Point(2.5, 0),
             starboard_vector=Point(5, 0),
+            parity=0,
         )
 
         assert beam.beam_index == 0
@@ -38,6 +39,7 @@ class TestBeam:
             edge_index=0,
             anchor_point=Point(2.5, 0),
             starboard_vector=Point(5, 0),
+            parity=0,
         )
 
         vertices = beam.vertices
@@ -74,6 +76,7 @@ class TestBeam:
             edge_index=0,
             anchor_point=Point(0, 0),
             starboard_vector=Point(5, 0),
+            parity=0,
         )
         
         # Forward vector should be perpendicular: (-0, 5) = (0, 5)
@@ -87,6 +90,7 @@ class TestBeam:
             edge_index=0,
             anchor_point=Point(0, 0),
             starboard_vector=Point(0, 5),
+            parity=0,
         )
         
         # Forward vector should be perpendicular: (-5, 0)
@@ -94,30 +98,27 @@ class TestBeam:
         assert beam2.forward_vector.y == 0
 
     def test_beam_parity_calculation(self):
-        """Test beam color parity calculation."""
+        """Test beam color parity based on provided parity value."""
         extent_pairs = [(Point(0, 10), Point(5, 10))]
         
-        # Test different beam/edge combinations
+        # Test different parity values
         test_cases = [
-            (0, 0, 1.2),  # Even sum = bright
-            (1, 0, 0.8),  # Odd sum = dim  
-            (0, 1, 0.8),  # Odd sum = dim
-            (1, 1, 1.2),  # Even sum = bright
-            (2, 3, 0.8),  # Odd sum = dim
-            (3, 3, 1.2),  # Even sum = bright
+            (0, 1.2),  # Parity 0 = bright
+            (1, 0.8),  # Parity 1 = dim  
         ]
         
-        for beam_idx, edge_idx, expected_multiplier in test_cases:
+        for parity, expected_multiplier in test_cases:
             beam = Beam(
                 extent_pairs=extent_pairs,
-                beam_index=beam_idx,
-                edge_index=edge_idx,
+                beam_index=0,
+                edge_index=0,
                 anchor_point=Point(0, 0),
                 starboard_vector=Point(5, 0),
+                parity=parity,
             )
             
             multiplier = beam.get_fill_color_multiplier()
-            assert multiplier == expected_multiplier, f"Failed for beam_idx={beam_idx}, edge_idx={edge_idx}"
+            assert multiplier == expected_multiplier, f"Failed for parity={parity}"
 
     def test_beam_color_adjustment_hex(self):
         """Test beam color adjustment with hex colors."""
@@ -126,9 +127,10 @@ class TestBeam:
         # Bright beam (multiplier = 1.2)
         bright_beam = Beam(
             extent_pairs=extent_pairs,
-            beam_index=0, edge_index=0,  # Even sum = bright
+            beam_index=0, edge_index=0,
             anchor_point=Point(0, 0),
             starboard_vector=Point(5, 0),
+            parity=0,  # Bright beam
         )
         
         adjusted_color = bright_beam._adjust_color_brightness("#FF0000", 1.2)
@@ -145,27 +147,28 @@ class TestBeam:
         adj_l, _, _ = adjusted_color_obj.get_oklch()
         assert adj_l > orig_l
 
-    def test_beam_color_adjustment_named(self):
-        """Test beam color adjustment with named colors."""
+    def test_beam_color_adjustment_hex_dim(self):
+        """Test beam color adjustment with hex colors for dim beams."""
         extent_pairs = [(Point(0, 10), Point(5, 10))]
         
         # Dim beam (multiplier = 0.8)
         dim_beam = Beam(
             extent_pairs=extent_pairs,
-            beam_index=1, edge_index=0,  # Odd sum = dim
+            beam_index=1, edge_index=0,
             anchor_point=Point(0, 0),
             starboard_vector=Point(5, 0),
+            parity=1,  # Dim beam
         )
         
-        adjusted_color = dim_beam._adjust_color_brightness("blue", 0.8)
+        adjusted_color = dim_beam._adjust_color_brightness("#0000FF", 0.8)
         
         # Should be OKLCH format
         assert adjusted_color.startswith("oklch(")
         assert adjusted_color.endswith(")")
         
         # Should be darker than original
-        original_color = Color.from_string("blue")
-        adjusted_color_obj = Color.from_string("blue").adjust_lightness(0.8)
+        original_color = Color.from_string("#0000FF")
+        adjusted_color_obj = Color.from_string("#0000FF").adjust_lightness(0.8)
         
         orig_l, _, _ = original_color.get_oklch()
         adj_l, _, _ = adjusted_color_obj.get_oklch()
@@ -176,12 +179,13 @@ class TestBeam:
         extent_pairs = [(Point(0, 10), Point(5, 10))]
         beam = Beam(
             extent_pairs=extent_pairs,
-            beam_index=0, edge_index=0,  # Bright beam
+            beam_index=0, edge_index=0,
             anchor_point=Point(0, 0),
             starboard_vector=Point(5, 0),
+            parity=0,  # Bright beam
         )
         
-        svg_elements = beam.get_svg("red")
+        svg_elements = beam.get_svg("#FF0000")
         
         assert len(svg_elements) == 1
         svg = svg_elements[0]
@@ -200,6 +204,7 @@ class TestBeam:
             edge_index=0,
             anchor_point=Point(2.5, 0),
             starboard_vector=Point(5, 0),
+            parity=0,
         )
         
         samples = beam.generate_samples()
@@ -229,6 +234,7 @@ class TestBeam:
             edge_index=0,
             anchor_point=Point(2.5, 0),
             starboard_vector=Point(5, 0),
+            parity=0,
         )
         
         # Should successfully create beam with appropriate extent selection
@@ -251,6 +257,7 @@ class TestBeam:
                 edge_index=0,
                 anchor_point=Point(0, 0),
                 starboard_vector=Point(5, 0),
+                parity=0,
             )
 
     def test_beam_point_in_geometry(self):
@@ -263,6 +270,7 @@ class TestBeam:
             edge_index=0,
             anchor_point=Point(5, 0),
             starboard_vector=Point(10, 0),
+            parity=0,
         )
         
         # Point inside beam should return True
@@ -278,18 +286,19 @@ class TestBeam:
         # Don't assert specific value as edge cases can vary with floating point precision
 
     def test_beam_alternation_pattern(self):
-        """Test that beams alternate correctly in a realistic scenario."""
+        """Test that beams alternate correctly with sequential parity."""
         extent_pairs = [(Point(0, 10), Point(2, 10))]
         
-        # Create several beams from same edge with different indices
+        # Create several beams with alternating parity (as would be assigned during generation)
         beams = []
         for i in range(6):
             beam = Beam(
                 extent_pairs=extent_pairs,
                 beam_index=i,
-                edge_index=0,  # Same edge
+                edge_index=0,
                 anchor_point=Point(1, 0),
                 starboard_vector=Point(2, 0),
+                parity=i % 2,  # Sequential alternation: 0, 1, 0, 1, 0, 1
             )
             beams.append(beam)
         
@@ -306,16 +315,18 @@ class TestBeam:
         # Two beams with same parity
         beam1 = Beam(
             extent_pairs=extent_pairs,
-            beam_index=0, edge_index=0,  # Even sum
+            beam_index=0, edge_index=0,
             anchor_point=Point(0, 0),
             starboard_vector=Point(5, 0),
+            parity=0,  # Same parity
         )
         
         beam2 = Beam(
             extent_pairs=extent_pairs,
-            beam_index=2, edge_index=2,  # Even sum  
+            beam_index=2, edge_index=2,
             anchor_point=Point(0, 0),
             starboard_vector=Point(5, 0),
+            parity=0,  # Same parity
         )
         
         # Should have same color multiplier
