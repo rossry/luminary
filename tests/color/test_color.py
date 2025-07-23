@@ -23,7 +23,7 @@ class TestColor:
         ]
 
         for hex_color in test_colors:
-            color = Color.from_hex(hex_color)
+            color = Color.from_hex_string(hex_color)
             roundtrip = color.to_hex()
 
             # Parse original and roundtrip RGB values
@@ -58,7 +58,7 @@ class TestColor:
         ]
 
         for hex_color in test_colors:
-            color = Color.from_hex(hex_color)
+            color = Color.from_hex_string(hex_color)
             roundtrip = color.to_hex()
 
             # Parse original and roundtrip RGB values
@@ -81,36 +81,35 @@ class TestColor:
                 abs(orig_b - rt_b) <= 2
             ), f"Blue mismatch for {hex_color}: {orig_b} vs {rt_b}"
 
-    def test_named_color_roundtrip(self):
-        """Test named color conversion and roundtripping."""
-        test_colors = [
-            ("red", "#FF0000"),
-            ("green", "#008000"),
-            ("blue", "#0000FF"),
-            ("white", "#FFFFFF"),
-            ("black", "#000000"),
-            ("yellow", "#FFFF00"),
-            ("magenta", "#FF00FF"),
-            ("cyan", "#00FFFF"),
-            ("orange", "#FFA500"),
-            ("purple", "#800080"),
+    def test_oklch_string_parsing(self):
+        """Test OKLCH string parsing and roundtripping."""
+        test_oklch_strings = [
+            "oklch(0.628 0.258 29.22)",  # Red-ish
+            "oklch(0.558 0.169 142.91)", # Green-ish  
+            "oklch(0.571 0.222 20.07)",  # Crimson-ish
+            "oklch(0.5 0.2 180)",        # Simple format
+            "oklch(50% 0.2 180deg)",     # With percentage and degree
         ]
 
-        for name, expected_hex in test_colors:
-            color = Color.from_named_color(name)
-            hex_result = color.to_hex()
-
-            # Convert expected hex to Color and back to account for OKLCH precision
-            expected_color = Color.from_hex(expected_hex)
-            expected_roundtrip = expected_color.to_hex()
-
-            assert (
-                hex_result == expected_roundtrip
-            ), f"Named color {name} failed: got {hex_result}, expected ~{expected_hex}"
+        for oklch_str in test_oklch_strings:
+            color = Color.from_oklch_string(oklch_str)
+            
+            # Parse the original components for comparison
+            content = oklch_str.replace('oklch(', '').replace(')', '')
+            parts = content.replace('%', '').replace('deg', '').split()
+            orig_l = float(parts[0]) / (100 if '%' in oklch_str else 1)
+            orig_c = float(parts[1])
+            orig_h = float(parts[2])
+            
+            # Check components are approximately equal
+            l, c, h = color.get_oklch()
+            assert abs(l - orig_l) < 0.01, f"Lightness mismatch: {l} vs {orig_l}"
+            assert abs(c - orig_c) < 0.01, f"Chroma mismatch: {c} vs {orig_c}"
+            assert abs(h - orig_h) < 1.0, f"Hue mismatch: {h} vs {orig_h}"
 
     def test_oklch_component_access(self):
         """Test OKLCH component getter methods."""
-        color = Color.from_hex("#FF0000")  # Red
+        color = Color.from_hex_string("#FF0000")  # Red
 
         # Get OKLCH components
         l, c, h = color.get_oklch()
@@ -122,7 +121,7 @@ class TestColor:
 
     def test_rgb_component_access(self):
         """Test RGB component getter methods."""
-        color = Color.from_hex("#FF0000")  # Red
+        color = Color.from_hex_string("#FF0000")  # Red
 
         # Get RGB components
         r, g, b = color.get_rgb()
@@ -134,7 +133,7 @@ class TestColor:
 
     def test_lightness_adjustment_preserves_hue_chroma(self):
         """Test that lightness adjustment preserves hue and chroma."""
-        original = Color.from_hex("#FF0000")  # Red
+        original = Color.from_hex_string("#FF0000")  # Red
 
         # Adjust lightness
         brighter = original.adjust_lightness(1.2)  # 20% brighter
@@ -161,7 +160,7 @@ class TestColor:
 
     def test_svg_output_format(self):
         """Test SVG OKLCH string output format."""
-        color = Color.from_hex("#FF0000")  # Red
+        color = Color.from_hex_string("#FF0000")  # Red
 
         svg_str = color.to_svg_str()
         oklch_str = color.to_oklch_string()
@@ -184,22 +183,26 @@ class TestColor:
         for part in parts:
             float(part)  # Should not raise exception
 
-    def test_color_string_dispatch(self):
-        """Test from_color_string dispatches correctly."""
+    def test_string_dispatch(self):
+        """Test from_string dispatches correctly."""
         # Test hex dispatch
-        hex_color = Color.from_color_string("#FF0000")
-        direct_hex = Color.from_hex("#FF0000")
+        hex_color = Color.from_string("#FF0000")
+        direct_hex = Color.from_hex_string("#FF0000")
         assert hex_color.to_hex() == direct_hex.to_hex()
 
-        # Test named dispatch
-        named_color = Color.from_color_string("red")
-        direct_named = Color.from_named_color("red")
-        assert named_color.to_hex() == direct_named.to_hex()
+        # Test OKLCH dispatch
+        oklch_color = Color.from_string("oklch(0.628 0.258 29.22)")
+        direct_oklch = Color.from_oklch_string("oklch(0.628 0.258 29.22)")
+        assert oklch_color.to_oklch_string() == direct_oklch.to_oklch_string()
+        
+        # Test unsupported format
+        with pytest.raises(ValueError, match="Unsupported color format"):
+            Color.from_string("unsupported_format")
 
     def test_lightness_clamping(self):
         """Test that lightness adjustments are properly clamped."""
         # Start with a dark color
-        dark_color = Color.from_hex("#404040")
+        dark_color = Color.from_hex_string("#404040")
 
         # Try to make it much darker (should clamp to 0)
         very_dark = dark_color.adjust_lightness(0.1)  # 90% darker
@@ -207,12 +210,23 @@ class TestColor:
 
         assert l >= 0.0, f"Lightness should be clamped to >= 0: {l}"
 
-    def test_unknown_named_color_fallback(self):
-        """Test that unknown named colors fall back to red."""
-        unknown_color = Color.from_named_color("nonexistent_color")
-        red_color = Color.from_named_color("red")
-
-        assert unknown_color.to_hex() == red_color.to_hex()
+    def test_invalid_formats_raise_errors(self):
+        """Test that invalid color formats raise appropriate errors."""
+        # Test empty string
+        with pytest.raises(ValueError, match="Empty color string"):
+            Color.from_string("")
+            
+        # Test invalid hex
+        with pytest.raises(ValueError, match="Invalid hex color format"):
+            Color.from_hex_string("#gggggg")
+            
+        # Test invalid OKLCH
+        with pytest.raises(ValueError, match="Invalid OKLCH"):
+            Color.from_oklch_string("oklch(invalid)")
+            
+        # Test unsupported format
+        with pytest.raises(ValueError, match="Unsupported color format"):
+            Color.from_string("rgb(255, 0, 0)")
 
     def test_perceptual_uniformity(self):
         """Test that OKLCH adjustments are more perceptually uniform than RGB."""
@@ -223,7 +237,7 @@ class TestColor:
         oklch_differences = []
 
         for hex_color in test_colors:
-            color = Color.from_hex(hex_color)
+            color = Color.from_hex_string(hex_color)
             brighter = color.adjust_lightness(1.2)
 
             # Calculate RGB difference (simple Euclidean)

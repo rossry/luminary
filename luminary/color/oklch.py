@@ -25,7 +25,7 @@ class Color:
         self._h = h
 
     @classmethod
-    def from_hex(cls, hex_color: str) -> "Color":
+    def from_hex_string(cls, hex_color: str) -> "Color":
         """Create Color from hex string.
 
         Args:
@@ -62,81 +62,101 @@ class Color:
         return cls._from_rgb_array(rgb)
 
     @classmethod
-    def from_named_color(cls, color_name: str) -> "Color":
-        """Create Color from named color.
+    def from_oklch_string(cls, oklch_str: str) -> "Color":
+        """Create Color from OKLCH string.
 
         Args:
-            color_name: Named color like "red", "blue", "darkcyan"
+            oklch_str: OKLCH string like "oklch(0.65 0.2 180)" or "oklch(65% 0.2 180deg)"
 
         Returns:
             Color instance
         """
-        # Common named colors to hex mapping
-        named_colors = {
-            "white": "#FFFFFF",
-            "black": "#000000",
-            "red": "#FF0000",
-            "green": "#008000",
-            "blue": "#0000FF",
-            "yellow": "#FFFF00",
-            "cyan": "#00FFFF",
-            "magenta": "#FF00FF",
-            "silver": "#C0C0C0",
-            "gray": "#808080",
-            "maroon": "#800000",
-            "olive": "#808000",
-            "lime": "#00FF00",
-            "aqua": "#00FFFF",
-            "teal": "#008080",
-            "navy": "#000080",
-            "fuchsia": "#FF00FF",
-            "purple": "#800080",
-            "orange": "#FFA500",
-            "indigo": "#4B0082",
-            "darkcyan": "#008B8B",
-            "forestgreen": "#228B22",
-            "darkgreen": "#006400",
-            "darkred": "#8B0000",
-            "darkblue": "#00008B",
-            "darkmagenta": "#8B008B",
-            "turquoise": "#40E0D0",
-            "tan": "#D2B48C",
-            "lightpink": "#FFB6C1",
-            "gold": "#FFD700",
-            "darkorange": "#FF8C00",
-            "crimson": "#DC143C",
-            "chartreuse": "#7FFF00",
-            "skyblue": "#87CEEB",
-            "limegreen": "#32CD32",
-            "goldenrod": "#DAA520",
-        }
-
-        # Normalize color name
-        normalized = color_name.lower().replace("_", "").replace(" ", "")
-
-        if normalized in named_colors:
-            return cls.from_hex(named_colors[normalized])
-        else:
-            # Fallback to red if unknown
-            return cls.from_hex("#FF0000")
+        import re
+        
+        if not oklch_str.strip():
+            raise ValueError("Empty OKLCH string provided")
+        
+        # Remove whitespace and validate basic format
+        oklch_str = oklch_str.strip()
+        if not (oklch_str.startswith("oklch(") and oklch_str.endswith(")")):
+            raise ValueError(f"Invalid OKLCH format: '{oklch_str}' (must be 'oklch(L C H)')")
+        
+        # Extract content between parentheses
+        content = oklch_str[6:-1].strip()
+        
+        # Parse components - handle common formats
+        # Split by whitespace and/or commas, filter empty strings
+        parts = [p.strip() for p in re.split(r'[\s,]+', content) if p.strip()]
+        
+        if len(parts) != 3:
+            raise ValueError(f"Invalid OKLCH components: '{content}' (expected 3 values: L C H)")
+        
+        l_str, c_str, h_str = parts
+        
+        # Parse lightness (handle percentage)
+        l_percent = l_str.endswith('%')
+        l_val = l_str.rstrip('%')
+        
+        # Parse hue (handle degree suffix)
+        h_val = h_str.rstrip('deg°')
+        
+        try:
+            # Parse lightness (handle percentage)
+            l = float(l_val)
+            if l_percent:
+                l = l / 100.0
+            
+            # Parse chroma (always decimal)
+            c = float(c_str)
+            
+            # Parse hue
+            h = float(h_val)
+            
+            # Validate ranges
+            if l < 0:
+                raise ValueError(f"Lightness must be >= 0, got {l}")
+            if c < 0:
+                raise ValueError(f"Chroma must be >= 0, got {c}")
+            
+            # Normalize hue to 0-360 range
+            h = h % 360
+            
+            return cls(l, c, h)
+            
+        except ValueError as e:
+            if "could not convert" in str(e):
+                raise ValueError(f"Invalid numeric values in OKLCH string: '{oklch_str}'")
+            else:
+                raise
 
     @classmethod
-    def from_color_string(cls, color_str: str) -> "Color":
-        """Create Color from hex or named color string.
-
+    def from_string(cls, color_str: str) -> "Color":
+        """Create Color from string - auto-detects format.
+        
+        Supports:
+        - Hex: "#FF0000", "#f00" 
+        - OKLCH: "oklch(0.65 0.2 180)", "oklch(65% 0.2 180deg)"
+        
         Args:
-            color_str: Either hex like "#FF0000" or named like "red"
-
+            color_str: Color string in supported format
+            
         Returns:
             Color instance
+            
+        Raises:
+            ValueError: If format not recognized or invalid
         """
         if not color_str:
             raise ValueError("Empty color string provided")
-
+        
+        color_str = color_str.strip()
+        
         if color_str.startswith("#"):
-            return cls.from_hex(color_str)
+            return cls.from_hex_string(color_str)
+        elif color_str.startswith("oklch(") and color_str.endswith(")"):
+            return cls.from_oklch_string(color_str)
         else:
-            return cls.from_named_color(color_str)
+            raise ValueError(f"Unsupported color format: '{color_str}'. Use hex (#FF0000) or OKLCH (oklch(0.65 0.2 180))")
 
     @classmethod
     def _from_rgb_array(cls, rgb: np.ndarray) -> "Color":

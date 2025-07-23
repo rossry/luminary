@@ -1,7 +1,7 @@
 """Pydantic models for JSON configuration schema."""
 
 from pydantic import BaseModel, Field, field_validator, model_validator
-from pydantic.color import Color
+# Using string-based colors instead of pydantic.color.Color
 from typing import List, Dict, Optional, Tuple
 from typing_extensions import TypeAlias
 from pathlib import Path
@@ -105,7 +105,7 @@ class GeometryConfig(BaseModel):
 class NetConfiguration(BaseModel):
     """Complete configuration schema for Net class."""
 
-    colors: Dict[str, Color] = Field(..., description="Named color definitions")
+    colors: Dict[str, str] = Field(..., description="Named color definitions (hex or OKLCH strings)")
     geometry: GeometryConfig = Field(..., description="Geometric definitions")
     rendering: RenderingConfig = Field(
         default_factory=lambda: RenderingConfig(

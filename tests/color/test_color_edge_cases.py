@@ -7,39 +7,39 @@ from luminary.color import Color
 def test_color_from_empty_hex():
     """Test that empty hex strings raise appropriate error."""
     with pytest.raises(ValueError, match="Empty hex color string provided"):
-        Color.from_hex("")
+        Color.from_hex_string("")
 
 
 def test_color_from_none_hex():
     """Test that None values are handled appropriately."""
     with pytest.raises(ValueError, match="Empty hex color string provided"):
-        Color.from_hex(None)
+        Color.from_hex_string(None)
 
 
 def test_color_from_empty_color_string():
     """Test that empty color strings raise appropriate error."""
     with pytest.raises(ValueError, match="Empty color string provided"):
-        Color.from_color_string("")
+        Color.from_string("")
 
 
 def test_color_from_invalid_hex_length():
     """Test that invalid hex lengths raise appropriate error."""
     # Too short (2 chars)
     with pytest.raises(ValueError, match="must be 3 or 6 characters"):
-        Color.from_hex("#ff")
+        Color.from_hex_string("#ff")
 
     # Too long (7 chars)
     with pytest.raises(ValueError, match="must be 3 or 6 characters"):
-        Color.from_hex("#ff00000")
+        Color.from_hex_string("#ff00000")
 
     # Invalid length (4 chars)
     with pytest.raises(ValueError, match="must be 3 or 6 characters"):
-        Color.from_hex("#ffff")
+        Color.from_hex_string("#ffff")
 
 
 def test_color_from_short_hex():
     """Test that 3-character hex codes are properly expanded."""
-    color = Color.from_hex("#f0c")
+    color = Color.from_hex_string("#f0c")
     # Should be equivalent to #ff00cc
 
     # Test that it doesn't crash and produces valid output
@@ -51,10 +51,10 @@ def test_color_from_short_hex():
 def test_color_from_invalid_hex_chars():
     """Test that invalid hex characters raise appropriate error."""
     with pytest.raises(ValueError, match="Invalid hex color format"):
-        Color.from_hex("#gghhii")
+        Color.from_hex_string("#gghhii")
 
     with pytest.raises(ValueError, match="Invalid hex color format"):
-        Color.from_hex("#12345z")
+        Color.from_hex_string("#12345z")
 
 
 def test_color_from_valid_3_char_hex():
@@ -62,7 +62,7 @@ def test_color_from_valid_3_char_hex():
     test_cases = ["#fff", "#000", "#f0c", "#a1b"]
 
     for hex_code in test_cases:
-        color = Color.from_hex(hex_code)
+        color = Color.from_hex_string(hex_code)
         # Should not raise any errors
         result = color.to_hex()
         assert isinstance(result, str)
@@ -75,7 +75,7 @@ def test_color_from_valid_6_char_hex():
     test_cases = ["#ffffff", "#000000", "#ff00cc", "#a1b2c3"]
 
     for hex_code in test_cases:
-        color = Color.from_hex(hex_code)
+        color = Color.from_hex_string(hex_code)
         # Should not raise any errors
         result = color.to_hex()
         assert isinstance(result, str)

@@ -54,10 +54,20 @@ class Net(SVGExportable):
                     f"Color '{color_name}' not found in configuration colors or is empty"
                 )
 
-            color_hex = str(color_value)
-            if not color_hex or color_hex.lower() in ("none", "null", ""):
+            # color_value is now a string (hex or OKLCH), validate it with our Color class
+            if not color_value or color_value.lower() in ("none", "null", ""):
                 raise ValueError(
-                    f"Invalid color value for '{color_name}': '{color_hex}'"
+                    f"Invalid color value for '{color_name}': '{color_value}'"
+                )
+            
+            # Validate the color string and get the hex representation
+            from luminary.color import Color
+            try:
+                color_obj = Color.from_string(color_value)
+                color_hex = color_obj.to_hex()
+            except ValueError as e:
+                raise ValueError(
+                    f"Invalid color format for '{color_name}': '{color_value}' - {e}"
                 )
 
             points.append(Point(x, y, color_hex))

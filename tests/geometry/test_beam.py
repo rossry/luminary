@@ -138,8 +138,8 @@ class TestBeam:
         assert adjusted_color.endswith(")")
         
         # Should be brighter than original
-        original_color = Color.from_hex("#FF0000")
-        adjusted_color_obj = Color.from_color_string("#FF0000").adjust_lightness(1.2)
+        original_color = Color.from_hex_string("#FF0000")
+        adjusted_color_obj = Color.from_string("#FF0000").adjust_lightness(1.2)
         
         orig_l, _, _ = original_color.get_oklch()
         adj_l, _, _ = adjusted_color_obj.get_oklch()
@@ -164,8 +164,8 @@ class TestBeam:
         assert adjusted_color.endswith(")")
         
         # Should be darker than original
-        original_color = Color.from_named_color("blue")
-        adjusted_color_obj = Color.from_named_color("blue").adjust_lightness(0.8)
+        original_color = Color.from_string("blue")
+        adjusted_color_obj = Color.from_string("blue").adjust_lightness(0.8)
         
         orig_l, _, _ = original_color.get_oklch()
         adj_l, _, _ = adjusted_color_obj.get_oklch()

@@ -187,7 +187,7 @@ class Beam(SVGExportable):
         from luminary.color import Color
 
         # Create Color instance from string and adjust lightness
-        color = Color.from_color_string(color_str)
+        color = Color.from_string(color_str)
         adjusted_color = color.adjust_lightness(multiplier)
 
         return adjusted_color.to_svg_str()

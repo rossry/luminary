@@ -800,8 +800,8 @@ def create_oklch_color_validation_svg(output_dir: Path) -> None:
         ("Blue", "#0000FF", 300),
         ("Purple", "#800080", 400),
         ("Orange", "#FFA500", 500),
-        ("Darkcyan", "darkcyan", 600),
-        ("Forestgreen", "forestgreen", 700),
+        ("Darkcyan", "#008B8B", 600),
+        ("Forestgreen", "#228B22", 700),
     ]
 
     # Column headers
@@ -816,7 +816,7 @@ def create_oklch_color_validation_svg(output_dir: Path) -> None:
         y = y_start + i * 60
 
         # Original color
-        original = Color.from_color_string(color_str)
+        original = Color.from_string(color_str)
         original_hex = original.to_hex()
 
         # Brightness variations
@@ -911,18 +911,18 @@ def create_dual_extent_beam_validation_svg(output_dir: Path) -> None:
     from luminary.geometry.net import Net
     from luminary.config.schema import NetConfiguration
     
-    # Create a simple triangle configuration with royal blue, forest green, crimson vertices
+    # Create a simple triangle configuration with OKLCH colors for precise control
     config_data = {
         "colors": {
-            "royal_blue": "#4169E1",
-            "forest_green": "#228B22", 
-            "crimson": "#DC143C"
+            "royal_blue": "#4169E1",           # Royal blue hex
+            "forest_green": "#228B22",         # Forest green hex
+            "crimson": "#DC143C"               # Crimson hex
         },
         "geometry": {
             "points": [
-                [0, -60, "royal_blue"],      # Top vertex
-                [52, 30, "forest_green"],    # Bottom right vertex  
-                [-52, 30, "crimson"]         # Bottom left vertex
+                [0, -60, "royal_blue"],      # Top vertex - royal blue
+                [52, 30, "forest_green"],    # Bottom right vertex - forest green  
+                [-52, 30, "crimson"]         # Bottom left vertex - crimson
             ],
             "triangles": [
                 [[0, 1, 2]]  # Single triangle using all three points
