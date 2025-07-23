@@ -62,7 +62,7 @@ class TestSVGUtilities:
 
         result = create_line_svg(p1, p2, "black", 2)
         expected = (
-            '  <line x1="0" y1="0" x2="100" y2="50" stroke="black" stroke-width="2"/>'
+            '  <line x1="0" y1="0" x2="100" y2="50" stroke="black" stroke-width="2" stroke-linecap="round"/>'
         )
         assert result == expected
 
@@ -70,7 +70,7 @@ class TestSVGUtilities:
         p3 = Point(-10, -5)
         p4 = Point(10, 5)
         result2 = create_line_svg(p3, p4, "#FF00FF", 1.5)
-        expected2 = '  <line x1="-10" y1="-5" x2="10" y2="5" stroke="#FF00FF" stroke-width="1.5"/>'
+        expected2 = '  <line x1="-10" y1="-5" x2="10" y2="5" stroke="#FF00FF" stroke-width="1.5" stroke-linecap="round"/>'
         assert result2 == expected2
 
     def test_create_text_svg(self):

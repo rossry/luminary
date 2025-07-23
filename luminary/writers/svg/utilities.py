@@ -77,7 +77,7 @@ def create_line_svg(
     p1: Point, p2: Point, stroke_color: str, stroke_width: float
 ) -> str:
     """
-    Generate SVG line element.
+    Generate SVG line element with rounded caps.
 
     Args:
         p1: Start point
@@ -86,9 +86,9 @@ def create_line_svg(
         stroke_width: Line width
 
     Returns:
-        SVG line element string
+        SVG line element string with semicircle rounded caps
     """
-    return f'  <line x1="{p1.x}" y1="{p1.y}" x2="{p2.x}" y2="{p2.y}" stroke="{stroke_color}" stroke-width="{stroke_width}"/>'
+    return f'  <line x1="{p1.x}" y1="{p1.y}" x2="{p2.x}" y2="{p2.y}" stroke="{stroke_color}" stroke-width="{stroke_width}" stroke-linecap="round"/>'
 
 
 def create_text_svg(
