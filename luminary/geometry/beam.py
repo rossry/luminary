@@ -33,10 +33,10 @@ class Beam(SVGExportable):
             anchor_point: Reference point on baseline, centered
             starboard_vector: Vector along baseline (starboard direction), one beam width
         """
-        # Validate single extent requirement for placeholder implementation
-        if len(extent_pairs) != 1:
+        # Validate extent requirements for current implementation
+        if len(extent_pairs) not in (1, 2):
             raise NotImplementedError(
-                f"Currently only single extent supported, got {len(extent_pairs)} extents"
+                f"Currently only 1 or 2 extents supported, got {len(extent_pairs)} extents"
             )
 
         self.extent_pairs = extent_pairs
@@ -54,25 +54,47 @@ class Beam(SVGExportable):
         self.vertices = self._calculate_vertices()
 
     def _calculate_vertices(self) -> List[Point]:
-        """Calculate 4-sided beam polygon from single extent.
+        """Calculate beam polygon from extent pairs.
 
-        Since we have exactly one extent, create simple 4-sided polygon:
-        baseline start -> baseline end -> forward starboard -> forward port
+        Creates 4-sided polygon using the appropriate extent(s).
         """
-        # Get single extent (forward edge)
-        forward_port, forward_starboard = self.extent_pairs[0]
-
         # Calculate baseline endpoints from anchor along the baseline (starboard direction)
         half_width = self.starboard_vector * 0.5
         baseline_port = self.anchor_point - half_width
         baseline_starboard = self.anchor_point + half_width
 
-        # Create 4-sided polygon: baseline -> forward edge -> baseline
+        if len(self.extent_pairs) == 1:
+            # Single extent: use it directly
+            forward_port, forward_starboard = self.extent_pairs[0]
+        else:
+            # Dual extents: determine which extent is closer on each side
+            extent0_port, extent0_starboard = self.extent_pairs[0]
+            extent1_port, extent1_starboard = self.extent_pairs[1]
+            
+            # Calculate distances from baseline corners to extent endpoints
+            port_dist_0 = Point.distance(baseline_port, extent0_port)
+            port_dist_1 = Point.distance(baseline_port, extent1_port)
+            starboard_dist_0 = Point.distance(baseline_starboard, extent0_starboard)
+            starboard_dist_1 = Point.distance(baseline_starboard, extent1_starboard)
+            
+            # Determine which extent is closer on each side
+            closer_port_extent = 0 if port_dist_0 < port_dist_1 else 1
+            closer_starboard_extent = 0 if starboard_dist_0 < starboard_dist_1 else 1
+            
+            if closer_port_extent == closer_starboard_extent:
+                # Same extent is closer on both sides - use that extent
+                forward_port, forward_starboard = self.extent_pairs[closer_port_extent]
+            else:
+                # Different extents are closer - use extent 0 for now
+                # CLAUDE TODO: should use 5-sided polygon with both extents to correctly account for both
+                forward_port, forward_starboard = self.extent_pairs[0]
+
+        # Create 4-sided polygon
         vertices = [
-            baseline_port,  # Start of baseline (port side)
-            baseline_starboard,  # End of baseline (starboard side)
+            baseline_port,      # Start of baseline (port side)
+            baseline_starboard, # End of baseline (starboard side)
             forward_starboard,  # Forward edge starboard point
-            forward_port,  # Forward edge port point
+            forward_port,       # Forward edge port point
         ]
 
         return vertices

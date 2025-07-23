@@ -38,6 +38,9 @@ def create_validation_svgs() -> None:
 
     # Validation 7: OKLCH color validation
     create_oklch_color_validation_svg(output_dir)
+    
+    # Validation 8: Dual extent beam validation
+    create_dual_extent_beam_validation_svg(output_dir)
 
     # Validation 6: Net reference validation
     create_net_reference_svg(output_dir)
@@ -484,6 +487,16 @@ def create_description_files(output_dir: Path) -> None:
 <p><strong>Expected:</strong> Two identical pentagon patterns - the top one generated from reference-v4.json using Net class, the bottom one is the original reference. Both should show complete pentagon pattern with 33 triangles subdivided into 99 kites, 31 colored vertex circles, 60 geometric lines, and 33 incenter dots.</p>
 <p><strong>Validates:</strong> End-to-end JSON configuration parsing, Net class triangle/kite creation, Pydantic schema validation, complete SVG generation pipeline, color mapping from configuration. Visual comparison ensures generated output matches original reference exactly.</p>
 </div>""",
+        "07_oklch_color_validation.html": """<div class="description">
+<h3>OKLCH Color Space Validation</h3>
+<p><strong>Expected:</strong> Seven rows showing color swatches: original colors (red, green, blue, purple, orange, darkcyan, forestgreen), their 20% darker versions, 20% brighter versions, with OKLCH CSS strings. Each row should show smooth brightness transitions.</p>
+<p><strong>Validates:</strong> OKLCH color space conversion, lightness adjustment calculations, hex color output, CSS string generation, perceptually uniform brightness changes.</p>
+</div>""",
+        "08_dual_extent_beam_validation.html": """<div class="description">
+<h3>Dual Extent Beam Validation</h3>
+<p><strong>Expected:</strong> Single large triangle with royal blue top vertex, forest green bottom-right vertex, and crimson bottom-left vertex. Triangle subdivided into three facets, each showing beams with dual extents (axis intersections and lateral angle bisector intersections). Beams should show alternating brightness within each facet based on parity.</p>
+<p><strong>Validates:</strong> Dual extent beam generation, lateral angle bisector calculations, stride optimization for intersection computation, beam polygon selection logic, extended SVG rendering with beam subdivisions.</p>
+</div>""",
     }
 
     for filename, content in descriptions.items():
@@ -512,6 +525,7 @@ def create_html_index(output_dir: Path) -> None:
         "05_kite_subdivision.svg",
         "06_net_reference.svg",
         "07_oklch_color_validation.svg",
+        "08_dual_extent_beam_validation.svg",
     ]
 
     file_hashes = {}
@@ -654,6 +668,18 @@ def create_html_index(output_dir: Path) -> None:
             </div>
         </div>
         
+        <div class="validation-section" data-hash="{file_hashes['08_dual_extent_beam_validation.svg']}">
+            <div class="validation-header" onclick="toggleSection(8)">
+                <h2>Dual Extent Beam Validation <span class="toggle-icon">▼</span></h2>
+            </div>
+            <div class="validation-content" id="content8">
+                <div class="svg-container">
+                    <object data="08_dual_extent_beam_validation.svg" type="image/svg+xml" width="100%" height="400"></object>
+                </div>
+                <div id="desc8"></div>
+            </div>
+        </div>
+        
         <div class="success-criteria">
             <h3>Validation Success Criteria</h3>
             <p>✅ All shapes render correctly - no distorted or missing elements<br>
@@ -680,6 +706,8 @@ def create_html_index(output_dir: Path) -> None:
             document.getElementById('desc6').innerHTML = html);
         fetch('07_oklch_color_validation.html').then(r => r.text()).then(html => 
             document.getElementById('desc7').innerHTML = html);
+        fetch('08_dual_extent_beam_validation.html').then(r => r.text()).then(html => 
+            document.getElementById('desc8').innerHTML = html);
         
         // LocalStorage key for collapsed sections
         const STORAGE_KEY = 'luminary_validation_collapsed';
@@ -875,6 +903,67 @@ def create_oklch_color_validation_svg(output_dir: Path) -> None:
     output_path.write_text(svg_content)
 
 
+def create_dual_extent_beam_validation_svg(output_dir: Path) -> None:
+    """Create dual extent beam validation using a single large triangle."""
+    import json
+    import tempfile
+    from pathlib import Path
+    from luminary.geometry.net import Net
+    from luminary.config.schema import NetConfiguration
+    
+    # Create a simple triangle configuration with royal blue, forest green, crimson vertices
+    config_data = {
+        "colors": {
+            "royal_blue": "#4169E1",
+            "forest_green": "#228B22", 
+            "crimson": "#DC143C"
+        },
+        "geometry": {
+            "points": [
+                [0, -60, "royal_blue"],      # Top vertex
+                [52, 30, "forest_green"],    # Bottom right vertex  
+                [-52, 30, "crimson"]         # Bottom left vertex
+            ],
+            "triangles": [
+                [[0, 1, 2]]  # Single triangle using all three points
+            ],
+            "apex": [0.0, 0.0],
+            "lines": [],
+            "default_beam_counts": [6, 4, 4, 6]  # More beams to show dual extent effect
+        },
+        "rendering": {
+            "svg": {
+                "width": "100%", 
+                "height": "400",
+                "viewBox": "-80 -80 160 160"
+            }
+        }
+    }
+    
+    # Create temporary config file
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        json.dump(config_data, f, indent=2)
+        temp_config_path = f.name
+    
+    try:
+        # Load configuration and create Net
+        config = NetConfiguration.from_file(Path(temp_config_path))
+        net = Net(config)
+        
+        # Generate extended SVG content
+        extended_svg_elements = net.get_svg(extended=True)
+        extended_svg_content = "".join(extended_svg_elements)
+        
+        # Save extended SVG
+        output_path = output_dir / "08_dual_extent_beam_validation.svg"
+        output_path.write_text(extended_svg_content)
+        
+    finally:
+        # Clean up temporary file
+        import os
+        os.unlink(temp_config_path)
+
+
 def run_validation() -> List[str]:
     """Run validation and return list of created files."""
     create_validation_svgs()
@@ -888,6 +977,7 @@ def run_validation() -> List[str]:
         "05_kite_subdivision.svg - Triangles subdivided into colored kites with orientation-based labeling",
         "06_net_reference.svg - Net reference validation with reference overlay and facet inspection",
         "07_oklch_color_validation.svg - OKLCH color conversion with brightness adjustments and CSS output",
+        "08_dual_extent_beam_validation.svg - Single large triangle with dual extent beams showing axis and bisector intersections",
     ]
 
 

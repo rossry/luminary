@@ -215,15 +215,36 @@ class TestBeam:
         assert abs(first_sample.x - expected_x) < 0.001
         assert abs(first_sample.y - expected_y) < 0.001
 
-    def test_beam_multiple_extents_not_supported(self):
-        """Test that multiple extents raise NotImplementedError."""
-        # Multiple extent pairs should raise error
+    def test_beam_dual_extents_supported(self):
+        """Test that dual extents (1 or 2) are supported."""
+        # Dual extent pairs should work
         extent_pairs = [
             (Point(0, 10), Point(5, 10)),
             (Point(0, 20), Point(5, 20))
         ]
         
-        with pytest.raises(NotImplementedError, match="Currently only single extent supported"):
+        beam = Beam(
+            extent_pairs=extent_pairs,
+            beam_index=0,
+            edge_index=0,
+            anchor_point=Point(2.5, 0),
+            starboard_vector=Point(5, 0),
+        )
+        
+        # Should successfully create beam with appropriate extent selection
+        assert len(beam.extent_pairs) == 2
+        assert len(beam.vertices) == 4  # 4-sided polygon for now
+        
+    def test_beam_too_many_extents_not_supported(self):
+        """Test that more than 2 extents raise NotImplementedError."""
+        # Three extent pairs should raise error
+        extent_pairs = [
+            (Point(0, 10), Point(5, 10)),
+            (Point(0, 20), Point(5, 20)),
+            (Point(0, 30), Point(5, 30))
+        ]
+        
+        with pytest.raises(NotImplementedError, match="Currently only 1 or 2 extents supported"):
             Beam(
                 extent_pairs=extent_pairs,
                 beam_index=0,

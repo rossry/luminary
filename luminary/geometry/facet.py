@@ -139,6 +139,44 @@ class Facet(SVGExportable):
         else:
             raise ValueError(f"Unknown edge type: {edge_type}")
 
+    def _calculate_angle_bisector(
+        self, apex: Point, point1: Point, point2: Point
+    ) -> Point:
+        """Calculate the unit direction vector of the angle bisector.
+
+        Args:
+            apex: Vertex of the angle
+            point1: First point defining the angle
+            point2: Second point defining the angle
+
+        Returns:
+            Unit vector pointing along the angle bisector from apex
+        """
+        # Get vectors from apex to the two points
+        vec1 = point1 - apex
+        vec2 = point2 - apex
+
+        # Normalize the vectors
+        len1 = math.sqrt(vec1.x**2 + vec1.y**2)
+        len2 = math.sqrt(vec2.x**2 + vec2.y**2)
+
+        if len1 == 0 or len2 == 0:
+            # Degenerate case - return arbitrary direction
+            return Point(1, 0)
+
+        unit1 = vec1 / len1
+        unit2 = vec2 / len2
+
+        # Angle bisector is the average of unit vectors
+        bisector = unit1 + unit2
+        bisector_len = math.sqrt(bisector.x**2 + bisector.y**2)
+
+        if bisector_len == 0:
+            # Vectors are opposite - return perpendicular
+            return Point(-unit1.y, unit1.x)
+
+        return bisector / bisector_len
+
     # CLAUDE TODO: this should go to the Point class, since it's generic
     def _line_intersection(
         self, line1: Tuple[Point, Point], line2: Tuple[Point, Point]
@@ -180,6 +218,20 @@ class Facet(SVGExportable):
         all_beams = []
         axis = self._get_axis_of_symmetry()
 
+        # Calculate lateral angle bisectors for second extent
+        # Port lateral angle: at midpoint1, between edges to vertex and incenter
+        port_bisector_dir = self._calculate_angle_bisector(
+            self.vertices[1],  # midpoint1 (port lateral)
+            self.vertices[0],  # vertex
+            self.vertices[2],  # incenter
+        )
+        # Starboard lateral angle: at midpoint2, between edges to incenter and vertex
+        starboard_bisector_dir = self._calculate_angle_bisector(
+            self.vertices[3],  # midpoint2 (starboard lateral)
+            self.vertices[2],  # incenter
+            self.vertices[0],  # vertex
+        )
+
         for edge_idx, beam_count in enumerate(beam_counts):
             edge_type = EdgeType(edge_idx)
             edge_beams = []
@@ -202,6 +254,54 @@ class Facet(SVGExportable):
             # Forward vector: perpendicular to edge, pointing into facet interior, one beam width
             forward_vector = Point(-edge_unit.y, edge_unit.x) * beam_width
 
+            # Set up for stride optimization
+            ray_depth = 100.0  # Large number to ensure intersection
+            forward_unit = Point(
+                -edge_unit.y, edge_unit.x
+            )  # Unit vector into facet interior
+
+            # Pre-compute bisector lines (constant for all beams on this edge)
+            port_bisector_line = (
+                self.vertices[1],
+                self.vertices[1] + port_bisector_dir * ray_depth,
+            )
+            starboard_bisector_line = (
+                self.vertices[3],
+                self.vertices[3] + starboard_bisector_dir * ray_depth,
+            )
+
+            # Compute first beam intersections to establish stride vectors
+            first_baseline_start = edge_start  # t_start = 0
+            first_baseline_end = (
+                edge_start + edge_vector / beam_count
+            )  # t_end = 1/beam_count
+
+            first_port_ray_end = first_baseline_start + forward_unit * ray_depth
+            first_starboard_ray_end = first_baseline_end + forward_unit * ray_depth
+            first_port_ray = (first_baseline_start, first_port_ray_end)
+            first_starboard_ray = (first_baseline_end, first_starboard_ray_end)
+
+            # First beam axis intersections
+            first_port_axis = self._line_intersection(first_port_ray, axis)
+            first_starboard_axis = self._line_intersection(first_starboard_ray, axis)
+
+            # First beam bisector intersections
+            first_port_bisector = self._line_intersection(
+                first_port_ray, port_bisector_line
+            )
+            first_starboard_bisector = self._line_intersection(
+                first_starboard_ray, starboard_bisector_line
+            )
+
+            # Calculate stride vectors
+            axis_stride_vector = first_starboard_axis - first_port_axis
+            bisector_stride_vector = first_starboard_bisector - first_port_bisector
+
+            # Initialize for stride optimization - start with port intersections of first beam
+            # so that beam 0's port = prev_starboard works correctly
+            prev_axis_starboard = first_port_axis
+            prev_bisector_starboard = first_port_bisector
+
             for beam_idx in range(beam_count):
                 # Calculate beam baseline segment on the edge
                 t_start = beam_idx / beam_count
@@ -217,26 +317,32 @@ class Facet(SVGExportable):
                 # Calculate anchor point (center of baseline)
                 anchor = Point.midpoint(baseline_start, baseline_end)
 
-                # CLAUDE TODO: note that the offset starboard_axis_intersection - port_axis_intersection is constant for all beams in an edge, and note also that the starboard_axis_intersection of beam_idx=n is the port_axis_intersection of beam_idx=(n+1). use these to calculate the prev_starboard_axis_intersection and the axis_intersection_stride_vector and use them to do this much more simply. we can verify that this agrees with computed math in tests.
-                # Create perpendicular rays from baseline endpoints into facet interior
-                ray_depth = 100.0  # Large number to ensure intersection # CLAUDE TODO: this should be unnecessary, and the fact that it's here is a sign that either the underlying geometry library you've written is missing something, or you're not using it to its full power here.
-                forward_unit = Point(
-                    -edge_unit.y, edge_unit.x
-                )  # Unit vector into facet interior
-                port_ray_end = baseline_start + forward_unit * ray_depth
-                starboard_ray_end = baseline_end + forward_unit * ray_depth
+                # Use stride optimization for all beams uniformly
+                port_axis_intersection = prev_axis_starboard
+                port_bisector_intersection = prev_bisector_starboard
 
-                # Find intersections with axis of symmetry
-                port_ray = (baseline_start, port_ray_end)
-                starboard_ray = (baseline_end, starboard_ray_end)
-
-                port_axis_intersection = self._line_intersection(port_ray, axis)
-                starboard_axis_intersection = self._line_intersection(
-                    starboard_ray, axis
+                starboard_axis_intersection = (
+                    port_axis_intersection + axis_stride_vector
+                )
+                starboard_bisector_intersection = (
+                    port_bisector_intersection + bisector_stride_vector
                 )
 
-                # Create single extent segment from axis slicing
-                extent_pairs = [(port_axis_intersection, starboard_axis_intersection)]
+                # Update for next iteration
+                prev_axis_starboard = starboard_axis_intersection
+                prev_bisector_starboard = starboard_bisector_intersection
+
+                # Create dual extent segments
+                extent_pairs = [
+                    (
+                        port_axis_intersection,
+                        starboard_axis_intersection,
+                    ),  # First extent (axis)
+                    (
+                        port_bisector_intersection,
+                        starboard_bisector_intersection,
+                    ),  # Second extent (bisectors)
+                ]
 
                 # Create beam
                 beam = Beam(
