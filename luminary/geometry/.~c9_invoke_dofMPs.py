@@ -4,7 +4,6 @@ import math
 from typing import Tuple, Optional
 
 
-# CLAUDE TODO: should also calculate polar coordinates at init time (and test them in pytest tests). we'll use them later, not right now
 class Point:
     """Represents a 2D point with optional color."""
 
@@ -47,12 +46,11 @@ class Point:
         Returns:
             New Point at midpoint (no color)
         """
-        # CLAUDE TODO: points can be added, so this should use addition of points rather than coordinates
         mid_x = (p1.x + p2.x) / 2
         mid_y = (p1.y + p2.y) / 2
         return Point(mid_x, mid_y)
 
-    # CLAUDE TODO: decide whether this should get used or not many things simply access point.x, and that's fine, but it should be consistent or illegal.
+    # CLAUDE TODO: rename this to get_xy and fix everything else that calls it
     def get_coordinates(self) -> Tuple[float, float]:
         """
         Return coordinates as tuple.
@@ -61,6 +59,8 @@ class Point:
             (x, y) tuple
         """
         return (self.x, self.y)
+
+    # CLAUDE TODO: add get_polar
 
     def get_color(self) -> Optional[str]:
         """

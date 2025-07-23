@@ -184,6 +184,11 @@ def main():
         type=Path,
         help="Output SVG file (default: output/{config_stem}.svg)",
     )
+    svg_parser.add_argument(
+        "--extended",
+        action="store_true",
+        help="Generate extended view showing individual beam subdivisions",
+    )
 
     # SVG index subcommand
     index_parser = subparsers.add_parser(
@@ -221,7 +226,10 @@ def main():
             if args.output is None:
                 config_stem = args.config.stem  # filename without .json extension
                 script_dir = Path(__file__).parent  # Directory containing main.py
-                args.output = script_dir / "output" / f"{config_stem}.svg"
+                if args.extended:
+                    args.output = script_dir / "output" / f"{config_stem}.extended.svg"
+                else:
+                    args.output = script_dir / "output" / f"{config_stem}.svg"
 
             # Load Net from JSON configuration
             print(f"Loading configuration from {args.config}")
@@ -234,8 +242,10 @@ def main():
             args.output.parent.mkdir(parents=True, exist_ok=True)
 
             # Save SVG
-            net.save_svg(args.output)
+            net.save_svg(args.output, extended=args.extended)
             print(f"SVG saved to {args.output}")
+            if args.extended:
+                print("Extended mode: Generated individual beam subdivisions")
 
             # Print statistics
             stats = net.get_stats()

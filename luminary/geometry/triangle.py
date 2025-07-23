@@ -1,7 +1,7 @@
 """Triangle class with incenter calculation and orientation detection."""
 
 from enum import Enum
-from typing import List, TYPE_CHECKING
+from typing import List, Tuple, TYPE_CHECKING
 from luminary.geometry.point import Point
 from luminary.writers.svg.svg_exportable import SVGExportable
 
@@ -19,7 +19,15 @@ class Orientation(Enum):
 class Triangle(SVGExportable):
     """Triangle with incenter calculation and SVG generation."""
 
-    def __init__(self, p1: Point, p2: Point, p3: Point, triangle_id: int, apex: Point):
+    def __init__(
+        self,
+        p1: Point,
+        p2: Point,
+        p3: Point,
+        triangle_id: int,
+        apex: Point,
+        beam_counts: Tuple[int, int, int, int] = (7, 4, 4, 7),
+    ):
         """
         Initialize Triangle with vertices and calculate geometric properties.
 
@@ -28,11 +36,13 @@ class Triangle(SVGExportable):
             p2: Second vertex
             p3: Third vertex
             triangle_id: Unique triangle identifier
-            apex: Reference apex point for orientation detection
+            apex: Pentagon apex point for orientation detection
+            beam_counts: Number of beams for each facet edge (MAJOR_STARBOARD, MINOR_STARBOARD, MINOR_PORT, MAJOR_PORT)
         """
         self.vertices = [p1, p2, p3]
         self.triangle_id = triangle_id
         self.apex = apex
+        self.beam_counts = beam_counts
 
         # Calculate geometric properties
         self.incenter = self._calculate_incenter()
@@ -179,10 +189,10 @@ class Triangle(SVGExportable):
         # Find the starting vertex based on orientation
         if self.orientation == Orientation.APEXWARD:
             # A = closest to apex
-            start_vertex_idx = min(vertex_distances, key=lambda x: x[2])[0]
+            start_vertex_idx = min(vertex_distances, key=lambda v: v[2])[0]
         else:
             # D = furthest from apex
-            start_vertex_idx = max(vertex_distances, key=lambda x: x[2])[0]
+            start_vertex_idx = max(vertex_distances, key=lambda v: v[2])[0]
 
         # Calculate counterclockwise order from the starting vertex
         ordered_vertices = self._get_counterclockwise_order(start_vertex_idx)
@@ -194,6 +204,7 @@ class Triangle(SVGExportable):
         for label_idx, vertex_idx in enumerate(ordered_vertices):
             vertex = self.vertices[vertex_idx]
 
+            # CLAUDE TODO: note that the vertex_idx is always the index into edge_midpoints for midpoint1. use that. also use the fact that the index of midpoint2 in edge midpoints can be calculated via modular arithmetic; no need to do it in lookup style. finally, while you're setting them up, might as well identify them as port and starboard (appropriately)
             # Find the correct edge midpoints for this vertex
             # Edge midpoints: [0] = midpoint(v0,v1), [1] = midpoint(v1,v2), [2] = midpoint(v0,v2)
             if vertex_idx == 0:
@@ -209,7 +220,9 @@ class Triangle(SVGExportable):
                 midpoint1 = self.edge_midpoints[2]  # to v0
                 midpoint2 = self.edge_midpoints[1]  # to v1
 
-            facet_label = f"{self.triangle_id}{labels[label_idx]}"  # Prepend triangle ID
+            facet_label = (
+                f"{self.triangle_id}{labels[label_idx]}"  # Prepend triangle ID
+            )
 
             facets.append(
                 Facet(
@@ -219,6 +232,7 @@ class Triangle(SVGExportable):
                     midpoint2=midpoint2,
                     color=vertex.color or "black",
                     label=facet_label,
+                    beam_counts=self.beam_counts,
                 )
             )
 
@@ -279,7 +293,7 @@ class Triangle(SVGExportable):
     def get_construction_lines_svg(self) -> List[str]:
         """
         Generate SVG elements for construction lines (incenter to midpoints).
-        These should be rendered on top of kites.
+        These should be rendered on top of facets.
 
         Returns:
             List of SVG line element strings

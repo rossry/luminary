@@ -13,6 +13,7 @@ from luminary.writers.svg.utilities import (
 )
 from luminary.geometry.triangle import Triangle, Orientation
 from luminary.geometry.net import Net
+from luminary.color import Color
 
 
 def create_validation_svgs() -> None:
@@ -34,6 +35,9 @@ def create_validation_svgs() -> None:
 
     # Validation 5: Facet subdivision test
     create_facet_subdivision_svg(output_dir)
+
+    # Validation 7: OKLCH color validation
+    create_oklch_color_validation_svg(output_dir)
 
     # Validation 6: Net reference validation
     create_net_reference_svg(output_dir)
@@ -507,6 +511,7 @@ def create_html_index(output_dir: Path) -> None:
         "04_triangle_geometry.svg",
         "05_kite_subdivision.svg",
         "06_net_reference.svg",
+        "07_oklch_color_validation.svg",
     ]
 
     file_hashes = {}
@@ -637,6 +642,18 @@ def create_html_index(output_dir: Path) -> None:
             </div>
         </div>
         
+        <div class="validation-section" data-hash="{file_hashes['07_oklch_color_validation.svg']}">
+            <div class="validation-header" onclick="toggleSection(7)">
+                <h2>OKLCH Color Space Validation <span class="toggle-icon">▼</span></h2>
+            </div>
+            <div class="validation-content" id="content7">
+                <div class="svg-container">
+                    <object data="07_oklch_color_validation.svg" type="image/svg+xml" width="800" height="600"></object>
+                </div>
+                <div id="desc7"></div>
+            </div>
+        </div>
+        
         <div class="success-criteria">
             <h3>Validation Success Criteria</h3>
             <p>✅ All shapes render correctly - no distorted or missing elements<br>
@@ -661,6 +678,8 @@ def create_html_index(output_dir: Path) -> None:
             document.getElementById('desc5').innerHTML = html);
         fetch('06_net_reference.html').then(r => r.text()).then(html => 
             document.getElementById('desc6').innerHTML = html);
+        fetch('07_oklch_color_validation.html').then(r => r.text()).then(html => 
+            document.getElementById('desc7').innerHTML = html);
         
         // LocalStorage key for collapsed sections
         const STORAGE_KEY = 'luminary_validation_collapsed';
@@ -726,6 +745,136 @@ def create_html_index(output_dir: Path) -> None:
         f.write(html_content)
 
 
+def create_oklch_color_validation_svg(output_dir: Path) -> None:
+    """Create OKLCH color validation demonstrating color conversion and brightness adjustment."""
+
+    svg_content = create_svg_header(viewbox="0 0 800 600", width="800", height="600")
+    svg_content += (
+        '<rect width="800" height="600" fill="#f8f8fa"/>\n'  # Light background
+    )
+
+    # Title
+    svg_content += create_text_svg(
+        "OKLCH Color Validation", Point(400, 30), 24, "#2c3e50", 1.0
+    )
+    svg_content += create_text_svg(
+        "Testing color conversion and brightness adjustments",
+        Point(400, 55),
+        14,
+        "#7f8c8d",
+        1.0,
+    )
+
+    # Test color sets
+    test_colors = [
+        ("Red", "#FF0000", 100),
+        ("Green", "#00FF00", 200),
+        ("Blue", "#0000FF", 300),
+        ("Purple", "#800080", 400),
+        ("Orange", "#FFA500", 500),
+        ("Darkcyan", "darkcyan", 600),
+        ("Forestgreen", "forestgreen", 700),
+    ]
+
+    # Column headers
+    svg_content += create_text_svg("Original", Point(150, 90), 16, "#2c3e50", 1.0)
+    svg_content += create_text_svg("20% Darker", Point(300, 90), 16, "#2c3e50", 1.0)
+    svg_content += create_text_svg("20% Brighter", Point(450, 90), 16, "#2c3e50", 1.0)
+    svg_content += create_text_svg("OKLCH CSS", Point(600, 90), 16, "#2c3e50", 1.0)
+
+    y_start = 120
+
+    for i, (name, color_str, _) in enumerate(test_colors):
+        y = y_start + i * 60
+
+        # Original color
+        original = Color.from_color_string(color_str)
+        original_hex = original.to_hex()
+
+        # Brightness variations
+        darker = original.adjust_lightness(0.8)  # 20% darker
+        brighter = original.adjust_lightness(1.2)  # 20% brighter
+
+        darker_hex = darker.to_hex()
+        brighter_hex = brighter.to_hex()
+        oklch_css = original.to_oklch_string()
+
+        # Draw color swatches
+        swatch_width = 50
+        swatch_height = 30
+
+        # Original swatch
+        svg_content += create_polygon_svg(
+            [
+                Point(125, y),
+                Point(125 + swatch_width, y),
+                Point(125 + swatch_width, y + swatch_height),
+                Point(125, y + swatch_height),
+            ],
+            original_hex,
+            1.0,
+        )
+
+        # Darker swatch
+        svg_content += create_polygon_svg(
+            [
+                Point(275, y),
+                Point(275 + swatch_width, y),
+                Point(275 + swatch_width, y + swatch_height),
+                Point(275, y + swatch_height),
+            ],
+            darker_hex,
+            1.0,
+        )
+
+        # Brighter swatch
+        svg_content += create_polygon_svg(
+            [
+                Point(425, y),
+                Point(425 + swatch_width, y),
+                Point(425 + swatch_width, y + swatch_height),
+                Point(425, y + swatch_height),
+            ],
+            brighter_hex,
+            1.0,
+        )
+
+        # Labels
+        svg_content += create_text_svg(name, Point(50, y + 20), 12, "#2c3e50", 1.0)
+        svg_content += create_text_svg(
+            original_hex, Point(150, y + 45), 10, "#7f8c8d", 1.0
+        )
+        svg_content += create_text_svg(
+            darker_hex, Point(300, y + 45), 10, "#7f8c8d", 1.0
+        )
+        svg_content += create_text_svg(
+            brighter_hex, Point(450, y + 45), 10, "#7f8c8d", 1.0
+        )
+        svg_content += create_text_svg(oklch_css, Point(580, y + 20), 9, "#7f8c8d", 1.0)
+
+    # Add validation notes
+    svg_content += create_text_svg(
+        "Expected: Each row shows original color, 20% darker, 20% brighter versions",
+        Point(400, 550),
+        12,
+        "#34495e",
+        1.0,
+    )
+    svg_content += create_text_svg(
+        "Validates: OKLCH color conversion, lightness adjustment, hex output",
+        Point(400, 570),
+        12,
+        "#34495e",
+        1.0,
+    )
+
+    svg_content += "</svg>"
+
+    # Save SVG
+    output_path = output_dir / "07_oklch_color_validation.svg"
+    output_path.write_text(svg_content)
+
+
 def run_validation() -> List[str]:
     """Run validation and return list of created files."""
     create_validation_svgs()
@@ -737,6 +886,8 @@ def run_validation() -> List[str]:
         "03_complex_shapes.svg - Complex layering with star, overlapping circles, borders on dark background",
         "04_triangle_geometry.svg - Triangle incenters, orientations, edge midpoints with colored triangles",
         "05_kite_subdivision.svg - Triangles subdivided into colored kites with orientation-based labeling",
+        "06_net_reference.svg - Net reference validation with reference overlay and facet inspection",
+        "07_oklch_color_validation.svg - OKLCH color conversion with brightness adjustments and CSS output",
     ]
 
 

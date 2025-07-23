@@ -10,6 +10,7 @@ from ..writers.svg.utilities import (
     create_svg_header,
     create_line_svg,
     create_circle_svg,
+    create_polygon_svg,
 )
 from .point import Point
 from .triangle import Triangle
@@ -47,7 +48,18 @@ class Net(SVGExportable):
         points = []
         for x, y, color_name in self.config.geometry.points:
             # Look up the actual color value from the color definitions
-            color_hex = str(self.config.colors[color_name])
+            color_value = self.config.colors.get(color_name)
+            if not color_value:
+                raise ValueError(
+                    f"Color '{color_name}' not found in configuration colors or is empty"
+                )
+
+            color_hex = str(color_value)
+            if not color_hex or color_hex.lower() in ("none", "null", ""):
+                raise ValueError(
+                    f"Invalid color value for '{color_name}': '{color_hex}'"
+                )
+
             points.append(Point(x, y, color_hex))
         return points
 
@@ -67,7 +79,11 @@ class Net(SVGExportable):
             v3 = self.points[v3_idx]
 
             # Create triangle with calculated ID
-            triangle = Triangle(v1, v2, v3, triangle_id, self.apex)
+            # Get beam counts from configuration
+            beam_counts_list = self.config.geometry.default_beam_counts
+            beam_counts_tuple = tuple(beam_counts_list)
+
+            triangle = Triangle(v1, v2, v3, triangle_id, self.apex, beam_counts_tuple)
             triangles.append(triangle)
 
         return triangles
@@ -111,8 +127,12 @@ class Net(SVGExportable):
 
         return svg_content
 
-    def get_svg(self) -> List[str]:
-        """Generate complete SVG representation of the Net."""
+    def get_svg(self, extended: bool = False) -> List[str]:
+        """Generate complete SVG representation of the Net.
+
+        Args:
+            extended: If True, render individual beam subdivisions instead of facets
+        """
         svg_config = self.config.rendering.svg
         style_config = self.config.rendering.styles
 
@@ -136,16 +156,27 @@ class Net(SVGExportable):
                 )
                 svg_content += element_svg + "\n"
 
-        # Render all kites (with fill opacity)
-        for triangle in self.triangles:
-            for facet in triangle.facets:
-                facet_elements = facet.get_svg()
-                for element in facet_elements:
-                    element_svg = element.replace(
-                        'fill-opacity="0.6"',
-                        f'fill-opacity="{style_config.facet_fill_opacity}"',
-                    )
-                    svg_content += element_svg + "\n"
+        if extended:
+            # Render individual beams instead of facets
+            for triangle in self.triangles:
+                for facet in triangle.facets:
+                    beam_groups = facet.get_beams()
+                    for edge_beams in beam_groups:
+                        for beam in edge_beams:
+                            beam_elements = beam.get_svg(facet.color)
+                            for element in beam_elements:
+                                svg_content += element + "\n"
+        else:
+            # Render all facets (with fill opacity)
+            for triangle in self.triangles:
+                for facet in triangle.facets:
+                    facet_elements = facet.get_svg()
+                    for element in facet_elements:
+                        element_svg = element.replace(
+                            'fill-opacity="0.6"',
+                            f'fill-opacity="{style_config.facet_fill_opacity}"',
+                        )
+                        svg_content += element_svg + "\n"
 
         # Render triangle edge lines - AFTER all facets, on top
         for triangle in self.triangles:
@@ -164,9 +195,14 @@ class Net(SVGExportable):
 
         return [svg_content]
 
-    def save_svg(self, output_path: Path) -> None:
-        """Save SVG to file."""
-        svg_elements = self.get_svg()
+    def save_svg(self, output_path: Path, extended: bool = False) -> None:
+        """Save SVG to file.
+
+        Args:
+            output_path: Path to write SVG file
+            extended: If True, render individual beam subdivisions
+        """
+        svg_elements = self.get_svg(extended=extended)
         svg_content = "".join(svg_elements)
         output_path.write_text(svg_content)
 
