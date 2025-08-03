@@ -184,6 +184,17 @@ def main():
         type=Path,
         help="Output SVG file (default: output/{config_stem}.svg)",
     )
+    svg_parser.add_argument(
+        "--extended",
+        action="store_true",
+        help="Generate extended view showing individual beam subdivisions",
+    )
+    svg_parser.add_argument(
+        "--show-vertices",
+        action="store_true",
+        default=False,
+        help="Draw circles for triangle vertices (incenters always shown)",
+    )
 
     # SVG index subcommand
     index_parser = subparsers.add_parser(
@@ -221,7 +232,10 @@ def main():
             if args.output is None:
                 config_stem = args.config.stem  # filename without .json extension
                 script_dir = Path(__file__).parent  # Directory containing main.py
-                args.output = script_dir / "output" / f"{config_stem}.svg"
+                if args.extended:
+                    args.output = script_dir / "output" / f"{config_stem}.extended.svg"
+                else:
+                    args.output = script_dir / "output" / f"{config_stem}.svg"
 
             # Load Net from JSON configuration
             print(f"Loading configuration from {args.config}")
@@ -234,15 +248,17 @@ def main():
             args.output.parent.mkdir(parents=True, exist_ok=True)
 
             # Save SVG
-            net.save_svg(args.output)
+            net.save_svg(args.output, extended=args.extended, show_vertices=args.show_vertices)
             print(f"SVG saved to {args.output}")
+            if args.extended:
+                print("Extended mode: Generated individual beam subdivisions")
 
             # Print statistics
             stats = net.get_stats()
             print(f"\nGenerated SVG contains:")
             print(f"  • {stats['points']} points")
             print(f"  • {stats['triangles']} triangles")
-            print(f"  • {stats['kites']} kites")
+            print(f"  • {stats['facets']} facets")
             print(f"  • {stats['geometric_lines']} geometric lines")
             print(f"  • {stats['series']} triangle series")
 

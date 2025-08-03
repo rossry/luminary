@@ -32,7 +32,7 @@ class TestMainCLI:
             config_data = {
                 "points": [{"id": "p1", "x": 0, "y": 0}],
                 "triangles": [],
-                "kites": [],
+                "facets": [],
                 "series": [],
             }
             with open(config_file, "w") as f:
@@ -43,7 +43,7 @@ class TestMainCLI:
             mock_net.get_stats.return_value = {
                 "points": 1,
                 "triangles": 0,
-                "kites": 0,
+                "facets": 0,
                 "geometric_lines": 0,
                 "series": 0,
             }
@@ -58,7 +58,9 @@ class TestMainCLI:
 
                 # Check that save_svg was called with the expected path
                 expected_output = temp_path / "output" / "test_config.svg"
-                mock_net.save_svg.assert_called_once_with(expected_output)
+                mock_net.save_svg.assert_called_once_with(
+                    expected_output, extended=False
+                )
 
     def test_svg_custom_output_path(self):
         """Test SVG command with custom output path."""
@@ -70,7 +72,7 @@ class TestMainCLI:
             config_data = {
                 "points": [{"id": "p1", "x": 0, "y": 0}],
                 "triangles": [],
-                "kites": [],
+                "facets": [],
                 "series": [],
             }
             with open(config_file, "w") as f:
@@ -83,7 +85,7 @@ class TestMainCLI:
             mock_net.get_stats.return_value = {
                 "points": 1,
                 "triangles": 0,
-                "kites": 0,
+                "facets": 0,
                 "geometric_lines": 0,
                 "series": 0,
             }
@@ -106,7 +108,7 @@ class TestMainCLI:
                 main()
 
                 # Check that save_svg was called with custom output path
-                mock_net.save_svg.assert_called_once_with(custom_output)
+                mock_net.save_svg.assert_called_once_with(custom_output, extended=False)
 
     def test_svg_config_file_not_found(self, capsys):
         """Test SVG command with non-existent config file."""
@@ -127,7 +129,7 @@ class TestMainCLI:
             config_data = {
                 "points": [{"id": "p1", "x": 0, "y": 0}],
                 "triangles": [],
-                "kites": [],
+                "facets": [],
                 "series": [],
             }
             with open(config_file, "w") as f:
@@ -138,7 +140,7 @@ class TestMainCLI:
             mock_net.get_stats.return_value = {
                 "points": 1,
                 "triangles": 0,
-                "kites": 0,
+                "facets": 0,
                 "geometric_lines": 0,
                 "series": 0,
             }
@@ -157,7 +159,7 @@ class TestMainCLI:
                 main()
 
                 # Verify the directory creation was handled
-                mock_net.save_svg.assert_called_once_with(output_path)
+                mock_net.save_svg.assert_called_once_with(output_path, extended=False)
 
     def test_no_command_shows_help(self, capsys):
         """Test that running without a command shows help."""

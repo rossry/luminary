@@ -10,6 +10,7 @@ from ..writers.svg.utilities import (
     create_svg_header,
     create_line_svg,
     create_circle_svg,
+    create_polygon_svg,
 )
 from .point import Point
 from .triangle import Triangle
@@ -47,7 +48,29 @@ class Net(SVGExportable):
         points = []
         for x, y, color_name in self.config.geometry.points:
             # Look up the actual color value from the color definitions
-            color_hex = str(self.config.colors[color_name])
+            color_value = self.config.colors.get(color_name)
+            if not color_value:
+                raise ValueError(
+                    f"Color '{color_name}' not found in configuration colors or is empty"
+                )
+
+            # color_value is now a string (hex or OKLCH), validate it with our Color class
+            if not color_value or color_value.lower() in ("none", "null", ""):
+                raise ValueError(
+                    f"Invalid color value for '{color_name}': '{color_value}'"
+                )
+
+            # Validate the color string and get the hex representation
+            from luminary.color import Color
+
+            try:
+                color_obj = Color.from_string(color_value)
+                color_hex = color_obj.to_hex()
+            except ValueError as e:
+                raise ValueError(
+                    f"Invalid color format for '{color_name}': '{color_value}' - {e}"
+                )
+
             points.append(Point(x, y, color_hex))
         return points
 
@@ -67,7 +90,11 @@ class Net(SVGExportable):
             v3 = self.points[v3_idx]
 
             # Create triangle with calculated ID
-            triangle = Triangle(v1, v2, v3, triangle_id, self.apex)
+            # Get beam counts from configuration
+            beam_counts_list = self.config.geometry.default_beam_counts
+            beam_counts_tuple = tuple(beam_counts_list)
+
+            triangle = Triangle(v1, v2, v3, triangle_id, self.apex, beam_counts_tuple)
             triangles.append(triangle)
 
         return triangles
@@ -111,8 +138,13 @@ class Net(SVGExportable):
 
         return svg_content
 
-    def get_svg(self) -> List[str]:
-        """Generate complete SVG representation of the Net."""
+    def get_svg(self, extended: bool = False, show_vertices: bool = False) -> List[str]:
+        """Generate complete SVG representation of the Net.
+
+        Args:
+            extended: If True, render individual beam subdivisions instead of facets
+            show_vertices: If True, draw circles for triangle vertices (incenters always shown)
+        """
         svg_config = self.config.rendering.svg
         style_config = self.config.rendering.styles
 
@@ -136,18 +168,29 @@ class Net(SVGExportable):
                 )
                 svg_content += element_svg + "\n"
 
-        # Render all kites (with fill opacity)
-        for triangle in self.triangles:
-            for kite in triangle.kites:
-                kite_elements = kite.get_svg()
-                for element in kite_elements:
-                    element_svg = element.replace(
-                        'fill-opacity="0.6"',
-                        f'fill-opacity="{style_config.kite_fill_opacity}"',
-                    )
-                    svg_content += element_svg + "\n"
+        if extended:
+            # Render individual beams instead of facets
+            for triangle in self.triangles:
+                for facet in triangle.facets:
+                    beam_groups = facet.get_beams()
+                    for edge_beams in beam_groups:
+                        for beam in edge_beams:
+                            beam_elements = beam.get_svg(facet.color)
+                            for element in beam_elements:
+                                svg_content += element + "\n"
+        else:
+            # Render all facets (with fill opacity)
+            for triangle in self.triangles:
+                for facet in triangle.facets:
+                    facet_elements = facet.get_svg()
+                    for element in facet_elements:
+                        element_svg = element.replace(
+                            'fill-opacity="0.6"',
+                            f'fill-opacity="{style_config.facet_fill_opacity}"',
+                        )
+                        svg_content += element_svg + "\n"
 
-        # Render triangle edge lines - AFTER all kites, on top
+        # Render triangle edge lines - AFTER all facets, on top
         for triangle in self.triangles:
             edge_lines = triangle.get_edge_lines_svg()
             for line in edge_lines:
@@ -156,27 +199,36 @@ class Net(SVGExportable):
         # Render geometric lines (standalone lines)
         svg_content += self._render_geometric_lines()
 
-        # Render vertex circles (standalone vertices)
-        svg_content += self._render_vertex_circles()
+        # Render vertex circles (standalone vertices) - only if requested
+        if show_vertices:
+            svg_content += self._render_vertex_circles()
 
         # End SVG
         svg_content += "</svg>"
 
         return [svg_content]
 
-    def save_svg(self, output_path: Path) -> None:
-        """Save SVG to file."""
-        svg_elements = self.get_svg()
+    def save_svg(
+        self, output_path: Path, extended: bool = False, show_vertices: bool = False
+    ) -> None:
+        """Save SVG to file.
+
+        Args:
+            output_path: Path to write SVG file
+            extended: If True, render individual beam subdivisions
+            show_vertices: If True, draw circles for triangle vertices
+        """
+        svg_elements = self.get_svg(extended=extended, show_vertices=show_vertices)
         svg_content = "".join(svg_elements)
         output_path.write_text(svg_content)
 
     def get_stats(self) -> Dict[str, int]:
         """Get statistics about the Net."""
-        total_kites = sum(len(triangle.kites) for triangle in self.triangles)
+        total_facets = sum(len(triangle.facets) for triangle in self.triangles)
         return {
             "points": len(self.points),
             "triangles": len(self.triangles),
-            "kites": total_kites,
+            "facets": total_facets,
             "geometric_lines": len(self.config.geometry.lines),
             "series": len(self.config.geometry.triangles),
         }

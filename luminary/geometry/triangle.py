@@ -1,12 +1,13 @@
 """Triangle class with incenter calculation and orientation detection."""
 
 from enum import Enum
-from typing import List, TYPE_CHECKING
+from typing import List, Tuple, TYPE_CHECKING
 from luminary.geometry.point import Point
 from luminary.writers.svg.svg_exportable import SVGExportable
+from luminary.writers.svg.utilities import create_line_svg
 
 if TYPE_CHECKING:
-    from luminary.geometry.kite import Kite
+    from luminary.geometry.facet import Facet
 
 
 class Orientation(Enum):
@@ -19,7 +20,15 @@ class Orientation(Enum):
 class Triangle(SVGExportable):
     """Triangle with incenter calculation and SVG generation."""
 
-    def __init__(self, p1: Point, p2: Point, p3: Point, triangle_id: int, apex: Point):
+    def __init__(
+        self,
+        p1: Point,
+        p2: Point,
+        p3: Point,
+        triangle_id: int,
+        apex: Point,
+        beam_counts: Tuple[int, int, int, int] = (7, 4, 4, 7),
+    ):
         """
         Initialize Triangle with vertices and calculate geometric properties.
 
@@ -28,23 +37,25 @@ class Triangle(SVGExportable):
             p2: Second vertex
             p3: Third vertex
             triangle_id: Unique triangle identifier
-            apex: Reference apex point for orientation detection
+            apex: Pentagon apex point for orientation detection
+            beam_counts: Number of beams for each facet edge (MAJOR_STARBOARD, MINOR_STARBOARD, MINOR_PORT, MAJOR_PORT)
         """
         self.vertices = [p1, p2, p3]
         self.triangle_id = triangle_id
         self.apex = apex
+        self.beam_counts = beam_counts
 
         # Calculate geometric properties
         self.incenter = self._calculate_incenter()
         self.edge_midpoints = [
-            Point.midpoint(p1, p2),  # Edge 1-2 midpoint
-            Point.midpoint(p2, p3),  # Edge 2-3 midpoint
-            Point.midpoint(p1, p3),  # Edge 1-3 midpoint
+            p1.midpoint_to(p2),  # Edge 1-2 midpoint
+            p2.midpoint_to(p3),  # Edge 2-3 midpoint
+            p3.midpoint_to(p1),  # Edge 1-3 midpoint
         ]
         self.orientation = self._determine_orientation()
 
-        # Generate kites with proper labeling
-        self.kites: List["Kite"] = self._create_kites()
+        # Generate facets with proper labeling
+        self.facets: List["Facet"] = self._create_facets()
 
     def _calculate_incenter(self) -> Point:
         """
@@ -59,9 +70,11 @@ class Triangle(SVGExportable):
         p1, p2, p3 = self.vertices
 
         # Calculate side lengths (opposite to each vertex)
-        a = Point.distance(p2, p3)  # Side opposite to p1
-        b = Point.distance(p1, p3)  # Side opposite to p2
-        c = Point.distance(p1, p2)  # Side opposite to p3
+        from luminary.geometry.primitives import Segment
+
+        a = Segment(p2, p3).length()  # Side opposite to p1
+        b = Segment(p1, p3).length()  # Side opposite to p2
+        c = Segment(p1, p2).length()  # Side opposite to p3
 
         # Handle degenerate triangle (zero perimeter)
         perimeter = a + b + c
@@ -85,14 +98,14 @@ class Triangle(SVGExportable):
         Returns:
             Orientation.APEXWARD or Orientation.NADIRWARD
         """
-        incenter_to_apex = Point.distance(self.incenter, self.apex)
+        incenter_to_apex = self.incenter.distance(self.apex)
 
         # Count vertices closer to apex than incenter using functional approach
         vertices_closer_count = len(
             [
                 vertex
                 for vertex in self.vertices
-                if Point.distance(vertex, self.apex) < incenter_to_apex
+                if vertex.distance(self.apex) < incenter_to_apex
             ]
         )
 
@@ -103,9 +116,9 @@ class Triangle(SVGExportable):
             else Orientation.NADIRWARD
         )
 
-    def _get_kite_labels(self) -> List[str]:
+    def _get_facet_labels(self) -> List[str]:
         """
-        Get kite labels based on orientation.
+        Get facet labels based on orientation.
 
         Returns:
             List of three label strings
@@ -141,11 +154,11 @@ class Triangle(SVGExportable):
         v3 = self.vertices[indices[2]]
 
         # Calculate vectors v1->v2 and v1->v3
-        vec1 = (v2.x - v1.x, v2.y - v1.y)
-        vec2 = (v3.x - v1.x, v3.y - v1.y)
+        vec1 = v2 - v1
+        vec2 = v3 - v1
 
         # Cross product: positive = counterclockwise, negative = clockwise
-        cross_product = vec1[0] * vec2[1] - vec1[1] * vec2[0]
+        cross_product = vec1.cross_product(vec2)
 
         if cross_product > 0:
             # Already counterclockwise
@@ -157,72 +170,66 @@ class Triangle(SVGExportable):
         # Reverse to get clockwise (since we had it backwards before)
         return [ordered_indices[0], ordered_indices[2], ordered_indices[1]]
 
-    def _create_kites(self) -> List["Kite"]:
+    def _create_facets(self) -> List["Facet"]:
         """
-        Create 3 kites from triangle subdivision in counterclockwise order.
+        Create 3 facets from triangle subdivision in counterclockwise order.
 
         For APEXWARD triangles: A = closest to apex, then B, C counterclockwise
         For NADIRWARD triangles: D = furthest from apex, then E, F counterclockwise
 
         Returns:
-            List of Kite objects ordered counterclockwise from A/D kite
+            List of Facet objects ordered counterclockwise from A/D facet
         """
         # Import here to avoid circular imports
-        from luminary.geometry.kite import Kite
+        from luminary.geometry.facet import Facet
 
         # Find the starting vertex (A for apexward, D for nadirward)
         vertex_distances = []
         for i, vertex in enumerate(self.vertices):
-            distance = Point.distance(vertex, self.apex)
+            distance = vertex.distance(self.apex)
             vertex_distances.append((i, vertex, distance))
 
         # Find the starting vertex based on orientation
         if self.orientation == Orientation.APEXWARD:
             # A = closest to apex
-            start_vertex_idx = min(vertex_distances, key=lambda x: x[2])[0]
+            start_vertex_idx = min(vertex_distances, key=lambda v: v[2])[0]
         else:
             # D = furthest from apex
-            start_vertex_idx = max(vertex_distances, key=lambda x: x[2])[0]
+            start_vertex_idx = max(vertex_distances, key=lambda v: v[2])[0]
 
         # Calculate counterclockwise order from the starting vertex
         ordered_vertices = self._get_counterclockwise_order(start_vertex_idx)
 
-        labels = self._get_kite_labels()
-        kites = []
+        labels = self._get_facet_labels()
+        facets = []
 
-        # Create kites in counterclockwise order
+        # Create facets in counterclockwise order
         for label_idx, vertex_idx in enumerate(ordered_vertices):
             vertex = self.vertices[vertex_idx]
 
-            # Find the correct edge midpoints for this vertex
-            # Edge midpoints: [0] = midpoint(v0,v1), [1] = midpoint(v1,v2), [2] = midpoint(v0,v2)
-            if vertex_idx == 0:
-                # Vertex 0: uses edge_midpoints[0] and edge_midpoints[2]
-                midpoint1 = self.edge_midpoints[0]  # to v1
-                midpoint2 = self.edge_midpoints[2]  # to v2
-            elif vertex_idx == 1:
-                # Vertex 1: uses edge_midpoints[1] and edge_midpoints[0]
-                midpoint1 = self.edge_midpoints[1]  # to v2
-                midpoint2 = self.edge_midpoints[0]  # to v0
-            else:  # vertex_idx == 2
-                # Vertex 2: uses edge_midpoints[2] and edge_midpoints[1]
-                midpoint1 = self.edge_midpoints[2]  # to v0
-                midpoint2 = self.edge_midpoints[1]  # to v1
+            # Calculate edge midpoints using modular arithmetic
+            # Edge midpoints: [0] = midpoint(v0,v1), [1] = midpoint(v1,v2), [2] = midpoint(v2,v0)
+            # For vertex i: edge FROM vertex i, and edge TO vertex i
+            midpoint1 = self.edge_midpoints[vertex_idx]  # Edge from this vertex
+            midpoint2 = self.edge_midpoints[(vertex_idx + 2) % 3]  # Edge to this vertex
 
-            kite_label = f"{self.triangle_id}{labels[label_idx]}"  # Prepend triangle ID
+            facet_label = (
+                f"{self.triangle_id}{labels[label_idx]}"  # Prepend triangle ID
+            )
 
-            kites.append(
-                Kite(
+            facets.append(
+                Facet(
                     vertex=vertex,
                     midpoint1=midpoint1,
                     incenter=self.incenter,
                     midpoint2=midpoint2,
                     color=vertex.color or "black",
-                    label=kite_label,
+                    label=facet_label,
+                    beam_counts=self.beam_counts,
                 )
             )
 
-        return kites
+        return facets
 
     def get_svg(self) -> List[str]:
         """
@@ -246,11 +253,7 @@ class Triangle(SVGExportable):
 
         # 3. Construction lines from incenter to edge midpoints
         for midpoint in self.edge_midpoints:
-            svg_elements.append(
-                f'  <line x1="{self.incenter.x}" y1="{self.incenter.y}" '
-                f'x2="{midpoint.x}" y2="{midpoint.y}" '
-                f'stroke="black" stroke-width="1"/>'
-            )
+            svg_elements.append(create_line_svg(self.incenter, midpoint, "black", 1))
 
         return svg_elements
 
@@ -268,18 +271,14 @@ class Triangle(SVGExportable):
         for i in range(3):
             v1 = self.vertices[i]
             v2 = self.vertices[(i + 1) % 3]
-            svg_elements.append(
-                f'  <line x1="{v1.x}" y1="{v1.y}" '
-                f'x2="{v2.x}" y2="{v2.y}" '
-                f'stroke="black" stroke-width="2"/>'
-            )
+            svg_elements.append(create_line_svg(v1, v2, "black", 2))
 
         return svg_elements
 
     def get_construction_lines_svg(self) -> List[str]:
         """
         Generate SVG elements for construction lines (incenter to midpoints).
-        These should be rendered on top of kites.
+        These should be rendered on top of facets.
 
         Returns:
             List of SVG line element strings
@@ -288,11 +287,7 @@ class Triangle(SVGExportable):
 
         # Geometric lines from incenter to edge midpoints (half-width, black)
         for midpoint in self.edge_midpoints:
-            svg_elements.append(
-                f'  <line x1="{self.incenter.x}" y1="{self.incenter.y}" '
-                f'x2="{midpoint.x}" y2="{midpoint.y}" '
-                f'stroke="black" stroke-width="1"/>'
-            )
+            svg_elements.append(create_line_svg(self.incenter, midpoint, "black", 1))
 
         return svg_elements
 
@@ -300,6 +295,6 @@ class Triangle(SVGExportable):
         """Return triangle vertices."""
         return self.vertices.copy()
 
-    def get_kites(self) -> List["Kite"]:
-        """Return triangle kites."""
-        return self.kites.copy()
+    def get_facets(self) -> List["Facet"]:
+        """Return triangle facets."""
+        return self.facets.copy()
