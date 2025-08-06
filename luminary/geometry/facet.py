@@ -32,6 +32,8 @@ class Facet(SVGExportable):
         color: str,
         label: str,
         beam_counts: Tuple[int, int, int, int],
+        face_index: int,
+        facet_index: int,
     ):
         """
         Initialize Facet with vertices in order: vertex → midpoint1 → incenter → midpoint2.
@@ -44,10 +46,14 @@ class Facet(SVGExportable):
             color: Fill color for the facet
             label: Text label (A-C or D-F)
             beam_counts: Number of beams for each edge (MAJOR_STARBOARD, MINOR_STARBOARD, MINOR_PORT, MAJOR_PORT)
+            face_index: Index of the parent triangle/face
+            facet_index: Index of this facet within the triangle
         """
         self.vertices = (vertex, midpoint1, incenter, midpoint2)
         self.color = color
         self.label = label
+        self.face_index = face_index
+        self.facet_index = facet_index
         
         # Named vertex properties for better code clarity
         self.vertex_primary = vertex
@@ -265,16 +271,16 @@ class Facet(SVGExportable):
                 first_baseline_end, forward_unit
             )
 
-            # First beam axis intersections
-            first_beamport_axis = first_beamport_ray.intersection(axis)
-            first_beamstarboard_axis = first_beamstarboard_ray.intersection(axis)
+            # First beam axis intersections - use ignore_bounds for axis intersections
+            first_beamport_axis = first_beamport_ray.intersection(axis, ignore_bounds=True)
+            first_beamstarboard_axis = first_beamstarboard_ray.intersection(axis, ignore_bounds=True)
 
-            # First beam bisector intersections
+            # First beam bisector intersections - use ignore_bounds for bisector intersections
             first_beamport_bisector = first_beamport_ray.intersection(
-                close_bisector_ray[edge_idx]
+                close_bisector_ray[edge_idx], ignore_bounds=True
             )
             first_beamstarboard_bisector = first_beamstarboard_ray.intersection(
-                close_bisector_ray[edge_idx]
+                close_bisector_ray[edge_idx], ignore_bounds=True
             )
 
             # Check for null intersections and skip this edge if geometry is degenerate
@@ -354,6 +360,8 @@ class Facet(SVGExportable):
                     anchor_point=anchor,
                     starboard_vector=beamstarboard_vector,
                     parity=global_beam_parity,
+                    face_index=self.face_index,
+                    facet_index=self.facet_index,
                 )
 
                 edge_beams.append(beam)

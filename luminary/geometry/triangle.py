@@ -226,6 +226,8 @@ class Triangle(SVGExportable):
                     color=vertex.color or "black",
                     label=facet_label,
                     beam_counts=self.beam_counts,
+                    face_index=self.triangle_id,
+                    facet_index=label_idx,
                 )
             )
 

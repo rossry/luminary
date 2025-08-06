@@ -176,7 +176,7 @@ class Segment(LinearElement):
         """
         return self.p1.distance(self.p2)
 
-    def intersection(self, other: "LinearElement") -> Optional[Point]:
+    def intersection(self, other: "LinearElement", ignore_bounds: bool = False) -> Optional[Point]:
         """Find intersection with another linear element if it exists on this segment.
 
         Args:
@@ -191,18 +191,19 @@ class Segment(LinearElement):
 
         t1, t2 = t_values
 
-        # Check if intersection is on this segment (t1 in [0, 1])
-        if not (0 <= t1 <= 1):
-            return None
+        if not ignore_bounds:
+            # Check if intersection is on this segment (t1 in [0, 1]) with tolerance
+            if not (-1e-10 <= t1 <= 1 + 1e-10):
+                return None
 
-        # Check if intersection is valid for the other element
-        if isinstance(other, Segment):
-            if not (0 <= t2 <= 1):
-                return None
-        elif isinstance(other, Ray):
-            if t2 < 0:
-                return None
-        # Line has no restrictions on t2
+            # Check if intersection is valid for the other element
+            if isinstance(other, Segment):
+                if not (-1e-10 <= t2 <= 1 + 1e-10):
+                    return None
+            elif isinstance(other, Ray):
+                if t2 < -1e-10:
+                    return None
+            # Line has no restrictions on t2
 
         # Calculate intersection point
         return Point(
@@ -239,7 +240,7 @@ class Ray(LinearElement):
         direction = self.p2 - self.p1
         return direction.unit_vector()
 
-    def intersection(self, other: "LinearElement") -> Optional[Point]:
+    def intersection(self, other: "LinearElement", ignore_bounds: bool = False) -> Optional[Point]:
         """Find intersection with another linear element if it exists on this ray.
 
         Args:
@@ -254,18 +255,19 @@ class Ray(LinearElement):
 
         t1, t2 = t_values
 
-        # Check if intersection is on this ray (t1 >= 0)
-        if t1 < 0:
-            return None
+        if not ignore_bounds:
+            # Check if intersection is on this ray (t1 >= 0) with tolerance
+            if t1 < -1e-10:
+                return None
 
-        # Check if intersection is valid for the other element
-        if isinstance(other, Segment):
-            if not (0 <= t2 <= 1):
-                return None
-        elif isinstance(other, Ray):
-            if t2 < 0:
-                return None
-        # Line has no restrictions on t2
+            # Check if intersection is valid for the other element
+            if isinstance(other, Segment):
+                if not (-1e-10 <= t2 <= 1 + 1e-10):
+                    return None
+            elif isinstance(other, Ray):
+                if t2 < -1e-10:
+                    return None
+            # Line has no restrictions on t2
 
         # Calculate intersection point
         return Point(
@@ -277,7 +279,7 @@ class Ray(LinearElement):
 class Line(LinearElement):
     """Infinite line passing through two points."""
 
-    def intersection(self, other: "LinearElement") -> Optional[Point]:
+    def intersection(self, other: "LinearElement", ignore_bounds: bool = False) -> Optional[Point]:
         """Find intersection with another linear element.
 
         Args:
@@ -292,14 +294,15 @@ class Line(LinearElement):
 
         t1, t2 = t_values
 
-        # Check if intersection is valid for the other element
-        if isinstance(other, Segment):
-            if not (0 <= t2 <= 1):
-                return None
-        elif isinstance(other, Ray):
-            if t2 < 0:
-                return None
-        # Line-Line intersection always exists if not parallel
+        if not ignore_bounds:
+            # Check if intersection is valid for the other element
+            if isinstance(other, Segment):
+                if not (-1e-10 <= t2 <= 1 + 1e-10):
+                    return None
+            elif isinstance(other, Ray):
+                if t2 < -1e-10:
+                    return None
+            # Line-Line intersection always exists if not parallel
 
         # Calculate intersection point
         return Point(

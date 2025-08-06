@@ -24,6 +24,8 @@ class Beam(Polygon, SVGExportable):
         anchor_point: Point,
         starboard_vector: Vector,  # Vector along baseline, one beam width
         parity: int,  # 0 or 1, assigned sequentially during generation
+        face_index: int,
+        facet_index: int,
     ):
         """Initialize a beam with extent segments and calculate full geometry.
 
@@ -35,6 +37,8 @@ class Beam(Polygon, SVGExportable):
             anchor_point: Reference point on baseline, centered
             starboard_vector: Vector along baseline (starboard direction), one beam width
             parity: 0 or 1, assigned sequentially during generation
+            face_index: Index of the parent triangle/face
+            facet_index: Index of the parent facet
         """
         # Validate extent requirements for current implementation
         if len(extent_segments) not in (1, 2):
@@ -54,6 +58,11 @@ class Beam(Polygon, SVGExportable):
             starboard_vector  # Points along baseline (starboard direction)
         )
         self.parity = parity
+        self.face_index = face_index
+        self.facet_index = facet_index
+        
+        # Create beam ID tuple
+        self.beam_id = (face_index, facet_index, edge_index, beam_index)
 
         # Calculate forward vector (perpendicular to starboard vector, pointing into facet interior)
         self.forward_vector = starboard_vector.perpendicular_counterclockwise()
@@ -157,6 +166,16 @@ class Beam(Polygon, SVGExportable):
         """
         return 1.2 if self.parity == 0 else 0.8
 
+    def get_basis_point(self) -> Point:
+        """Get the basis point for pattern evaluation.
+        
+        The basis point is located half a width forward from the anchor point,
+        providing a representative coordinate for SDF evaluation.
+        
+        Returns:
+            Point representing the beam's basis coordinate for pattern evaluation
+        """
+        return self.anchor_point + 0.5 * self.forward_vector
 
     def generate_samples(self) -> List[Point]:
         """Generate sample points within the beam.
@@ -183,23 +202,35 @@ class Beam(Polygon, SVGExportable):
 
         return samples
 
-    def get_svg(self, base_color: str) -> List[str]:
+    def get_svg(self, base_color: str, beam_colors: dict = None) -> List[str]:
         """Generate SVG representation of the beam.
 
         Args:
             base_color: Base color from parent facet
+            beam_colors: Optional dictionary mapping beam_id to Color objects
 
         Returns:
             List of SVG element strings
         """
-        # Apply color multiplier based on parity
-        color_multiplier = self.get_fill_color_multiplier()
+        # Check for pattern color override
+        if beam_colors and self.beam_id in beam_colors:
+            pattern_color = beam_colors[self.beam_id]
+            final_color = pattern_color.to_svg_str()
+        else:
+            # Apply color multiplier based on parity
+            color_multiplier = self.get_fill_color_multiplier()
+            # Adjust brightness of base color
+            final_color = self._adjust_color_brightness(base_color, color_multiplier)
 
-        # Adjust brightness of base color
-        adjusted_color = self._adjust_color_brightness(base_color, color_multiplier)
-
-        # Create polygon SVG with adjusted color
-        beam_svg = create_polygon_svg(self.vertices, adjusted_color, 0.6)
+        # Create beam ID string for SVG
+        beam_id_str = f"{self.beam_id[0]}:{self.beam_id[1]}:{self.beam_id[2]}:{self.beam_id[3]}"
+        
+        # Create polygon SVG with ID and class
+        beam_svg = create_polygon_svg(self.vertices, final_color, 0.6)
+        
+        # Add beam ID and class to the SVG element
+        if 'id="' not in beam_svg:
+            beam_svg = beam_svg.replace('<polygon', f'<polygon id="beam_{beam_id_str}" class="beam"')
 
         return [beam_svg]
 

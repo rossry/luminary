@@ -152,6 +152,149 @@ def generate_svg_index(directory: Path):
     return 0
 
 
+def cmd_pattern(args):
+    """Handle pattern subcommand operations."""
+    
+    if args.pattern_subcommand == "sample":
+        return cmd_pattern_sample(args)
+    elif args.pattern_subcommand == "preview":
+        return cmd_pattern_preview(args)
+    elif args.pattern_subcommand == "run":
+        return cmd_pattern_run(args)
+    else:
+        print("Error: No pattern subcommand specified")
+        print("Available subcommands: sample, preview, run")
+        return 1
+
+
+def cmd_pattern_sample(args):
+    """Generate static SVG with pattern applied."""
+    try:
+        from luminary.patterns import get_pattern_or_select, BeamArrayBuilder
+        from luminary.geometry.net import Net
+        
+        # Load pattern (with interactive selection if needed)
+        pattern = get_pattern_or_select(args.pattern_name)
+        print(f"Using pattern: {pattern.name}")
+        
+        # Check if config file exists
+        if not args.config.exists():
+            print(f"Error: Configuration file '{args.config}' not found")
+            return 1
+        
+        # Load Net from configuration
+        print(f"Loading configuration from {args.config}")
+        net = Net.from_json_file(args.config)
+        
+        # Build beam array
+        print("Building beam array...")
+        builder = BeamArrayBuilder(net)
+        beam_array = builder.build_array()
+        
+        print(f"Built beam array with {beam_array.shape[0]} beams and {beam_array.shape[1]} columns")
+        
+        # Evaluate pattern
+        print(f"Evaluating pattern at time t={args.time}")
+        oklch_values = pattern.evaluate(beam_array, args.time)
+        
+        print(f"Pattern evaluation complete - generated OKLCH values with shape {oklch_values.shape}")
+        print(f"Sample OKLCH values (first 5 beams):")
+        for i in range(min(5, oklch_values.shape[0])):
+            l, c, h = oklch_values[i]
+            print(f"  Beam {i}: L={l:.3f}, C={c:.3f}, H={h:.1f}°")
+        
+        # Apply OKLCH values to beams and generate SVG
+        print("Creating beam colors dictionary...")
+        beam_colors = builder.create_beam_colors_dict(oklch_values)
+        print(f"Created colors for {len(beam_colors)} beams")
+        
+        # Generate SVG with pattern colors
+        print("Rendering SVG with pattern colors...")
+        svg_elements = net.get_svg(extended=True, beam_colors=beam_colors)
+        svg_content = "".join(svg_elements)
+        
+        # Determine output path
+        if args.output:
+            output_path = args.output
+        else:
+            output_dir = Path("output")
+            output_dir.mkdir(exist_ok=True)
+            config_stem = args.config.stem if args.config.name.endswith('.json') else args.config.name
+            output_path = output_dir / f"{config_stem}.{pattern.name}.t{args.time}.svg"
+        
+        # Save SVG file
+        output_path.write_text(svg_content)
+        print(f"Saved pattern SVG to: {output_path}")
+        
+        return 0
+        
+    except Exception as e:
+        print(f"Error in pattern sample: {e}")
+        return 1
+
+
+def cmd_pattern_preview(args):
+    """Run WebSocket server for real-time pattern animation."""
+    try:
+        from luminary.patterns import get_pattern_or_select
+        from luminary.config import JSONLoader
+        import sys
+        import subprocess
+        
+        # Load configuration
+        config = JSONLoader.load_config(str(args.config))
+        net = Net(config)
+        
+        # Load pattern (with interactive selection if needed)
+        pattern = get_pattern_or_select(args.pattern_name)
+        
+        print(f"Starting Luminary Pattern Animation Server")
+        print(f"Configuration: {args.config}")
+        print(f"Pattern: {pattern.name}")
+        print(f"Description: {pattern.description}")
+        print(f"Server: http://{args.host}:{args.port}")
+        print(f"Press Ctrl+C to stop")
+        print("")
+        
+        # Import and run the webserver
+        webserver_path = Path(__file__).parent / "patterns" / "webserver" / "server.py"
+        
+        if not webserver_path.exists():
+            print(f"Error: WebSocket server not found at {webserver_path}")
+            return 1
+        
+        # Run the webserver with current arguments
+        cmd = [
+            sys.executable, str(webserver_path),
+            str(args.config),
+            args.pattern_name or "",
+            "--host", args.host,
+            "--port", str(args.port),
+            "--fps", str(args.fps)
+        ]
+        
+        # Filter out empty pattern name
+        if not args.pattern_name:
+            cmd = cmd[:2] + cmd[3:]
+        
+        try:
+            return subprocess.run(cmd).returncode
+        except KeyboardInterrupt:
+            print("\nServer stopped by user")
+            return 0
+        
+    except Exception as e:
+        print(f"Error in pattern preview: {e}")
+        return 1
+
+
+def cmd_pattern_run(args):
+    """Stream pattern to hardware (not implemented yet)."""
+    print("Pattern run command is not yet implemented.")
+    print("This will be added in future releases for hardware output.")
+    return 1
+
+
 def main():
     """Main entry point with subcommands."""
     parser = argparse.ArgumentParser(
@@ -204,6 +347,89 @@ def main():
         "directory",
         type=Path,
         help="Directory to scan for SVG files",
+    )
+
+    # Pattern subcommand
+    pattern_parser = subparsers.add_parser(
+        "pattern", help="Pattern operations for animated geometric patterns"
+    )
+    pattern_subparsers = pattern_parser.add_subparsers(dest="pattern_subcommand", help="Pattern operations")
+
+    # Pattern sample subcommand
+    sample_parser = pattern_subparsers.add_parser(
+        "sample", help="Generate static SVG with pattern applied"
+    )
+    sample_parser.add_argument(
+        "pattern_name", 
+        nargs="?", 
+        help="Pattern name (optional - will show selection menu if omitted)"
+    )
+    sample_parser.add_argument(
+        "-c", "--config",
+        type=Path,
+        default=Path("./config.json"),
+        help="JSON configuration file (default: ./config.json)"
+    )
+    sample_parser.add_argument(
+        "-t", "--time",
+        type=float,
+        default=0.0,
+        help="Time parameter for pattern evaluation (default: 0.0)"
+    )
+    sample_parser.add_argument(
+        "-o", "--output",
+        type=Path,
+        help="Output SVG file (default: output/{config_stem}.{pattern}.svg)"
+    )
+
+    # Pattern preview subcommand
+    preview_parser = pattern_subparsers.add_parser(
+        "preview", help="Run WebSocket server for real-time pattern animation"
+    )
+    preview_parser.add_argument(
+        "pattern_name",
+        nargs="?",
+        help="Pattern name (optional - will show selection menu if omitted)"
+    )
+    preview_parser.add_argument(
+        "-c", "--config",
+        type=Path,
+        default=Path("./config.json"),
+        help="JSON configuration file (default: ./config.json)"
+    )
+    preview_parser.add_argument(
+        "--host",
+        type=str,
+        default="localhost",
+        help="WebSocket server host (default: localhost)"
+    )
+    preview_parser.add_argument(
+        "--port",
+        type=int,
+        default=8080,
+        help="WebSocket server port (default: 8080)"
+    )
+    preview_parser.add_argument(
+        "--fps",
+        type=float,
+        default=30.0,
+        help="Animation frame rate (default: 30.0)"
+    )
+
+    # Pattern run subcommand (future implementation)
+    run_parser = pattern_subparsers.add_parser(
+        "run", help="Stream pattern to hardware (not implemented yet)"
+    )
+    run_parser.add_argument(
+        "pattern_name",
+        nargs="?",
+        help="Pattern name (optional - will show selection menu if omitted)"
+    )
+    run_parser.add_argument(
+        "-c", "--config",
+        type=Path,
+        default=Path("./config.json"),
+        help="JSON configuration file (default: ./config.json)"
     )
 
     args = parser.parse_args()
@@ -267,6 +493,8 @@ def main():
             return 1
     elif args.command == "index":
         return generate_svg_index(args.directory)
+    elif args.command == "pattern":
+        return cmd_pattern(args)
     else:
         parser.print_help()
 
