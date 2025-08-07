@@ -1,0 +1,683 @@
+<svg width="100%" height="400" viewBox="-450 -100 1100 370" xmlns="http://www.w3.org/2000/svg">
+  <!-- White background -->
+  <rect x="-450" y="-100" width="1100" height="370" fill="white"/>
+  
+  <!-- TRIANGLES (drawn first so they appear under the lines) -->
+  
+  <!-- Inner Star Triangles (1-5) -->
+  <polygon points="100,20 176.08,75.28 185.9,-18.2" fill="black" fill-opacity="0.4"/>
+  <circle cx="154.0" cy="25.7" r="1.5" fill="black"/>
+  <!-- Quadrilaterals for triangle 13 -->
+  <polygon points="185.9,-18.2 142.95,0.9 154.0,25.7 180.99,28.54" fill="#800000" fill-opacity="0.6"/>
+  <text x="166" y="9" font-family="Arial" font-size="10" fill="black" text-anchor="middle">13D</text>
+  <polygon points="100,20 138.04,47.64 154.0,25.7 142.95,0.9" fill="#5B0082" fill-opacity="0.6"/>
+  <text x="134" y="23" font-family="Arial" font-size="10" fill="black" text-anchor="middle">13E</text>
+  <polygon points="176.08,75.28 180.99,28.54 154.0,25.7 138.04,47.64" fill="#228B22" fill-opacity="0.6"/>
+  <text x="162" y="44" font-family="Arial" font-size="10" fill="black" text-anchor="middle">13F</text>
+  <line x1="154.0" y1="25.7" x2="138.04" y2="47.64" stroke="black" stroke-width="1"/>
+  <line x1="154.0" y1="25.7" x2="180.99" y2="28.54" stroke="black" stroke-width="1"/>
+  <line x1="154.0" y1="25.7" x2="142.95" y2="0.9" stroke="black" stroke-width="1"/>
+  
+  <polygon points="176.08,75.28 147.02,164.72 241.197,164.72" fill="black" fill-opacity="0.4"/>
+  <circle cx="188.1" cy="134.9" r="1.5" fill="black"/>
+  <!-- Quadrilaterals for triangle 11 -->
+  <polygon points="241.197,164.72 208.64,120 188.1,134.9 194.11,164.72" fill="#DC143C" fill-opacity="0.6"/>
+  <text x="207" y="151" font-family="Arial" font-size="10" fill="black" text-anchor="middle">11D</text>
+  <polygon points="147.02,164.72 194.11,164.72 188.1,134.9 161.55,120" fill="#FFD700" fill-opacity="0.6"/>
+  <text x="173" y="146" font-family="Arial" font-size="10" fill="black" text-anchor="middle">11E</text>
+  <polygon points="176.08,75.28 161.55,120 188.1,134.9 208.64,120" fill="#228B22" fill-opacity="0.6"/>
+  <text x="184" y="113" font-family="Arial" font-size="10" fill="black" text-anchor="middle">11F</text>
+  <line x1="188.1" y1="134.9" x2="161.55" y2="120" stroke="black" stroke-width="1"/>
+  <line x1="188.1" y1="134.9" x2="194.11" y2="164.72" stroke="black" stroke-width="1"/>
+  <line x1="188.1" y1="134.9" x2="208.64" y2="120" stroke="black" stroke-width="1"/>
+  
+  <polygon points="147.02,164.72 52.98,164.72 100,246.4" fill="black" fill-opacity="0.4"/>
+  <circle cx="100.0" cy="191.9" r="1.5" fill="black"/>
+  <!-- Quadrilaterals for triangle 10 -->
+  <polygon points="100,246.4 76.49,205.56 100.0,191.9 123.51,205.56" fill="#FF8C00" fill-opacity="0.6"/>
+  <text x="100" y="215" font-family="Arial" font-size="10" fill="black" text-anchor="middle">10D</text>
+  <polygon points="52.98,164.72 100,164.72 100.0,191.9 76.49,205.56" fill="#4169E1" fill-opacity="0.6"/>
+  <text x="82" y="182" font-family="Arial" font-size="10" fill="black" text-anchor="middle">10E</text>
+  <polygon points="147.02,164.72 123.51,205.56 100.0,191.9 100,164.72" fill="#FFD700" fill-opacity="0.6"/>
+  <text x="118" y="182" font-family="Arial" font-size="10" fill="black" text-anchor="middle">10F</text>
+  <line x1="100.0" y1="191.9" x2="100" y2="164.72" stroke="black" stroke-width="1"/>
+  <line x1="100.0" y1="191.9" x2="76.49" y2="205.56" stroke="black" stroke-width="1"/>
+  <line x1="100.0" y1="191.9" x2="123.51" y2="205.56" stroke="black" stroke-width="1"/>
+  
+  <polygon points="52.98,164.72 23.92,75.28 -41.197,164.72" fill="black" fill-opacity="0.4"/>
+  <circle cx="11.9" cy="134.9" r="1.5" fill="black"/>
+  <!-- Quadrilaterals for triangle 12 -->
+  <polygon points="-41.197,164.72 5.89,164.72 11.9,134.9 -8.64,120.0" fill="#DC143C" fill-opacity="0.6"/>
+  <text x="-8" y="146" font-family="Arial" font-size="10" fill="black" text-anchor="middle">12D</text>
+  <polygon points="52.98,164.72 5.89,164.72 11.9,134.9 38.45,120.0" fill="#4169E1" fill-opacity="0.6"/>
+  <text x="27" y="146" font-family="Arial" font-size="10" fill="black" text-anchor="middle">12E</text>
+  <polygon points="23.92,75.28 -8.64,120.0 11.9,134.9 38.45,120.0" fill="#228B22" fill-opacity="0.6"/>
+  <text x="16" y="113" font-family="Arial" font-size="10" fill="black" text-anchor="middle">12F</text>
+  <line x1="11.9" y1="134.9" x2="38.45" y2="120.0" stroke="black" stroke-width="1"/>
+  <line x1="11.9" y1="134.9" x2="5.89" y2="164.72" stroke="black" stroke-width="1"/>
+  <line x1="11.9" y1="134.9" x2="-8.64" y2="120.0" stroke="black" stroke-width="1"/>
+  
+  <polygon points="23.92,75.28 100,20 14.1,-18.2" fill="black" fill-opacity="0.4"/>
+  <circle cx="46.0" cy="25.7" r="1.5" fill="black"/>
+  <!-- Quadrilaterals for triangle 14 -->
+  <polygon points="14.1,-18.2 57.05,0.9 46.0,25.7 19.01,28.54" fill="#D2B48C" fill-opacity="0.6"/>
+  <text x="34" y="9" font-family="Arial" font-size="10" fill="black" text-anchor="middle">14D</text>
+  <polygon points="100,20 57.05,0.9 46.0,25.7 61.96,47.64" fill="#5B0082" fill-opacity="0.6"/>
+  <text x="66" y="23" font-family="Arial" font-size="10" fill="black" text-anchor="middle">14E</text>
+  <polygon points="23.92,75.28 19.01,28.54 46.0,25.7 61.96,47.64" fill="#228B22" fill-opacity="0.6"/>
+  <text x="38" y="44" font-family="Arial" font-size="10" fill="black" text-anchor="middle">14F</text>
+  <line x1="46.0" y1="25.7" x2="61.96" y2="47.64" stroke="black" stroke-width="1"/>
+  <line x1="46.0" y1="25.7" x2="19.01" y2="28.54" stroke="black" stroke-width="1"/>
+  <line x1="46.0" y1="25.7" x2="57.05" y2="0.9" stroke="black" stroke-width="1"/>
+  
+  <!-- Outer Connection Triangles (6-15) -->
+  <polygon points="100,-80.7 185.9,-18.2 100,20" fill="black" fill-opacity="0.4"/>
+  <circle cx="128.6" cy="-26.3" r="1.5" fill="black"/>
+  <!-- Quadrilaterals for triangle 29 -->
+  <polygon points="100,20 142.95,0.9 128.6,-26.3 100,-30.35" fill="#5B0082" fill-opacity="0.6"/>
+  <text x="118" y="-14" font-family="Arial" font-size="10" fill="black" text-anchor="middle">29A</text>
+  <polygon points="100,-80.7 142.95,-49.45 128.6,-26.3 100,-30.35" fill="#00CED1" fill-opacity="0.6"/>
+  <text x="118" y="-47" font-family="Arial" font-size="10" fill="black" text-anchor="middle">29B</text>
+  <polygon points="185.9,-18.2 142.95,0.9 128.6,-26.3 142.95,-49.45" fill="#800000" fill-opacity="0.6"/>
+  <text x="150" y="-23" font-family="Arial" font-size="10" fill="black" text-anchor="middle">29C</text>
+  <line x1="128.6" y1="-26.3" x2="142.95" y2="-49.45" stroke="black" stroke-width="1"/>
+  <line x1="128.6" y1="-26.3" x2="142.95" y2="0.9" stroke="black" stroke-width="1"/>
+  <line x1="128.6" y1="-26.3" x2="100" y2="-30.35" stroke="black" stroke-width="1"/>
+  
+  <polygon points="100,-80.7 14.1,-18.2 100,20" fill="black" fill-opacity="0.4"/>
+  <circle cx="71.4" cy="-26.3" r="1.5" fill="black"/>
+  <!-- Quadrilaterals for triangle 28 -->
+  <polygon points="100,20 57.05,0.9 71.4,-26.3 100,-30.35" fill="#5B0082" fill-opacity="0.6"/>
+  <text x="82" y="-14" font-family="Arial" font-size="10" fill="black" text-anchor="middle">28A</text>
+  <polygon points="100,-80.7 57.05,-49.45 71.4,-26.3 100,-30.35" fill="#00CED1" fill-opacity="0.6"/>
+  <text x="82" y="-47" font-family="Arial" font-size="10" fill="black" text-anchor="middle">28B</text>
+  <polygon points="14.1,-18.2 57.05,0.9 71.4,-26.3 57.05,-49.45" fill="#D2B48C" fill-opacity="0.6"/>
+  <text x="50" y="-23" font-family="Arial" font-size="10" fill="black" text-anchor="middle">28C</text>
+  <line x1="71.4" y1="-26.3" x2="57.05" y2="-49.45" stroke="black" stroke-width="1"/>
+  <line x1="71.4" y1="-26.3" x2="57.05" y2="0.9" stroke="black" stroke-width="1"/>
+  <line x1="71.4" y1="-26.3" x2="100" y2="-30.35" stroke="black" stroke-width="1"/>
+  
+  <polygon points="185.9,-18.2 260.603,73.260 176.08,75.28" fill="black" fill-opacity="0.4"/>
+  <circle cx="207.5" cy="43.4" r="1.5" fill="black"/>
+  <!-- Quadrilaterals for triangle 27 -->
+  <polygon points="176.08,75.28 180.99,28.54 207.5,43.4 218.34,74.27" fill="#228B22" fill-opacity="0.6"/>
+  <text x="195" y="55" font-family="Arial" font-size="10" fill="black" text-anchor="middle">27A</text>
+  <polygon points="185.9,-18.2 223.25,27.53 207.5,43.4 180.99,28.54" fill="#800000" fill-opacity="0.6"/>
+  <text x="199" y="25" font-family="Arial" font-size="10" fill="black" text-anchor="middle">27B</text>
+  <polygon points="260.603,73.260 218.34,74.27 207.5,43.4 223.25,27.53" fill="#FFB6C1" fill-opacity="0.6"/>
+  <text x="227" y="55" font-family="Arial" font-size="10" fill="black" text-anchor="middle">27C</text>
+  <line x1="207.5" y1="43.4" x2="223.25" y2="27.53" stroke="black" stroke-width="1"/>
+  <line x1="207.5" y1="43.4" x2="218.34" y2="74.27" stroke="black" stroke-width="1"/>
+  <line x1="207.5" y1="43.4" x2="180.99" y2="28.54" stroke="black" stroke-width="1"/>
+  
+  <polygon points="14.1,-18.2 -60.603,73.260 23.92,75.28" fill="black" fill-opacity="0.4"/>
+  <circle cx="-7.5" cy="43.4" r="1.5" fill="black"/>
+  <!-- Quadrilaterals for triangle 26 -->
+  <polygon points="23.92,75.28 19.01,28.54 -7.5,43.4 -18.34,74.27" fill="#228B22" fill-opacity="0.6"/>
+  <text x="7" y="55" font-family="Arial" font-size="10" fill="black" text-anchor="middle">26A</text>
+  <polygon points="14.1,-18.2 -23.25,27.53 -7.5,43.4 19.01,28.54" fill="#D2B48C" fill-opacity="0.6"/>
+  <text x="1" y="20" font-family="Arial" font-size="10" fill="black" text-anchor="middle">26B</text>
+  <polygon points="-60.603,73.260 -18.34,74.27 -7.5,43.4 -23.25,27.53" fill="#FFB6C1" fill-opacity="0.6"/>
+  <text x="-27" y="55" font-family="Arial" font-size="10" fill="black" text-anchor="middle">26C</text>
+  <line x1="-7.5" y1="43.4" x2="-23.25" y2="27.53" stroke="black" stroke-width="1"/>
+  <line x1="-7.5" y1="43.4" x2="-18.34" y2="74.27" stroke="black" stroke-width="1"/>
+  <line x1="-7.5" y1="43.4" x2="19.01" y2="28.54" stroke="black" stroke-width="1"/>
+  
+  <polygon points="260.603,73.260 241.197,164.72 176.08,75.28" fill="black" fill-opacity="0.4"/>
+  <circle cx="225.9" cy="104.4" r="1.5" fill="black"/>
+  <!-- Quadrilaterals for triangle 25 -->
+  <polygon points="176.08,75.28 208.64,120.0 225.9,104.4 218.34,74.26" fill="#228B22" fill-opacity="0.6"/>
+  <text x="207" y="93" font-family="Arial" font-size="10" fill="black" text-anchor="middle">25A</text>
+  <polygon points="260.603,73.260 218.34,74.26 225.9,104.4 250.9,118.99" fill="#FFB6C1" fill-opacity="0.6"/>
+  <text x="239" y="93" font-family="Arial" font-size="10" fill="black" text-anchor="middle">25B</text>
+  <polygon points="241.197,164.72 250.9,118.99 225.9,104.4 208.64,120.0" fill="#DC143C" fill-opacity="0.6"/>
+  <text x="232" y="127" font-family="Arial" font-size="10" fill="black" text-anchor="middle">25C</text>
+  <line x1="225.9" y1="104.4" x2="250.9" y2="118.99" stroke="black" stroke-width="1"/>
+  <line x1="225.9" y1="104.4" x2="208.64" y2="120.0" stroke="black" stroke-width="1"/>
+  <line x1="225.9" y1="104.4" x2="218.34" y2="74.26" stroke="black" stroke-width="1"/>
+  
+  <polygon points="-60.603,73.260 -41.197,164.72 23.92,75.28" fill="black" fill-opacity="0.4"/>
+  <circle cx="-25.9" cy="104.4" r="1.5" fill="black"/>
+  <!-- Quadrilaterals for triangle 24 -->
+  <polygon points="23.92,75.28 -8.64,120.0 -25.9,104.4 -18.34,74.26" fill="#228B22" fill-opacity="0.6"/>
+  <text x="-7" y="93" font-family="Arial" font-size="10" fill="black" text-anchor="middle">24A</text>
+  <polygon points="-60.603,73.260 -18.34,74.26 -25.9,104.4 -50.9,118.99" fill="#FFB6C1" fill-opacity="0.6"/>
+  <text x="-39" y="93" font-family="Arial" font-size="10" fill="black" text-anchor="middle">24B</text>
+  <polygon points="-41.197,164.72 -50.9,118.99 -25.9,104.4 -8.64,120.0" fill="#DC143C" fill-opacity="0.6"/>
+  <text x="-32" y="127" font-family="Arial" font-size="10" fill="black" text-anchor="middle">24C</text>
+  <line x1="-25.9" y1="104.4" x2="-50.9" y2="118.99" stroke="black" stroke-width="1"/>
+  <line x1="-25.9" y1="104.4" x2="-8.64" y2="120.0" stroke="black" stroke-width="1"/>
+  <line x1="-25.9" y1="104.4" x2="-18.34" y2="74.26" stroke="black" stroke-width="1"/>
+  
+  <polygon points="241.197,164.72 194.247,246.2 147.02,164.72" fill="black" fill-opacity="0.4"/>
+  <circle cx="194.1" cy="191.9" r="1.5" fill="black"/>
+  <!-- Quadrilaterals for triangle 23 -->
+  <polygon points="194.247,246.2 170.64,205.46 194.1,191.9 217.72,205.46" fill="#CCCCFF" fill-opacity="0.6"/>
+  <text x="194" y="212" font-family="Arial" font-size="10" fill="black" text-anchor="middle">23A</text>
+  <polygon points="241.197,164.72 194.11,164.72 194.1,191.9 217.72,205.46" fill="#DC143C" fill-opacity="0.6"/>
+  <text x="212" y="181" font-family="Arial" font-size="10" fill="black" text-anchor="middle">23B</text>
+  <polygon points="147.02,164.72 170.64,205.46 194.1,191.9 194.11,164.72" fill="#FFD700" fill-opacity="0.6"/>
+  <text x="176" y="181" font-family="Arial" font-size="10" fill="black" text-anchor="middle">23C</text>
+  <line x1="194.1" y1="191.9" x2="217.72" y2="205.46" stroke="black" stroke-width="1"/>
+  <line x1="194.1" y1="191.9" x2="170.64" y2="205.46" stroke="black" stroke-width="1"/>
+  <line x1="194.1" y1="191.9" x2="194.11" y2="164.72" stroke="black" stroke-width="1"/>
+  
+  <polygon points="-41.197,164.72 5.753,246.2 52.98,164.72" fill="black" fill-opacity="0.4"/>
+  <circle cx="5.9" cy="191.9" r="1.5" fill="black"/>
+  <!-- Quadrilaterals for triangle 22 -->
+  <polygon points="5.753,246.2 29.36,205.46 5.9,191.9 -17.72,205.46" fill="#CCCCFF" fill-opacity="0.6"/>
+  <text x="6" y="212" font-family="Arial" font-size="10" fill="black" text-anchor="middle">22A</text>
+  <polygon points="-41.197,164.72 5.89,164.72 5.9,191.9 -17.72,205.46" fill="#DC143C" fill-opacity="0.6"/>
+  <text x="-11" y="181" font-family="Arial" font-size="10" fill="black" text-anchor="middle">22B</text>
+  <polygon points="52.98,164.72 29.36,205.46 5.9,191.9 5.89,164.72" fill="#4169E1" fill-opacity="0.6"/>
+  <text x="23" y="181" font-family="Arial" font-size="10" fill="black" text-anchor="middle">22C</text>
+  <line x1="5.9" y1="191.9" x2="-17.72" y2="205.46" stroke="black" stroke-width="1"/>
+  <line x1="5.9" y1="191.9" x2="29.36" y2="205.46" stroke="black" stroke-width="1"/>
+  <line x1="5.9" y1="191.9" x2="5.89" y2="164.72" stroke="black" stroke-width="1"/>
+  
+  <polygon points="194.247,246.2 100,246.4 147.02,164.72" fill="black" fill-opacity="0.4"/>
+  <circle cx="147.1" cy="219.1" r="1.5" fill="black"/>
+  <!-- Quadrilaterals for triangle 21 -->
+  <polygon points="147.02,164.72 170.64,205.46 147.1,219.1 123.51,205.56" fill="#FFD700" fill-opacity="0.6"/>
+  <text x="147" y="198" font-family="Arial" font-size="10" fill="black" text-anchor="middle">21A</text>
+  <polygon points="194.247,246.2 147.12,246.3 147.1,219.1 170.64,205.46" fill="#CCCCFF" fill-opacity="0.6"/>
+  <text x="165" y="229" font-family="Arial" font-size="10" fill="black" text-anchor="middle">21B</text>
+  <polygon points="100,246.4 123.51,205.56 147.1,219.1 147.12,246.3" fill="#FF8C00" fill-opacity="0.6"/>
+  <text x="129" y="229" font-family="Arial" font-size="10" fill="black" text-anchor="middle">21C</text>
+  <line x1="147.1" y1="219.1" x2="147.12" y2="246.3" stroke="black" stroke-width="1"/>
+  <line x1="147.1" y1="219.1" x2="123.51" y2="205.56" stroke="black" stroke-width="1"/>
+  <line x1="147.1" y1="219.1" x2="170.64" y2="205.46" stroke="black" stroke-width="1"/>
+  
+  <polygon points="5.753,246.2 100,246.4 52.98,164.72" fill="black" fill-opacity="0.4"/>
+  <circle cx="52.9" cy="219.1" r="1.5" fill="black"/>
+  <!-- Quadrilaterals for triangle 20 -->
+  <polygon points="52.98,164.72 29.37,205.46 52.9,219.1 76.49,205.56" fill="#4169E1" fill-opacity="0.6"/>
+  <text x="53" y="198" font-family="Arial" font-size="10" fill="black" text-anchor="middle">20A</text>
+  <polygon points="5.753,246.2 52.88,246.3 52.9,219.1 29.37,205.46" fill="#CCCCFF" fill-opacity="0.6"/>
+  <text x="35" y="229" font-family="Arial" font-size="10" fill="black" text-anchor="middle">20B</text>
+  <polygon points="100,246.4 76.49,205.56 52.9,219.1 52.88,246.3" fill="#FF8C00" fill-opacity="0.6"/>
+  <text x="71" y="229" font-family="Arial" font-size="10" fill="black" text-anchor="middle">20C</text>
+  <line x1="52.9" y1="219.1" x2="52.88" y2="246.3" stroke="black" stroke-width="1"/>
+  <line x1="52.9" y1="219.1" x2="76.49" y2="205.56" stroke="black" stroke-width="1"/>
+  <line x1="52.9" y1="219.1" x2="29.37" y2="205.46" stroke="black" stroke-width="1"/>
+  
+  <!-- First Expansion Triangles (16-21) -->
+  <polygon points="194.247,246.2 241.197,164.72 288.286,246.2" fill="black" fill-opacity="0.4"/>
+  <circle cx="241.2" cy="219.0" r="1.5" fill="black"/>
+  <!-- Quadrilaterals for triangle 31 -->
+  <polygon points="288.286,246.2 241.24,246.2 241.2,219.0 264.74,205.46" fill="#CCFF00" fill-opacity="0.6"/>
+  <text x="259" y="230" font-family="Arial" font-size="10" fill="black" text-anchor="middle">31D</text>
+  <polygon points="194.247,246.2 217.72,205.46 241.2,219.0 241.24,246.2" fill="#CCCCFF" fill-opacity="0.6"/>
+  <text x="223" y="229" font-family="Arial" font-size="10" fill="black" text-anchor="middle">31E</text>
+  <polygon points="241.197,164.72 264.74,205.46 241.2,219.0 217.72,205.46" fill="#DC143C" fill-opacity="0.6"/>
+  <text x="241" y="199" font-family="Arial" font-size="10" fill="black" text-anchor="middle">31F</text>
+  <line x1="241.2" y1="219.0" x2="217.72" y2="205.46" stroke="black" stroke-width="1"/>
+  <line x1="241.2" y1="219.0" x2="264.74" y2="205.46" stroke="black" stroke-width="1"/>
+  <line x1="241.2" y1="219.0" x2="241.24" y2="246.2" stroke="black" stroke-width="1"/>
+  
+  <polygon points="5.753,246.2 -41.197,164.72 -88.286,246.2" fill="black" fill-opacity="0.4"/>
+  <circle cx="-41.2" cy="219.0" r="1.5" fill="black"/>
+  <!-- Quadrilaterals for triangle 30 -->
+  <polygon points="-88.286,246.2 -41.24,246.2 -41.2,219.0 -64.74,205.46" fill="#CCFF00" fill-opacity="0.6"/>
+  <text x="-59" y="230" font-family="Arial" font-size="10" fill="black" text-anchor="middle">30D</text>
+  <polygon points="5.753,246.2 -17.72,205.46 -41.2,219.0 -41.24,246.2" fill="#CCCCFF" fill-opacity="0.6"/>
+  <text x="-23" y="229" font-family="Arial" font-size="10" fill="black" text-anchor="middle">30E</text>
+  <polygon points="-41.197,164.72 -64.74,205.46 -41.2,219.0 -17.72,205.46" fill="#DC143C" fill-opacity="0.6"/>
+  <text x="-41" y="199" font-family="Arial" font-size="10" fill="black" text-anchor="middle">30F</text>
+  <line x1="-41.2" y1="219.0" x2="-17.72" y2="205.46" stroke="black" stroke-width="1"/>
+  <line x1="-41.2" y1="219.0" x2="-64.74" y2="205.46" stroke="black" stroke-width="1"/>
+  <line x1="-41.2" y1="219.0" x2="-41.24" y2="246.2" stroke="black" stroke-width="1"/>
+  
+  <polygon points="241.197,164.72 288.286,246.2 335.305,164.72" fill="black" fill-opacity="0.4"/>
+  <circle cx="288.3" cy="191.9" r="1.5" fill="black"/>
+  <!-- Quadrilaterals for triangle 33 -->
+  <polygon points="288.286,246.2 311.82,205.46 288.3,191.9 264.74,205.46" fill="#CCFF00" fill-opacity="0.6"/>
+  <text x="288" y="212" font-family="Arial" font-size="10" fill="black" text-anchor="middle">33A</text>
+  <polygon points="241.197,164.72 288.25,164.72 288.3,191.9 264.74,205.46" fill="#DC143C" fill-opacity="0.6"/>
+  <text x="271" y="184" font-family="Arial" font-size="10" fill="black" text-anchor="middle">33B</text>
+  <polygon points="335.305,164.72 311.82,205.46 288.3,191.9 288.25,164.72" fill="#FFFFFF" fill-opacity="0.6"/>
+  <text x="306" y="184" font-family="Arial" font-size="10" fill="black" text-anchor="middle">33C</text>
+  <line x1="288.3" y1="191.9" x2="264.74" y2="205.46" stroke="black" stroke-width="1"/>
+  <line x1="288.3" y1="191.9" x2="311.82" y2="205.46" stroke="black" stroke-width="1"/>
+  <line x1="288.3" y1="191.9" x2="288.25" y2="164.72" stroke="black" stroke-width="1"/>
+  
+  <polygon points="-41.197,164.72 -88.286,246.2 -135.305,164.72" fill="black" fill-opacity="0.4"/>
+  <circle cx="-88.3" cy="191.9" r="1.5" fill="black"/>
+  <!-- Quadrilaterals for triangle 32 -->
+  <polygon points="-88.286,246.2 -111.82,205.46 -88.3,191.9 -64.74,205.46" fill="#CCFF00" fill-opacity="0.6"/>
+  <text x="-88" y="212" font-family="Arial" font-size="10" fill="black" text-anchor="middle">32A</text>
+  <polygon points="-41.197,164.72 -88.25,164.72 -88.3,191.9 -64.74,205.46" fill="#DC143C" fill-opacity="0.6"/>
+  <text x="-71" y="184" font-family="Arial" font-size="10" fill="black" text-anchor="middle">32B</text>
+  <polygon points="-135.305,164.72 -111.82,205.46 -88.3,191.9 -88.25,164.72" fill="#FFFFFF" fill-opacity="0.6"/>
+  <text x="-106" y="184" font-family="Arial" font-size="10" fill="black" text-anchor="middle">32C</text>
+  <line x1="-88.3" y1="191.9" x2="-64.74" y2="205.46" stroke="black" stroke-width="1"/>
+  <line x1="-88.3" y1="191.9" x2="-111.82" y2="205.46" stroke="black" stroke-width="1"/>
+  <line x1="-88.3" y1="191.9" x2="-88.25" y2="164.72" stroke="black" stroke-width="1"/>
+  
+  <polygon points="260.603,73.260 335.305,164.72 241.197,164.72" fill="black" fill-opacity="0.4"/>
+  <circle cx="279.0" cy="134.2" r="1.5" fill="black"/>
+  <!-- Quadrilaterals for triangle 35 -->
+  <polygon points="335.305,164.72 288.25,164.72 279.0,134.2 297.95,118.99" fill="#FFFFFF" fill-opacity="0.6"/>
+  <text x="300" y="146" font-family="Arial" font-size="10" fill="black" text-anchor="middle">35D</text>
+  <polygon points="260.603,73.260 250.9,118.99 279.0,134.2 297.95,118.99" fill="#FFB6C1" fill-opacity="0.6"/>
+  <text x="272" y="111" font-family="Arial" font-size="10" fill="black" text-anchor="middle">35E</text>
+  <polygon points="241.197,164.72 288.25,164.72 279.0,134.2 250.9,118.99" fill="#DC143C" fill-opacity="0.6"/>
+  <text x="265" y="146" font-family="Arial" font-size="10" fill="black" text-anchor="middle">35F</text>
+  <line x1="279.0" y1="134.2" x2="297.95" y2="118.99" stroke="black" stroke-width="1"/>
+  <line x1="279.0" y1="134.2" x2="288.25" y2="164.72" stroke="black" stroke-width="1"/>
+  <line x1="279.0" y1="134.2" x2="250.9" y2="118.99" stroke="black" stroke-width="1"/>
+  
+  <polygon points="-60.603,73.260 -135.305,164.72 -41.197,164.72" fill="black" fill-opacity="0.4"/>
+  <circle cx="-79.0" cy="134.2" r="1.5" fill="black"/>
+  <!-- Quadrilaterals for triangle 34 -->
+  <polygon points="-135.305,164.72 -88.25,164.72 -79.0,134.2 -97.95,118.99" fill="#FFFFFF" fill-opacity="0.6"/>
+  <text x="-100" y="146" font-family="Arial" font-size="10" fill="black" text-anchor="middle">34D</text>
+  <polygon points="-60.603,73.260 -50.9,118.99 -79.0,134.2 -97.95,118.99" fill="#FFB6C1" fill-opacity="0.6"/>
+  <text x="-72" y="111" font-family="Arial" font-size="10" fill="black" text-anchor="middle">34E</text>
+  <polygon points="-41.197,164.72 -88.25,164.72 -79.0,134.2 -50.9,118.99" fill="#DC143C" fill-opacity="0.6"/>
+  <text x="-65" y="146" font-family="Arial" font-size="10" fill="black" text-anchor="middle">34F</text>
+  <line x1="-79.0" y1="134.2" x2="-97.95" y2="118.99" stroke="black" stroke-width="1"/>
+  <line x1="-79.0" y1="134.2" x2="-88.25" y2="164.72" stroke="black" stroke-width="1"/>
+  <line x1="-79.0" y1="134.2" x2="-50.9" y2="118.99" stroke="black" stroke-width="1"/>
+  
+  <!-- Second Expansion Triangles (22-25) -->
+  <polygon points="288.286,246.2 335.305,164.72 382.035,246.4" fill="black" fill-opacity="0.4"/>
+  <circle cx="335.2" cy="219.1" r="1.5" fill="black"/>
+  <!-- Quadrilaterals for triangle 41 -->
+  <polygon points="382.035,246.4 335.16,246.3 335.2,219.1 358.67,205.56" fill="#87CEEB" fill-opacity="0.6"/>
+  <text x="353" y="230" font-family="Arial" font-size="10" fill="black" text-anchor="middle">41D</text>
+  <polygon points="288.286,246.2 311.8,205.46 335.2,219.1 335.16,246.3" fill="#CCFF00" fill-opacity="0.6"/>
+  <text x="318" y="229" font-family="Arial" font-size="10" fill="black" text-anchor="middle">41E</text>
+  <polygon points="335.305,164.72 358.67,205.56 335.2,219.1 311.8,205.46" fill="#FFFFFF" fill-opacity="0.6"/>
+  <text x="335" y="199" font-family="Arial" font-size="10" fill="black" text-anchor="middle">41F</text>
+  <line x1="335.2" y1="219.1" x2="311.8" y2="205.46" stroke="black" stroke-width="1"/>
+  <line x1="335.2" y1="219.1" x2="335.16" y2="246.3" stroke="black" stroke-width="1"/>
+  <line x1="335.2" y1="219.1" x2="358.67" y2="205.56" stroke="black" stroke-width="1"/>
+  <line x1="335.2" y1="219.1" x2="311.82" y2="205.46" stroke="black" stroke-width="1"/>
+  <line x1="335.2" y1="219.1" x2="358.67" y2="205.56" stroke="black" stroke-width="1"/>
+  <line x1="335.2" y1="219.1" x2="335.21" y2="246.3" stroke="black" stroke-width="1"/>
+  
+  <polygon points="-88.286,246.2 -135.305,164.72 -182.035,246.4" fill="black" fill-opacity="0.4"/>
+  <circle cx="-135.2" cy="219.1" r="1.5" fill="black"/>
+  <!-- Quadrilaterals for triangle 40 -->
+  <polygon points="-182.035,246.4 -135.21,246.3 -135.2,219.1 -158.67,205.56" fill="#87CEEB" fill-opacity="0.6"/>
+  <text x="-153" y="230" font-family="Arial" font-size="10" fill="black" text-anchor="middle">40D</text>
+  <polygon points="-88.286,246.2 -111.82,205.46 -135.2,219.1 -135.21,246.3" fill="#CCFF00" fill-opacity="0.6"/>
+  <text x="-118" y="229" font-family="Arial" font-size="10" fill="black" text-anchor="middle">40E</text>
+  <polygon points="-135.305,164.72 -158.67,205.56 -135.2,219.1 -111.82,205.46" fill="#FFFFFF" fill-opacity="0.6"/>
+  <text x="-135" y="199" font-family="Arial" font-size="10" fill="black" text-anchor="middle">40F</text>
+  <line x1="-135.2" y1="219.1" x2="-111.82" y2="205.46" stroke="black" stroke-width="1"/>
+  <line x1="-135.2" y1="219.1" x2="-135.21" y2="246.3" stroke="black" stroke-width="1"/>
+  <line x1="-135.2" y1="219.1" x2="-158.67" y2="205.56" stroke="black" stroke-width="1"/>
+  <line x1="-135.2" y1="219.1" x2="-111.82" y2="205.46" stroke="black" stroke-width="1"/>
+  <line x1="-135.2" y1="219.1" x2="-158.67" y2="205.56" stroke="black" stroke-width="1"/>
+  <line x1="-135.2" y1="219.1" x2="-135.21" y2="246.3" stroke="black" stroke-width="1"/>
+  
+  <polygon points="335.305,164.72 382.035,246.4 428.765,164.72" fill="black" fill-opacity="0.4"/>
+  <circle cx="382.0" cy="192.0" r="1.5" fill="black"/>
+  <!-- Quadrilaterals for triangle 43 -->
+  <polygon points="382.035,246.4 405.4,205.56 382.0,192.0 358.67,205.56" fill="#87CEEB" fill-opacity="0.6"/>
+  <text x="382" y="212" font-family="Arial" font-size="10" fill="black" text-anchor="middle">43A</text>
+  <polygon points="335.305,164.72 382.04,164.72 382.0,192.0 358.67,205.56" fill="#FFFFFF" fill-opacity="0.6"/>
+  <text x="365" y="184" font-family="Arial" font-size="10" fill="black" text-anchor="middle">43B</text>
+  <polygon points="428.765,164.72 405.4,205.56 382.0,192.0 382.04,164.72" fill="#C0C0C0" fill-opacity="0.6"/>
+  <text x="399" y="184" font-family="Arial" font-size="10" fill="black" text-anchor="middle">43C</text>
+  <line x1="382.0" y1="192.0" x2="358.67" y2="205.56" stroke="black" stroke-width="1"/>
+  <line x1="382.0" y1="192.0" x2="382.04" y2="164.72" stroke="black" stroke-width="1"/>
+  <line x1="382.0" y1="192.0" x2="405.4" y2="205.56" stroke="black" stroke-width="1"/>
+  <line x1="382.0" y1="192.0" x2="358.67" y2="205.56" stroke="black" stroke-width="1"/>
+  <line x1="382.0" y1="192.0" x2="405.4" y2="205.56" stroke="black" stroke-width="1"/>
+  <line x1="382.0" y1="192.0" x2="382.04" y2="164.72" stroke="black" stroke-width="1"/>
+  
+  <polygon points="-135.305,164.72 -182.035,246.4 -228.765,164.72" fill="black" fill-opacity="0.4"/>
+  <circle cx="-182.0" cy="192.0" r="1.5" fill="black"/>
+  <!-- Quadrilaterals for triangle 42 -->
+  <polygon points="-182.035,246.4 -205.4,205.56 -182.0,192.0 -158.67,205.56" fill="#87CEEB" fill-opacity="0.6"/>
+  <text x="-182" y="212" font-family="Arial" font-size="10" fill="black" text-anchor="middle">42A</text>
+  <polygon points="-135.305,164.72 -182.04,164.72 -182.0,192.0 -158.67,205.56" fill="#FFFFFF" fill-opacity="0.6"/>
+  <text x="-165" y="184" font-family="Arial" font-size="10" fill="black" text-anchor="middle">42B</text>
+  <polygon points="-228.765,164.72 -205.4,205.56 -182.0,192.0 -182.04,164.72" fill="#C0C0C0" fill-opacity="0.6"/>
+  <text x="-199" y="184" font-family="Arial" font-size="10" fill="black" text-anchor="middle">42C</text>
+  <line x1="-182.0" y1="192.0" x2="-158.67" y2="205.56" stroke="black" stroke-width="1"/>
+  <line x1="-182.0" y1="192.0" x2="-182.04" y2="164.72" stroke="black" stroke-width="1"/>
+  <line x1="-182.0" y1="192.0" x2="-205.4" y2="205.56" stroke="black" stroke-width="1"/>
+  <line x1="-182.0" y1="192.0" x2="-158.67" y2="205.56" stroke="black" stroke-width="1"/>
+  <line x1="-182.0" y1="192.0" x2="-205.4" y2="205.56" stroke="black" stroke-width="1"/>
+  <line x1="-182.0" y1="192.0" x2="-182.04" y2="164.72" stroke="black" stroke-width="1"/>
+  
+  <!-- Third Expansion Triangles (28-33) -->
+  <polygon points="382.035,246.4 428.765,164.72 475.490,246.4" fill="black" fill-opacity="0.4"/>
+  <circle cx="428.8" cy="219.2" r="1.5" fill="black"/>
+  <!-- Quadrilaterals for triangle 51 -->
+  <polygon points="475.490,246.4 428.76,246.4 428.8,219.2 452.13,205.56" fill="#32CD32" fill-opacity="0.6"/>
+  <text x="446" y="230" font-family="Arial" font-size="10" fill="black" text-anchor="middle">51D</text>
+  <polygon points="382.035,246.4 405.4,205.56 428.8,219.2 428.76,246.4" fill="#87CEEB" fill-opacity="0.6"/>
+  <text x="411" y="229" font-family="Arial" font-size="10" fill="black" text-anchor="middle">51E</text>
+  <polygon points="428.765,164.72 452.13,205.56 428.8,219.2 405.4,205.56" fill="#C0C0C0" fill-opacity="0.6"/>
+  <text x="429" y="199" font-family="Arial" font-size="10" fill="black" text-anchor="middle">51F</text>
+  <line x1="428.8" y1="219.2" x2="405.4" y2="205.56" stroke="black" stroke-width="1"/>
+  <line x1="428.8" y1="219.2" x2="428.76" y2="246.4" stroke="black" stroke-width="1"/>
+  <line x1="428.8" y1="219.2" x2="452.13" y2="205.56" stroke="black" stroke-width="1"/>
+  <line x1="428.8" y1="219.2" x2="405.4" y2="205.56" stroke="black" stroke-width="1"/>
+  <line x1="428.8" y1="219.2" x2="452.13" y2="205.56" stroke="black" stroke-width="1"/>
+  <line x1="428.8" y1="219.2" x2="428.76" y2="246.4" stroke="black" stroke-width="1"/>
+  
+  <polygon points="-182.035,246.4 -228.765,164.72 -275.490,246.4" fill="black" fill-opacity="0.4"/>
+  <circle cx="-228.8" cy="219.2" r="1.5" fill="black"/>
+  <!-- Quadrilaterals for triangle 50 -->
+  <polygon points="-275.490,246.4 -228.76,246.4 -228.8,219.2 -252.13,205.56" fill="#32CD32" fill-opacity="0.6"/>
+  <text x="-246" y="230" font-family="Arial" font-size="10" fill="black" text-anchor="middle">50D</text>
+  <polygon points="-182.035,246.4 -205.4,205.56 -228.8,219.2 -228.76,246.4" fill="#87CEEB" fill-opacity="0.6"/>
+  <text x="-211" y="229" font-family="Arial" font-size="10" fill="black" text-anchor="middle">50E</text>
+  <polygon points="-228.765,164.72 -252.13,205.56 -228.8,219.2 -205.4,205.56" fill="#C0C0C0" fill-opacity="0.6"/>
+  <text x="-229" y="199" font-family="Arial" font-size="10" fill="black" text-anchor="middle">50F</text>
+  <line x1="-228.8" y1="219.2" x2="-205.4" y2="205.56" stroke="black" stroke-width="1"/>
+  <line x1="-228.8" y1="219.2" x2="-228.76" y2="246.4" stroke="black" stroke-width="1"/>
+  <line x1="-228.8" y1="219.2" x2="-252.13" y2="205.56" stroke="black" stroke-width="1"/>
+  <line x1="-228.8" y1="219.2" x2="-205.4" y2="205.56" stroke="black" stroke-width="1"/>
+  <line x1="-228.8" y1="219.2" x2="-252.13" y2="205.56" stroke="black" stroke-width="1"/>
+  <line x1="-228.8" y1="219.2" x2="-228.76" y2="246.4" stroke="black" stroke-width="1"/>
+  
+  <polygon points="428.765,164.72 475.490,246.4 522.214,164.72" fill="black" fill-opacity="0.4"/>
+  <circle cx="475.5" cy="192.0" r="1.5" fill="black"/>
+  <!-- Quadrilaterals for triangle 53 -->
+  <polygon points="475.490,246.4 498.85,205.56 475.5,192.0 452.13,205.56" fill="#32CD32" fill-opacity="0.6"/>
+  <text x="475" y="212" font-family="Arial" font-size="10" fill="black" text-anchor="middle">53A</text>
+  <polygon points="428.765,164.72 475.49,164.72 475.5,192.0 452.13,205.56" fill="#C0C0C0" fill-opacity="0.6"/>
+  <text x="458" y="184" font-family="Arial" font-size="10" fill="black" text-anchor="middle">53B</text>
+  <polygon points="522.214,164.72 498.85,205.56 475.5,192.0 475.49,164.72" fill="#DAA520" fill-opacity="0.6"/>
+  <text x="493" y="184" font-family="Arial" font-size="10" fill="black" text-anchor="middle">53C</text>
+  <line x1="475.5" y1="192.0" x2="452.13" y2="205.56" stroke="black" stroke-width="1"/>
+  <line x1="475.5" y1="192.0" x2="475.49" y2="164.72" stroke="black" stroke-width="1"/>
+  <line x1="475.5" y1="192.0" x2="498.85" y2="205.56" stroke="black" stroke-width="1"/>
+  <line x1="475.5" y1="192.0" x2="452.13" y2="205.56" stroke="black" stroke-width="1"/>
+  <line x1="475.5" y1="192.0" x2="498.85" y2="205.56" stroke="black" stroke-width="1"/>
+  <line x1="475.5" y1="192.0" x2="475.49" y2="164.72" stroke="black" stroke-width="1"/>
+  
+  <polygon points="-228.765,164.72 -275.490,246.4 -322.214,164.72" fill="black" fill-opacity="0.4"/>
+  <circle cx="-275.5" cy="192.0" r="1.5" fill="black"/>
+  <!-- Quadrilaterals for triangle 52 -->
+  <polygon points="-275.490,246.4 -298.85,205.56 -275.5,192.0 -252.13,205.56" fill="#32CD32" fill-opacity="0.6"/>
+  <text x="-275" y="212" font-family="Arial" font-size="10" fill="black" text-anchor="middle">52A</text>
+  <polygon points="-228.765,164.72 -275.49,164.72 -275.5,192.0 -252.13,205.56" fill="#C0C0C0" fill-opacity="0.6"/>
+  <text x="-258" y="184" font-family="Arial" font-size="10" fill="black" text-anchor="middle">52B</text>
+  <polygon points="-322.214,164.72 -298.85,205.56 -275.5,192.0 -275.49,164.72" fill="#DAA520" fill-opacity="0.6"/>
+  <text x="-293" y="184" font-family="Arial" font-size="10" fill="black" text-anchor="middle">52C</text>
+  <line x1="-275.5" y1="192.0" x2="-252.13" y2="205.56" stroke="black" stroke-width="1"/>
+  <line x1="-275.5" y1="192.0" x2="-275.49" y2="164.72" stroke="black" stroke-width="1"/>
+  <line x1="-275.5" y1="192.0" x2="-298.85" y2="205.56" stroke="black" stroke-width="1"/>
+  <line x1="-275.5" y1="192.0" x2="-252.13" y2="205.56" stroke="black" stroke-width="1"/>
+  <line x1="-275.5" y1="192.0" x2="-298.85" y2="205.56" stroke="black" stroke-width="1"/>
+  <line x1="-275.5" y1="192.0" x2="-275.49" y2="164.72" stroke="black" stroke-width="1"/>
+  
+  <polygon points="475.490,246.4 522.214,164.72 568.939,246.4" fill="black" fill-opacity="0.4"/>
+  <circle cx="522.2" cy="219.2" r="1.5" fill="black"/>
+  <!-- Quadrilaterals for triangle 61 -->
+  <polygon points="568.939,246.4 522.21,246.4 522.2,219.2 545.58,205.56" fill="#FF00FF" fill-opacity="0.6"/>
+  <text x="540" y="230" font-family="Arial" font-size="10" fill="black" text-anchor="middle">61D</text>
+  <polygon points="475.490,246.4 498.85,205.56 522.2,219.2 522.21,246.4" fill="#32CD32" fill-opacity="0.6"/>
+  <text x="505" y="229" font-family="Arial" font-size="10" fill="black" text-anchor="middle">61E</text>
+  <polygon points="522.214,164.72 545.58,205.56 522.2,219.2 498.85,205.56" fill="#DAA520" fill-opacity="0.6"/>
+  <text x="522" y="199" font-family="Arial" font-size="10" fill="black" text-anchor="middle">61F</text>
+  <line x1="522.2" y1="219.2" x2="498.85" y2="205.56" stroke="black" stroke-width="1"/>
+  <line x1="522.2" y1="219.2" x2="522.21" y2="246.4" stroke="black" stroke-width="1"/>
+  <line x1="522.2" y1="219.2" x2="545.58" y2="205.56" stroke="black" stroke-width="1"/>
+  <line x1="522.2" y1="219.2" x2="498.85" y2="205.56" stroke="black" stroke-width="1"/>
+  <line x1="522.2" y1="219.2" x2="545.58" y2="205.56" stroke="black" stroke-width="1"/>
+  <line x1="522.2" y1="219.2" x2="522.21" y2="246.4" stroke="black" stroke-width="1"/>
+  
+  <polygon points="-275.490,246.4 -322.214,164.72 -368.939,246.4" fill="black" fill-opacity="0.4"/>
+  <circle cx="-322.2" cy="219.2" r="1.5" fill="black"/>
+  <!-- Quadrilaterals for triangle 60 -->
+  <polygon points="-368.939,246.4 -322.21,246.4 -322.2,219.2 -345.58,205.56" fill="#FF00FF" fill-opacity="0.6"/>
+  <text x="-340" y="230" font-family="Arial" font-size="10" fill="black" text-anchor="middle">60D</text>
+  <polygon points="-275.490,246.4 -298.85,205.56 -322.2,219.2 -322.21,246.4" fill="#32CD32" fill-opacity="0.6"/>
+  <text x="-305" y="229" font-family="Arial" font-size="10" fill="black" text-anchor="middle">60E</text>
+  <polygon points="-322.214,164.72 -345.58,205.56 -322.2,219.2 -298.85,205.56" fill="#DAA520" fill-opacity="0.6"/>
+  <text x="-322" y="199" font-family="Arial" font-size="10" fill="black" text-anchor="middle">60F</text>
+  <line x1="-322.2" y1="219.2" x2="-298.85" y2="205.56" stroke="black" stroke-width="1"/>
+  <line x1="-322.2" y1="219.2" x2="-322.21" y2="246.4" stroke="black" stroke-width="1"/>
+  <line x1="-322.2" y1="219.2" x2="-345.58" y2="205.56" stroke="black" stroke-width="1"/>
+  <line x1="-322.2" y1="219.2" x2="-298.85" y2="205.56" stroke="black" stroke-width="1"/>
+  <line x1="-322.2" y1="219.2" x2="-345.58" y2="205.56" stroke="black" stroke-width="1"/>
+  <line x1="-322.2" y1="219.2" x2="-322.21" y2="246.4" stroke="black" stroke-width="1"/>
+  
+  <polygon points="522.214,164.72 568.939,246.4 615.663,164.72" fill="black" fill-opacity="0.4"/>
+  <circle cx="568.9" cy="192.0" r="1.5" fill="black"/>
+  <!-- Quadrilaterals for triangle 63 -->
+  <polygon points="568.939,246.4 592.3,205.56 568.9,192.0 545.58,205.56" fill="#FF00FF" fill-opacity="0.6"/>
+  <text x="569" y="212" font-family="Arial" font-size="10" fill="black" text-anchor="middle">63A</text>
+  <polygon points="522.214,164.72 568.94,164.72 568.9,192.0 545.58,205.56" fill="#DAA520" fill-opacity="0.6"/>
+  <text x="551" y="184" font-family="Arial" font-size="10" fill="black" text-anchor="middle">63B</text>
+  <polygon points="615.663,164.72 592.3,205.56 568.9,192.0 568.94,164.72" fill="#008098" fill-opacity="0.6"/>
+  <text x="587" y="184" font-family="Arial" font-size="10" fill="black" text-anchor="middle">63C</text>
+  <line x1="568.9" y1="192.0" x2="545.58" y2="205.56" stroke="black" stroke-width="1"/>
+  <line x1="568.9" y1="192.0" x2="568.94" y2="164.72" stroke="black" stroke-width="1"/>
+  <line x1="568.9" y1="192.0" x2="592.3" y2="205.56" stroke="black" stroke-width="1"/>
+  <line x1="568.9" y1="192.0" x2="545.58" y2="205.56" stroke="black" stroke-width="1"/>
+  <line x1="568.9" y1="192.0" x2="592.3" y2="205.56" stroke="black" stroke-width="1"/>
+  <line x1="568.9" y1="192.0" x2="568.94" y2="164.72" stroke="black" stroke-width="1"/>
+  
+  <polygon points="-322.214,164.72 -368.939,246.4 -415.663,164.72" fill="black" fill-opacity="0.4"/>
+  <circle cx="-368.9" cy="192.0" r="1.5" fill="black"/>
+  <!-- Quadrilaterals for triangle 62 -->
+  <polygon points="-368.939,246.4 -392.3,205.56 -368.9,192.0 -345.58,205.56" fill="#FF00FF" fill-opacity="0.6"/>
+  <text x="-369" y="212" font-family="Arial" font-size="10" fill="black" text-anchor="middle">62A</text>
+  <polygon points="-322.214,164.72 -368.94,164.72 -368.9,192.0 -345.58,205.56" fill="#DAA520" fill-opacity="0.6"/>
+  <text x="-351" y="184" font-family="Arial" font-size="10" fill="black" text-anchor="middle">62B</text>
+  <polygon points="-415.663,164.72 -392.3,205.56 -368.9,192.0 -368.94,164.72" fill="#008098" fill-opacity="0.6"/>
+  <text x="-387" y="184" font-family="Arial" font-size="10" fill="black" text-anchor="middle">62C</text>
+  <line x1="-368.9" y1="192.0" x2="-345.58" y2="205.56" stroke="black" stroke-width="1"/>
+  <line x1="-368.9" y1="192.0" x2="-368.94" y2="164.72" stroke="black" stroke-width="1"/>
+  <line x1="-368.9" y1="192.0" x2="-392.3" y2="205.56" stroke="black" stroke-width="1"/>
+  <line x1="-368.9" y1="192.0" x2="-345.58" y2="205.56" stroke="black" stroke-width="1"/>
+  <line x1="-368.9" y1="192.0" x2="-392.3" y2="205.56" stroke="black" stroke-width="1"/>
+  <line x1="-368.9" y1="192.0" x2="-368.94" y2="164.72" stroke="black" stroke-width="1"/>
+  
+  <!-- Regular pentagon calculated using polar coordinates -->
+  <!-- Center: (100, 100), Radius: 80 -->
+  <!-- Starting angle: -90° (top vertex), then +72° increments -->
+  <polygon points="100,20 176.08,75.28 147.02,164.72 52.98,164.72 23.92,75.28" 
+           fill="none" 
+           stroke="black" 
+           stroke-width="2"/>
+  
+  <!-- Equilateral triangles pointing outward from each edge -->
+  <!-- Triangle 1: from edge (100,20) to (176.08,75.28) -->
+  <line x1="100" y1="20" x2="185.9" y2="-18.2" stroke="black" stroke-width="2"/>
+  <line x1="176.08" y1="75.28" x2="185.9" y2="-18.2" stroke="black" stroke-width="2"/>
+  
+  <!-- Triangle 2: from edge (176.08,75.28) to (147.02,164.72) -->
+  <line x1="176.08" y1="75.28" x2="241.197" y2="164.72" stroke="black" stroke-width="2"/>
+  <line x1="147.02" y1="164.72" x2="241.197" y2="164.72" stroke="black" stroke-width="2"/>
+  
+  <!-- Triangle 3: from edge (147.02,164.72) to (52.98,164.72) -->
+  <line x1="147.02" y1="164.72" x2="100" y2="246.4" stroke="black" stroke-width="2"/>
+  <line x1="52.98" y1="164.72" x2="100" y2="246.4" stroke="black" stroke-width="2"/>
+  
+  <!-- Triangle 4: from edge (52.98,164.72) to (23.92,75.28) -->
+  <line x1="52.98" y1="164.72" x2="-41.197" y2="164.72" stroke="black" stroke-width="2"/>
+  <line x1="23.92" y1="75.28" x2="-41.197" y2="164.72" stroke="black" stroke-width="2"/>
+  
+  <!-- Triangle 5: from edge (23.92,75.28) to (100,20) -->
+  <line x1="23.92" y1="75.28" x2="14.1" y2="-18.2" stroke="black" stroke-width="2"/>
+  <line x1="100" y1="20" x2="14.1" y2="-18.2" stroke="black" stroke-width="2"/>
+  
+  <!-- Outer pentagon drawn as segments: vertex to midpoint, midpoint to vertex -->
+  <!-- Edge 1: from vertex (100,-80.7) to star (185.9,-18.2) to vertex (271.9,44.2) -->
+  <line x1="100" y1="-80.7" x2="185.9" y2="-18.2" stroke="black" stroke-width="2"/>
+  <line x1="185.9" y1="-18.2" x2="260.603" y2="73.260" stroke="black" stroke-width="2"/>
+  
+  <!-- Edge 2: from vertex (271.9,44.2) to star (239,145.2) to vertex (194.247,246.2) -->
+  <line x1="260.603" y1="73.260" x2="241.197" y2="164.72" stroke="black" stroke-width="2"/>
+  <line x1="241.197" y1="164.72" x2="194.247" y2="246.2" stroke="black" stroke-width="2"/>
+  
+  <!-- Edge 3: from vertex (194.247,246.2) to star (100,246.4) to vertex (5.753,246.2) -->
+  <line x1="194.247" y1="246.2" x2="100" y2="246.4" stroke="black" stroke-width="2"/>
+  <line x1="100" y1="246.4" x2="5.753" y2="246.2" stroke="black" stroke-width="2"/>
+  
+  <!-- Edge 4: from vertex (5.753,246.2) to star (-39,145.2) to vertex (-71.9,44.2) -->
+  <line x1="5.753" y1="246.2" x2="-41.197" y2="164.72" stroke="black" stroke-width="2"/>
+  <line x1="-41.197" y1="164.72" x2="-60.603" y2="73.260" stroke="black" stroke-width="2"/>
+  
+  <!-- Edge 5: from vertex (-60.603,73.260) to star (14.1,-18.2) to vertex (100,-80.7) -->
+  <line x1="-60.603" y1="73.260" x2="14.1" y2="-18.2" stroke="black" stroke-width="2"/>
+  <line x1="14.1" y1="-18.2" x2="100" y2="-80.7" stroke="black" stroke-width="2"/>
+  
+  <!-- Lines from inner pentagon vertices to outer pentagon vertices -->
+  <line x1="100" y1="20" x2="100" y2="-80.7" stroke="black" stroke-width="2"/>
+  <line x1="176.08" y1="75.28" x2="260.603" y2="73.260" stroke="black" stroke-width="2"/>
+  <line x1="147.02" y1="164.72" x2="194.247" y2="246.2" stroke="black" stroke-width="2"/>
+  <line x1="52.98" y1="164.72" x2="5.753" y2="246.2" stroke="black" stroke-width="2"/>
+  <line x1="23.92" y1="75.28" x2="-60.603" y2="73.260" stroke="black" stroke-width="2"/>
+  
+  <!-- Equilateral triangles: green-red-orange -->
+  <!-- Right triangle: green (194.247,246.2) - red (241.197,164.72) - orange (288.286,246.2) -->
+  <line x1="194.247" y1="246.2" x2="288.286" y2="246.2" stroke="black" stroke-width="2"/>
+  <line x1="241.197" y1="164.72" x2="288.286" y2="246.2" stroke="black" stroke-width="2"/>
+  
+  <!-- Left triangle: green (5.753,246.2) - red (-41.197,164.72) - orange (-88.286,246.2) -->
+  <line x1="5.753" y1="246.2" x2="-88.286" y2="246.2" stroke="black" stroke-width="2"/>
+  <line x1="-41.197" y1="164.72" x2="-88.286" y2="246.2" stroke="black" stroke-width="2"/>
+  
+  <!-- Equilateral triangles: red-orange-yellow -->
+  <!-- Left triangle: red (-41.197,164.72) - orange (-88.286,246.2) - yellow (-135.305,164.72) -->
+  <line x1="-41.197" y1="164.72" x2="-135.305" y2="164.72" stroke="black" stroke-width="2"/>
+  <line x1="-88.286" y1="246.2" x2="-135.305" y2="164.72" stroke="black" stroke-width="2"/>
+  
+  <!-- Equilateral triangles: yellow-lime-teal -->
+  <!-- Right triangle: yellow (335.305,164.72) - lime (382.035,246.4) - teal (428.765,164.72) -->
+  <line x1="335.305" y1="164.72" x2="382.035" y2="246.4" stroke="black" stroke-width="2"/>
+  <line x1="382.035" y1="246.4" x2="428.765" y2="164.72" stroke="black" stroke-width="2"/>
+  <line x1="335.305" y1="164.72" x2="428.765" y2="164.72" stroke="black" stroke-width="2"/>
+  
+  <!-- Left triangle: yellow (-135.305,164.72) - lime (-182.035,246.4) - teal (-228.765,164.72) -->
+  <line x1="-135.305" y1="164.72" x2="-182.035" y2="246.4" stroke="black" stroke-width="2"/>
+  <line x1="-182.035" y1="246.4" x2="-228.765" y2="164.72" stroke="black" stroke-width="2"/>
+  <line x1="-135.305" y1="164.72" x2="-228.765" y2="164.72" stroke="black" stroke-width="2"/>
+  
+  <!-- Missing lines -->
+  <!-- Lime to orange on the left -->
+  <line x1="-182.035" y1="246.4" x2="-88.286" y2="246.2" stroke="black" stroke-width="2"/>
+  
+  <!-- Orange to lime on the right -->
+  <line x1="288.286" y1="246.2" x2="382.035" y2="246.4" stroke="black" stroke-width="2"/>
+  
+  <!-- Red to yellow on the right (if missing) -->
+  <line x1="241.197" y1="164.72" x2="335.305" y2="164.72" stroke="black" stroke-width="2"/>
+  
+  <!-- Orange to yellow on the right (if missing) -->
+  <line x1="288.286" y1="246.2" x2="335.305" y2="164.72" stroke="black" stroke-width="2"/>
+  
+  <!-- New equilateral triangles: teal-lightbrown-lightpurple -->
+  <!-- Right triangle: teal (428.765,164.72) - lightbrown (475.490,246.4) - lightpurple (522.214,164.72) -->
+  <line x1="428.765" y1="164.72" x2="475.490" y2="246.4" stroke="black" stroke-width="2"/>
+  <line x1="475.490" y1="246.4" x2="522.214" y2="164.72" stroke="black" stroke-width="2"/>
+  <line x1="428.765" y1="164.72" x2="522.214" y2="164.72" stroke="black" stroke-width="2"/>
+  
+  <!-- Left triangle: teal (-228.765,164.72) - lightbrown (-275.490,246.4) - lightpurple (-322.214,164.72) -->
+  <line x1="-228.765" y1="164.72" x2="-275.490" y2="246.4" stroke="black" stroke-width="2"/>
+  <line x1="-275.490" y1="246.4" x2="-322.214" y2="164.72" stroke="black" stroke-width="2"/>
+  <line x1="-228.765" y1="164.72" x2="-322.214" y2="164.72" stroke="black" stroke-width="2"/>
+  
+  <!-- Equilateral triangles: lightbrown-lightpurple-pink -->
+  <!-- Right triangle: lightbrown (475.490,246.4) - lightpurple (522.214,164.72) - pink (568.939,246.4) -->
+  <line x1="475.490" y1="246.4" x2="568.939" y2="246.4" stroke="black" stroke-width="2"/>
+  <line x1="522.214" y1="164.72" x2="568.939" y2="246.4" stroke="black" stroke-width="2"/>
+  
+  <!-- Left triangle: lightbrown (-275.490,246.4) - lightpurple (-322.214,164.72) - pink (-368.939,246.4) -->
+  <line x1="-275.490" y1="246.4" x2="-368.939" y2="246.4" stroke="black" stroke-width="2"/>
+  <line x1="-322.214" y1="164.72" x2="-368.939" y2="246.4" stroke="black" stroke-width="2"/>
+  
+  <!-- Equilateral triangles: lightpurple-pink-lightgrey -->
+  <!-- Right triangle: lightpurple (522.214,164.72) - pink (568.939,246.4) - lightgrey (615.663,164.72) -->
+  <line x1="522.214" y1="164.72" x2="568.939" y2="246.4" stroke="black" stroke-width="2"/>
+  <line x1="568.939" y1="246.4" x2="615.663" y2="164.72" stroke="black" stroke-width="2"/>
+  <line x1="522.214" y1="164.72" x2="615.663" y2="164.72" stroke="black" stroke-width="2"/>
+  
+  <!-- Left triangle: lightpurple (-322.214,164.72) - pink (-368.939,246.4) - lightgrey (-415.663,164.72) -->
+  <line x1="-322.214" y1="164.72" x2="-368.939" y2="246.4" stroke="black" stroke-width="2"/>
+  <line x1="-368.939" y1="246.4" x2="-415.663" y2="164.72" stroke="black" stroke-width="2"/>
+  <line x1="-322.214" y1="164.72" x2="-415.663" y2="164.72" stroke="black" stroke-width="2"/>
+  
+  <!-- Connecting lines between adjacent triangles -->
+  <!-- Lime to lightbrown connections -->
+  <line x1="382.035" y1="246.4" x2="475.490" y2="246.4" stroke="black" stroke-width="2"/>
+  <line x1="-182.035" y1="246.4" x2="-275.490" y2="246.4" stroke="black" stroke-width="2"/>
+  
+  <!-- Light blue to yellow connections -->
+  <line x1="260.603" y1="73.260" x2="335.305" y2="164.72" stroke="black" stroke-width="2"/>
+  <line x1="-60.603" y1="73.260" x2="-135.305" y2="164.72" stroke="black" stroke-width="2"/>
+  
+  <!-- COLORED CIRCLES -->
+  <!-- 1. Turquoise: north point of outer pentagon -->
+  <circle cx="100" cy="-80.7" r="8" fill="none" stroke="#00CED1" stroke-width="4"/>
+  
+  <!-- 2. Deep Purple: north point of inner pentagon -->
+  <circle cx="100" cy="20" r="8" fill="none" stroke="#5B0082" stroke-width="4"/>
+  
+  <!-- 3A. Tan: west north shoulder of outer pentagon -->
+  <circle cx="14.1" cy="-18.2" r="8" fill="none" stroke="#D2B48C" stroke-width="4"/>
+  
+  <!-- 3B. Maroon: east north shoulder of outer pentagon -->
+  <circle cx="185.9" cy="-18.2" r="8" fill="none" stroke="#800000" stroke-width="4"/>
+  
+  <!-- 4. Pink: east and west of outer pentagon -->
+  <circle cx="260.603" cy="73.260" r="8" fill="none" stroke="#FFB6C1" stroke-width="4"/>
+  <circle cx="-60.603" cy="73.260" r="8" fill="none" stroke="#FFB6C1" stroke-width="4"/>
+  
+  <!-- 5. Forest Green: east and west of inner pentagon -->
+  <circle cx="176.08" cy="75.28" r="8" fill="none" stroke="#228B22" stroke-width="4"/>
+  <circle cx="23.92" cy="75.28" r="8" fill="none" stroke="#228B22" stroke-width="4"/>
+  
+  <!-- 6A. Royal Blue: south corners of inner pentagon (southwest) -->
+  <circle cx="52.98" cy="164.72" r="8" fill="none" stroke="#4169E1" stroke-width="4"/>
+  
+  <!-- 6B. Gold: south corners of inner pentagon (southeast) -->
+  <circle cx="147.02" cy="164.72" r="8" fill="none" stroke="#FFD700" stroke-width="4"/>
+  
+  <!-- 7. Bright Orange: south-center of outer pentagon -->
+  <circle cx="100" cy="246.4" r="8" fill="none" stroke="#FF8C00" stroke-width="4"/>
+  
+  <!-- 8. Periwinkle: south corners of outer pentagon -->
+  <circle cx="194.247" cy="246.2" r="8" fill="none" stroke="#CCCCFF" stroke-width="4"/>
+  <circle cx="5.753" cy="246.2" r="8" fill="none" stroke="#CCCCFF" stroke-width="4"/>
+  
+  <!-- 9. Crimson Red: knees of outer pentagon -->
+  <circle cx="241.197" cy="164.72" r="8" fill="none" stroke="#DC143C" stroke-width="4"/>
+  <circle cx="-41.197" cy="164.72" r="8" fill="none" stroke="#DC143C" stroke-width="4"/>
+  
+  <!-- 10. Electric Lime: south of first expansion -->
+  <circle cx="288.286" cy="246.2" r="8" fill="none" stroke="#CCFF00" stroke-width="4"/>
+  <circle cx="-88.286" cy="246.2" r="8" fill="none" stroke="#CCFF00" stroke-width="4"/>
+  
+  <!-- 11. White: north of first expansion -->
+  <circle cx="335.305" cy="164.72" r="8" fill="none" stroke="#FFFFFF" stroke-width="4"/>
+  <circle cx="-135.305" cy="164.72" r="8" fill="none" stroke="#FFFFFF" stroke-width="4"/>
+  
+  <!-- 12. Sky Blue: south of second expansion -->
+  <circle cx="382.035" cy="246.4" r="8" fill="none" stroke="#87CEEB" stroke-width="4"/>
+  <circle cx="-182.035" cy="246.4" r="8" fill="none" stroke="#87CEEB" stroke-width="4"/>
+  
+  <!-- 13. Silver: north of second expansion (swapped from Bright Magenta) -->
+  <circle cx="428.765" cy="164.72" r="8" fill="none" stroke="#C0C0C0" stroke-width="4"/>
+  <circle cx="-228.765" cy="164.72" r="8" fill="none" stroke="#C0C0C0" stroke-width="4"/>
+  
+  <!-- 14. Bright Green: south of third expansion -->
+  <circle cx="475.490" cy="246.4" r="8" fill="none" stroke="#32CD32" stroke-width="4"/>
+  <circle cx="-275.490" cy="246.4" r="8" fill="none" stroke="#32CD32" stroke-width="4"/>
+  
+  <!-- 15. Gold: north of third expansion (swapped from Bright Magenta) -->
+  <circle cx="522.214" cy="164.72" r="8" fill="none" stroke="#DAA520" stroke-width="4"/>
+  <circle cx="-322.214" cy="164.72" r="8" fill="none" stroke="#DAA520" stroke-width="4"/>
+  
+  <!-- 16. Bright Magenta: south of fourth expansion (swapped from Silver) -->
+  <circle cx="568.939" cy="246.4" r="8" fill="none" stroke="#FF00FF" stroke-width="4"/>
+  <circle cx="-368.939" cy="246.4" r="8" fill="none" stroke="#FF00FF" stroke-width="4"/>
+  
+  <!-- 17. Teal: north of fourth expansion -->
+  <circle cx="615.663" cy="164.72" r="8" fill="none" stroke="#008098" stroke-width="4"/>
+  <circle cx="-415.663" cy="164.72" r="8" fill="none" stroke="#008098" stroke-width="4"/>
+  
+
+</svg>

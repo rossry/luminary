@@ -1,0 +1,13 @@
+# Dependencies required for the pattern animation webserver
+
+fastapi>=0.104.0
+uvicorn>=0.24.0
+
+# Installation:
+# pip install fastapi uvicorn
+
+# Usage:
+# python server.py configs/4A-35.json test --host localhost --port 8080 --fps 30
+
+# Or via main CLI:
+# python main.py pattern preview test -c configs/4A-35.json --host localhost --port 8080 --fps 30
