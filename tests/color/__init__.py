@@ -1,0 +1,1 @@
+"""Color module tests."""

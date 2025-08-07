@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Luminary Pattern Viewer</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background-color: #1a1a1a;
+            color: #ffffff;
+        }
+        
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #333;
+        }
+        
+        h1 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 600;
+        }
+        
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .connection-status {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+            text-transform: uppercase;
+        }
+        
+        .connection-status.connected {
+            background-color: #22c55e;
+            color: white;
+        }
+        
+        .connection-status.connecting {
+            background-color: #f59e0b;
+            color: white;
+        }
+        
+        .connection-status.disconnected {
+            background-color: #ef4444;
+            color: white;
+        }
+        
+        .fps-counter {
+            font-size: 14px;
+            color: #888;
+        }
+        
+        .pattern-info {
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #2a2a2a;
+            border-radius: 8px;
+        }
+        
+        .pattern-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 20px;
+        }
+        
+        .pattern-details {
+            flex: 1;
+        }
+        
+        .pattern-name {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+        
+        .pattern-description {
+            font-size: 14px;
+            color: #ccc;
+        }
+        
+        .pattern-selector {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-shrink: 0;
+        }
+        
+        .pattern-selector label {
+            font-size: 14px;
+            color: #ccc;
+        }
+        
+        .pattern-selector select {
+            padding: 6px 12px;
+            border: 1px solid #555;
+            border-radius: 4px;
+            background-color: #333;
+            color: #fff;
+            font-size: 14px;
+            min-width: 200px;
+        }
+        
+        .pattern-selector select:focus {
+            outline: none;
+            border-color: #3b82f6;
+        }
+        
+        .viewer-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 60vh;
+            background-color: #000;
+            border-radius: 8px;
+            padding: 20px;
+            overflow: auto;
+        }
+        
+        #svg-container {
+            max-width: 100%;
+            max-height: 100%;
+        }
+        
+        #svg-container svg {
+            max-width: 100%;
+            max-height: 80vh;
+            width: auto;
+            height: auto;
+        }
+        
+        .loading {
+            text-align: center;
+            color: #888;
+            font-size: 16px;
+        }
+        
+        .error {
+            text-align: center;
+            color: #ef4444;
+            font-size: 16px;
+            background-color: #2a1a1a;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #ef4444;
+        }
+        
+        .controls {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            background-color: #3b82f6;
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        button:hover {
+            background-color: #2563eb;
+        }
+        
+        button:disabled {
+            background-color: #374151;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Luminary Pattern Viewer</h1>
+        <div class="status">
+            <div id="connection-status" class="connection-status connecting">Connecting</div>
+            <div id="fps-counter" class="fps-counter">-- FPS</div>
+        </div>
+    </div>
+    
+    <div id="pattern-info" class="pattern-info" style="display: none;">
+        <div class="pattern-header">
+            <div class="pattern-details">
+                <div id="pattern-name" class="pattern-name"></div>
+                <div id="pattern-description" class="pattern-description"></div>
+            </div>
+            <div class="pattern-selector">
+                <label for="pattern-select">Pattern:</label>
+                <select id="pattern-select" onchange="changePattern()">
+                    <option value="">Loading patterns...</option>
+                </select>
+            </div>
+        </div>
+    </div>
+    
+    <div class="viewer-container">
+        <div id="svg-container">
+            <div class="loading">
+                <p>Connecting to pattern server...</p>
+                <p>Loading pattern visualization...</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="controls">
+        <button id="reconnect-btn" onclick="reconnect()" disabled>Reconnect</button>
+        <button id="fullscreen-btn" onclick="toggleFullscreen()">Fullscreen</button>
+    </div>
+
+    <script>
+        class PatternViewer {
+            constructor() {
+                this.ws = null;
+                this.connectionStatus = document.getElementById('connection-status');
+                this.fpsCounter = document.getElementById('fps-counter');
+                this.svgContainer = document.getElementById('svg-container');
+                this.patternInfo = document.getElementById('pattern-info');
+                this.patternName = document.getElementById('pattern-name');
+                this.patternDescription = document.getElementById('pattern-description');
+                this.patternSelect = document.getElementById('pattern-select');
+                this.reconnectBtn = document.getElementById('reconnect-btn');
+                
+                this.frameCount = 0;
+                this.lastFpsUpdate = Date.now();
+                this.currentFps = 0;
+                this.availablePatterns = [];
+                this.currentPatternFilename = null;
+                this.currentPatternName = null;
+                
+                // Simple frame handling - render immediately, drop if too busy
+                this.lastRenderTime = 0;
+                this.renderInProgress = false;
+                
+                this.connect();
+                this.startFpsCounter();
+                this.startFrameRenderer();
+            }
+            
+            connect() {
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const wsUrl = `${protocol}//${window.location.host}/ws`;
+                
+                console.log('Connecting to:', wsUrl);
+                
+                this.ws = new WebSocket(wsUrl);
+                this.updateConnectionStatus('connecting');
+                
+                this.ws.onopen = () => {
+                    console.log('WebSocket connected');
+                    this.updateConnectionStatus('connected');
+                    this.reconnectBtn.disabled = true;
+                    
+                    // Request pattern info and available patterns
+                    this.send({
+                        type: 'get_pattern_info'
+                    });
+                    this.send({
+                        type: 'get_available_patterns'
+                    });
+                };
+                
+                this.ws.onmessage = (event) => {
+                    try {
+                        const message = JSON.parse(event.data);
+                        this.handleMessage(message);
+                    } catch (e) {
+                        console.error('Error parsing WebSocket message:', e, event.data);
+                    }
+                };
+                
+                this.ws.onclose = () => {
+                    console.log('WebSocket disconnected');
+                    this.updateConnectionStatus('disconnected');
+                    this.reconnectBtn.disabled = false;
+                };
+                
+                this.ws.onerror = (error) => {
+                    console.error('WebSocket error:', error);
+                    this.updateConnectionStatus('disconnected');
+                    this.reconnectBtn.disabled = false;
+                };
+            }
+            
+            send(message) {
+                if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                    this.ws.send(JSON.stringify(message));
+                }
+            }
+            
+            updateConnectionStatus(status) {
+                this.connectionStatus.className = `connection-status ${status}`;
+                this.connectionStatus.textContent = status.charAt(0).toUpperCase() + status.slice(1);
+            }
+            
+            handleMessage(message) {
+                switch (message.type) {
+                    case 'svg_structure':
+                        this.loadSvgStructure(message.content);
+                        break;
+                    case 'framebuffer':
+                        this.handleFrame(message.data);
+                        break;
+                    case 'pattern_info':
+                        this.updatePatternInfo(message.data);
+                        break;
+                    case 'available_patterns':
+                        this.updateAvailablePatterns(message.data);
+                        break;
+                    case 'pattern_changed':
+                        this.updatePatternInfo(message.data);
+                        break;
+                    case 'error':
+                        console.error('Server error:', message.message);
+                        break;
+                    case 'pong':
+                        // Handle pong response
+                        break;
+                    default:
+                        console.log('Unknown message type:', message.type);
+                }
+            }
+            
+            loadSvgStructure(svgContent) {
+                console.log('Loading SVG structure');
+                this.svgContainer.innerHTML = svgContent;
+                
+                // Ensure SVG is properly sized
+                const svg = this.svgContainer.querySelector('svg');
+                if (svg) {
+                    svg.style.maxWidth = '100%';
+                    svg.style.height = 'auto';
+                }
+            }
+            
+            handleFrame(framebuffer) {
+                const now = Date.now();
+                
+                // Simple approach: render immediately if not already rendering
+                if (!this.renderInProgress) {
+                    this.renderInProgress = true;
+                    
+                    // Use requestAnimationFrame for smooth rendering
+                    requestAnimationFrame(() => {
+                        this.updateBeamColors(framebuffer);
+                        this.frameCount++;
+                        this.lastRenderTime = now;
+                        this.renderInProgress = false;
+                    });
+                } else {
+                    // If we're already rendering, drop this frame to prevent backup
+                    console.log('Dropped frame - render in progress');
+                }
+            }
+            
+            startFrameRenderer() {
+                // No longer needed with immediate rendering approach
+                // Frames are rendered immediately when received via requestAnimationFrame
+            }
+            
+            updateBeamColors(framebuffer) {
+                // Update beam polygon colors based on framebuffer data
+                for (const [beamId, oklchArray] of Object.entries(framebuffer)) {
+                    const beamElement = document.getElementById(`beam_${beamId}`);
+                    if (beamElement) {
+                        // Format OKLCH string on client side - much faster than server-side Python
+                        const [l, c, h] = oklchArray;
+                        const colorString = `oklch(${l.toFixed(3)} ${c.toFixed(3)} ${h.toFixed(1)})`;
+                        beamElement.setAttribute('fill', colorString);
+                    }
+                }
+            }
+            
+            updatePatternInfo(patternData) {
+                console.log('Updating pattern info:', patternData);
+                this.patternName.textContent = patternData.name || 'Unknown Pattern';
+                this.patternDescription.textContent = patternData.description || '';
+                
+                // Store the current pattern name for syncing
+                this.currentPatternName = patternData.name;
+                
+                // Try to sync the selector (works regardless of timing)
+                this.syncPatternSelector();
+                
+                this.patternInfo.style.display = 'block';
+            }
+            
+            updateAvailablePatterns(patterns) {
+                console.log('Received available patterns:', patterns);
+                this.availablePatterns = patterns;
+                
+                // Clear existing options
+                this.patternSelect.innerHTML = '';
+                
+                // Add options for each pattern
+                patterns.forEach(pattern => {
+                    const option = document.createElement('option');
+                    option.value = pattern.filename;
+                    option.textContent = `${pattern.name} - ${pattern.description}`;
+                    this.patternSelect.appendChild(option);
+                });
+                
+                // Try to match current pattern if we have pattern info already
+                this.syncPatternSelector();
+            }
+            
+            syncPatternSelector() {
+                // If we have both pattern info and available patterns, sync the selector
+                if (this.availablePatterns.length > 0 && this.currentPatternName && this.currentPatternName !== 'Unknown Pattern') {
+                    const matchingPattern = this.availablePatterns.find(p => p.name === this.currentPatternName);
+                    
+                    if (matchingPattern) {
+                        this.currentPatternFilename = matchingPattern.filename;
+                        this.patternSelect.value = matchingPattern.filename;
+                        console.log('Synced selector to current pattern:', this.currentPatternName, '(', this.currentPatternFilename, ')');
+                    } else {
+                        console.log('Could not find matching pattern for:', this.currentPatternName);
+                        console.log('Available patterns:', this.availablePatterns.map(p => p.name));
+                    }
+                }
+            }
+            
+            changePattern(filename) {
+                console.log('Pattern change requested:', filename, 'Current:', this.currentPatternFilename);
+                if (filename && filename !== this.currentPatternFilename) {
+                    console.log('Sending pattern change request to server...');
+                    this.send({
+                        type: 'change_pattern',
+                        pattern_name: filename
+                    });
+                    
+                    // Update our tracking variables immediately for UI responsiveness
+                    const selectedPattern = this.availablePatterns.find(p => p.filename === filename);
+                    if (selectedPattern) {
+                        this.currentPatternFilename = filename;
+                        this.currentPatternName = selectedPattern.name;
+                    }
+                } else {
+                    console.log('Pattern change skipped - same pattern or invalid filename');
+                }
+            }
+            
+            startFpsCounter() {
+                setInterval(() => {
+                    const now = Date.now();
+                    const elapsed = (now - this.lastFpsUpdate) / 1000;
+                    
+                    if (elapsed >= 1.0) {
+                        this.currentFps = Math.round(this.frameCount / elapsed);
+                        this.fpsCounter.textContent = `${this.currentFps} FPS`;
+                        
+                        this.frameCount = 0;
+                        this.lastFpsUpdate = now;
+                    }
+                }, 100);
+            }
+            
+            reconnect() {
+                if (this.ws) {
+                    this.ws.close();
+                }
+                setTimeout(() => {
+                    this.connect();
+                }, 100);
+            }
+        }
+        
+        // Global functions for buttons and select
+        function reconnect() {
+            viewer.reconnect();
+        }
+        
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen();
+            } else {
+                document.exitFullscreen();
+            }
+        }
+        
+        function changePattern() {
+            const select = document.getElementById('pattern-select');
+            viewer.changePattern(select.value);
+        }
+        
+        // Initialize viewer when page loads
+        let viewer;
+        document.addEventListener('DOMContentLoaded', () => {
+            viewer = new PatternViewer();
+        });
+        
+        // Handle page visibility changes
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                // Page hidden - maybe pause updates
+            } else {
+                // Page visible - resume updates
+                if (viewer && viewer.ws.readyState !== WebSocket.OPEN) {
+                    viewer.reconnect();
+                }
+            }
+        });
+    </script>
+</body>
+</html>
