@@ -68,10 +68,10 @@ class RectanglePrismsPattern(LuminaryPattern):
         # Easy to find and modify for experimentation
 
         # Movement parameters
-        self.speed = DriftingParameter(30.0, 10.0, 80.0, 0.5)  # units/sec
+        self.speed = DriftingParameter(120.0, 90.0, 240.0, 10.0)  # units/sec (faster transit)
 
         # Size parameters
-        self.avg_size = DriftingParameter(40.0, 15.0, 200.0, 10.0)  # average dimension
+        self.avg_size = DriftingParameter(25.0, 10.0, 50.0, 2.0)  # average dimension (smaller rectangles)
         self.size_spread = DriftingParameter(0.5, 0.1, 3.0, 0.2)  # variance multiplier
 
         # Color parameters - 2 base colors that drift
@@ -80,7 +80,10 @@ class RectanglePrismsPattern(LuminaryPattern):
         self.color_variance = DriftingParameter(10.0, 5.0, 20.0, 1.0)  # hue variance (reduced)
 
         # DENSITY CONTROL - Main parameter to adjust!
-        self.base_spawn_rate = 20.0  # rectangles per second at base size
+        self.base_spawn_rate = 3.0  # rectangles per second at base size (reduced for visible shapes)
+        
+        # MOVEMENT BIAS - Bias toward vertical (pole) movement
+        self.pole_bias_strength = 0.4  # 0.0 = no bias, 1.0 = extreme pole bias
 
         # === END TUNABLE PARAMETERS ===
 
@@ -98,9 +101,12 @@ class RectanglePrismsPattern(LuminaryPattern):
             'y_min': -170, 'y_max': 120,
             'z_min': -150, 'z_max': 150  # Assume sphere is roughly in this Z range
         }
-        
+
         # Initialize with some rectangles already on/near the sphere
         self._spawn_initial_rectangles()
+        
+        # Hot start - simulate 10 seconds of pattern evolution
+        self._simulate_hot_start(10.0)
 
     def _update_parameters(self, t: float) -> None:
         """Update all drifting parameters."""
@@ -114,46 +120,71 @@ class RectanglePrismsPattern(LuminaryPattern):
         self.color2_h.update(dt, self.rng)
         self.color_variance.update(dt, self.rng)
     
+    def _cubic_pole_warp(self, vx: float, vy: float, vz: float) -> Tuple[float, float, float]:
+        """Apply cubic warping to bias velocity toward vertical (Y-axis) movement."""
+        total = np.sqrt(vx**2 + vy**2 + vz**2)
+        if total == 0:
+            return 0.0, 0.0, 0.0
+            
+        # Calculate Y component fraction
+        y_fraction = abs(vy) / total
+        
+        # Apply cubic warping - higher bias_strength = more extreme Y values
+        warp_power = 1.0 - self.pole_bias_strength  # 0.6 with bias_strength=0.4
+        new_y_fraction = y_fraction**warp_power
+        
+        # Calculate scaling factor
+        if y_fraction > 0:
+            scale = new_y_fraction / y_fraction
+        else:
+            scale = 1.0
+            
+        # Apply scaling - Y gets amplified, X/Z get compressed
+        return vx / scale, vy * scale, vz / scale
+
     def _spawn_initial_rectangles(self) -> None:
         """Spawn initial rectangles overlapping the sphere for immediate visual effect."""
         # Create 8-12 rectangles positioned to overlap the sphere
         initial_count = self.rng.integers(8, 13)
-        
+
         for _ in range(initial_count):
             # Position rectangles close to or overlapping the LED area
             x = self.rng.uniform(-150, 150)  # Within LED bounds
             y = self.rng.uniform(-100, 50)   # Within LED bounds
             z = self.rng.uniform(-100, 100)  # Near sphere surface
-            
-            # Give them random velocities in all directions
+
+            # Give them random velocities in all directions, then apply pole bias
             vx = self.rng.uniform(-self.speed.value, self.speed.value)
             vy = self.rng.uniform(-self.speed.value, self.speed.value)
             vz = self.rng.uniform(-self.speed.value, self.speed.value)
             
+            # Apply cubic pole warping for vertical bias
+            vx, vy, vz = self._cubic_pole_warp(vx, vy, vz)
+
             # Generate sizes using current parameters
             size_variance = 1.0 + self.rng.normal(0, self.size_spread.value)
             size_variance = np.clip(size_variance, 0.3, 3.0)
-            
+
             base_size = self.avg_size.value * size_variance
             width = base_size * self.rng.uniform(0.8, 1.2)
             depth = base_size * self.rng.uniform(0.8, 1.2)
             height = base_size * 0.5 * self.rng.uniform(0.8, 1.2)
-            
+
             # Pick random colors from the two base colors
             color_choice = self.rng.integers(0, 2)
             if color_choice == 0:
                 base_hue = self.color1_h.value
             else:
                 base_hue = self.color2_h.value
-            
+
             # Add variance to hue
             hue = base_hue + self.rng.uniform(-self.color_variance.value, self.color_variance.value)
             hue = hue % 360.0
-            
+
             # Set lightness and chroma with some variance
             lightness = np.clip(self.rng.normal(0.6, 0.1), 0.2, 0.9)
             chroma = np.clip(self.rng.normal(0.3, 0.05), 0.1, 0.4)
-            
+
             rect = Rectangle(
                 id=self.next_rect_id,
                 x=x, y=y, z=z,
@@ -161,7 +192,7 @@ class RectanglePrismsPattern(LuminaryPattern):
                 width=width, height=height, depth=depth,
                 l=lightness, c=chroma, h=hue
             )
-            
+
             self.rectangles.append(rect)
             self.next_rect_id += 1
 
@@ -235,6 +266,9 @@ class RectanglePrismsPattern(LuminaryPattern):
         vx *= speed_multiplier
         vy *= speed_multiplier
         vz *= speed_multiplier
+        
+        # Apply cubic pole warping for vertical bias
+        vx, vy, vz = self._cubic_pole_warp(vx, vy, vz)
 
         # Generate size with variance
         size_variance = 1.0 + self.rng.normal(0, self.size_spread.value)
@@ -328,8 +362,8 @@ class RectanglePrismsPattern(LuminaryPattern):
         # For 3D, we need to estimate Z coordinates - assume they're on a sphere
         # For simplicity, let's use the radial distance to estimate Z
         led_r = beam_array[:, BeamArrayColumns.R]
-        # Assume sphere of radius ~150, LEDs are on surface
-        sphere_radius = 150.0
+        # Sphere radius should encompass the actual LED distribution
+        sphere_radius = 250.0  # Large enough for X range -205 to 205
         # Z coordinate based on assumption that X,Y are projected onto plane
         # and actual 3D position is on sphere surface
         r_2d_sq = led_x**2 + led_y**2
