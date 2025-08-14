@@ -70,20 +70,24 @@ class RectanglePrismsPattern(LuminaryPattern):
         # Movement parameters
         self.speed = DriftingParameter(120.0, 90.0, 240.0, 10.0)  # units/sec (faster transit)
 
-        # Size parameters
-        self.avg_size = DriftingParameter(25.0, 10.0, 50.0, 2.0)  # average dimension (smaller rectangles)
-        self.size_spread = DriftingParameter(0.5, 0.1, 3.0, 0.2)  # variance multiplier
+        # Size parameters (quadrupled from original)
+        self.avg_size = DriftingParameter(100.0, 40.0, 200.0, 8.0)  # average dimension (doubled again)
+        self.size_spread = DriftingParameter(2.0, 0.4, 12.0, 0.8)  # variance multiplier (doubled again)
 
         # Color parameters - 2 base colors that drift
         self.color1_h = DriftingParameter(0.0, 0.0, 360.0, 5.0)    # red-ish
         self.color2_h = DriftingParameter(240.0, 0.0, 360.0, 5.0)  # blue-ish
         self.color_variance = DriftingParameter(10.0, 5.0, 20.0, 1.0)  # hue variance (reduced)
 
-        # DENSITY CONTROL - Main parameter to adjust!
-        self.base_spawn_rate = 3.0  # rectangles per second at base size (reduced for visible shapes)
+        # DENSITY CONTROL - Main parameter to adjust! (20x increase from original)
+        self.base_spawn_rate = 60.0  # rectangles per second at base size (doubled again to 20x original)
         
         # MOVEMENT BIAS - Bias toward vertical (pole) movement
         self.pole_bias_strength = 0.4  # 0.0 = no bias, 1.0 = extreme pole bias
+        
+        # COLOR RANDOMIZATION - Randomly jump one color every 8-20 seconds
+        self.color_jump_interval = DriftingParameter(14.0, 8.0, 20.0, 2.0)  # seconds between jumps
+        self.last_color_jump = 0.0
 
         # === END TUNABLE PARAMETERS ===
 
@@ -119,6 +123,7 @@ class RectanglePrismsPattern(LuminaryPattern):
         self.color1_h.update(dt, self.rng)
         self.color2_h.update(dt, self.rng)
         self.color_variance.update(dt, self.rng)
+        self.color_jump_interval.update(dt, self.rng)
     
     def _cubic_pole_warp(self, vx: float, vy: float, vz: float) -> Tuple[float, float, float]:
         """Apply cubic warping to bias velocity toward vertical (Y-axis) movement."""
@@ -141,6 +146,45 @@ class RectanglePrismsPattern(LuminaryPattern):
             
         # Apply scaling - Y gets amplified, X/Z get compressed
         return vx / scale, vy * scale, vz / scale
+    
+    def _check_color_jump(self, t: float) -> None:
+        """Check if it's time to randomly jump one of the colors."""
+        if t - self.last_color_jump >= self.color_jump_interval.value:
+            # Pick which color to randomize (0 or 1)
+            color_to_jump = self.rng.integers(0, 2)
+            
+            # Jump to completely random hue (0-360 degrees)
+            new_hue = self.rng.uniform(0.0, 360.0)
+            
+            if color_to_jump == 0:
+                self.color1_h.value = new_hue
+                print(f"🎨 Color jump! Color 1 jumped to {new_hue:.1f}°")
+            else:
+                self.color2_h.value = new_hue
+                print(f"🎨 Color jump! Color 2 jumped to {new_hue:.1f}°")
+            
+            self.last_color_jump = t
+    
+    def _simulate_hot_start(self, hot_start_time: float) -> None:
+        """Simulate the pattern evolution for hot_start_time seconds without lag."""
+        dt = 0.1  # Larger timesteps for efficiency
+        current_time = 0.0
+        
+        while current_time < hot_start_time:
+            # Update drifting parameters (evolve the pattern style)
+            self._update_parameters(current_time)
+            
+            # Spawn new rectangles if needed  
+            if self._should_spawn_rectangle(current_time):
+                self._spawn_rectangle(current_time)
+            
+            # Update existing rectangles (move them, remove old ones)
+            self._update_rectangles(dt)
+            
+            current_time += dt
+        
+        # Update the spawn timer to match our hot start time
+        self.last_spawn_time = hot_start_time
 
     def _spawn_initial_rectangles(self) -> None:
         """Spawn initial rectangles overlapping the sphere for immediate visual effect."""
@@ -347,6 +391,9 @@ class RectanglePrismsPattern(LuminaryPattern):
 
         # Update drifting parameters
         self._update_parameters(t)
+        
+        # Check for color jumps
+        self._check_color_jump(t)
 
         # Spawn new rectangles if needed
         if self._should_spawn_rectangle(t):
@@ -374,21 +421,32 @@ class RectanglePrismsPattern(LuminaryPattern):
         oklch_output[:, 1] = 0.0   # No chroma (gray)
         oklch_output[:, 2] = 0.0   # Hue doesn't matter when chroma=0
 
-        # Check each LED against each rectangle
-        for i in range(n_beams):
-            px, py, pz = led_x[i], led_y[i], led_z[i]
-
-            # Find rectangles that contain this LED (lowest ID wins)
-            containing_rects = []
-            for rect in self.rectangles:
-                if self._point_in_rectangle(px, py, pz, rect):
-                    containing_rects.append(rect)
-
-            # Apply precedence rule - lowest ID wins
-            if containing_rects:
-                winning_rect = min(containing_rects, key=lambda r: r.id)
-                oklch_output[i, 0] = winning_rect.l
-                oklch_output[i, 1] = winning_rect.c
-                oklch_output[i, 2] = winning_rect.h
+        # Vectorized collision detection - O(n_rectangles) instead of O(n_beams × n_rectangles)
+        # Sort rectangles by ID to maintain precedence (lowest ID wins)
+        sorted_rectangles = sorted(self.rectangles, key=lambda r: r.id)
+        
+        for rect in sorted_rectangles:
+            # Check ALL LEDs against this rectangle at once using numpy broadcasting
+            half_width = rect.width / 2
+            half_height = rect.height / 2  
+            half_depth = rect.depth / 2
+            
+            # Vectorized collision test - returns boolean array of shape (n_beams,)
+            inside_x = np.abs(led_x - rect.x) <= half_width
+            inside_y = np.abs(led_y - rect.y) <= half_height
+            inside_z = np.abs(led_z - rect.z) <= half_depth
+            
+            # LEDs that are inside this rectangle
+            inside_rect = inside_x & inside_y & inside_z
+            
+            # Apply color only where no previous rectangle has claimed the LED (precedence by processing order)
+            # Only update LEDs that are currently black (haven't been claimed yet)
+            unclaimed = (oklch_output[:, 1] == 0.0)  # Check chroma = 0 (our "black" marker)
+            winners = inside_rect & unclaimed
+            
+            # Set colors for winning LEDs
+            oklch_output[winners, 0] = rect.l
+            oklch_output[winners, 1] = rect.c
+            oklch_output[winners, 2] = rect.h
 
         return oklch_output
