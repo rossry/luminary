@@ -8,6 +8,17 @@ from luminary.patterns.schema import BeamArrayColumns
 class FireLikePattern(LuminaryPattern):
     """Fire-like pattern made from overlapping ellipses + arcs."""
 
+    def __init__(self):
+        # Randomize colors each time the pattern starts
+        import random
+        self.rng = random.Random(random.randint(0, 1000000))
+        
+        # Generate highly saturated random base hue
+        self.base_hue = self.rng.uniform(0, 360)
+        
+        # Create complementary color palette (base + variations)
+        self.hue_range = 60  # Degrees of hue variation around base
+        
     @property
     def name(self) -> str:
         return "Fire-like Pattern"
@@ -131,14 +142,17 @@ class FireLikePattern(LuminaryPattern):
         L = L_base + 0.58 * np.clip(line_int, 0, 1) + 0.26 * fill_mix + 0.05 * breath + noise
         L = np.clip(L, 0.05, 0.92)
 
-        # Chroma: low, watercolor-y; rises on contours + fill
-        C = 0.08 + 0.14 * fill_mix + 0.12 * np.clip(line_int, 0, 1) + warm_pulse + 0.03 * noise
-        C = np.clip(C, 0.02, 0.38)
+        # Chroma: highly saturated for vibrant colors
+        C = 0.25 + 0.20 * fill_mix + 0.15 * np.clip(line_int, 0, 1) + warm_pulse + 0.03 * noise
+        C = np.clip(C, 0.15, 0.45)  # Much higher saturation
 
-        # Hue: warm skin-ish oranges with slight spatial drift
-        # OKLCH hue in degrees.
-        h_base = 36.0  # between apricot & sienna
-        h = (h_base + hue_drift + 4.0 * x + 2.0 * y + 9.0 * np.clip(line_int, 0, 1)) % 360.0
+        # Hue: randomized base color with variations
+        # OKLCH hue in degrees - using randomized base
+        h = (self.base_hue + 
+             self.rng.uniform(-self.hue_range/2, self.hue_range/2) +  # Random variation around base
+             hue_drift + 
+             4.0 * x + 2.0 * y + 
+             9.0 * np.clip(line_int, 0, 1)) % 360.0
 
         out[:, 0] = L.astype(np.float32)
         out[:, 1] = C.astype(np.float32)
