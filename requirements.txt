@@ -1,0 +1,7 @@
+# Core dependencies for Luminary pattern system
+numpy>=2.3.2
+colour-science>=0.4.6
+
+# Pattern preview webserver dependencies  
+fastapi>=0.116.1
+uvicorn>=0.35.0
