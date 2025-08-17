@@ -87,7 +87,7 @@ python main.py pattern sample my_pattern -c configs/4A-35.json -t 2.5
 #### Real-time Animation (WebSocket Server)
 ```bash
 # Install dependencies first
-pip install fastapi uvicorn
+pip install -r requirements.txt
 
 # Start animation server
 python main.py pattern preview my_pattern -c configs/4A-35.json --fps 30
