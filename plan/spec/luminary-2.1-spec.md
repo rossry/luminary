@@ -60,10 +60,12 @@ Python loops are permitted only in one-time load/capture code, and even there
 should be avoided where practical.
 
 1.3.4 **Stateless rendering.** A pattern's output is a pure function of the
-lights array and an integer timestep `t`. Frame `t` can always be recomputed
-from `t` alone, with no dependence on prior frames. This property is relied upon
-by the codec (the encoder can always recompute ground truth at `t`; keyframes
-resynchronize deterministically) and by replay/testing.
+lights array and a time variable `t` (float seconds). Any frame can always be
+recomputed from its `t` alone, with no dependence on prior frames. This property
+is relied upon by the codec (the encoder can always recompute ground truth at
+`t`; keyframes resynchronize deterministically) and by replay/testing.
+Cross-language conformance is defined on encoded bytes and quantized integers
+(§11), never on float results, so float `t` does not threaten determinism.
 
 1.3.5 **Modular, contract-first, Rust-ready (but Python now).** Each component
 is defined by a narrow data contract (NumPy arrays, byte buffers, JSON) so that
@@ -95,7 +97,7 @@ accept divergent designs.
  (camera scan) ─┘        (§7)            (§6)           │
                                                         ▼
               Pattern (§9) ─▶ ┌─────────────────────────────────┐
-              integer t   ─▶ │           ENGINE (§10)            │
+              t (seconds) ─▶ │           ENGINE (§10)            │
                              │  lights_array, pattern, t  →      │
                              │  OKLCH array  →  Codec.encode (§11)│
                              └───────────────┬─────────────────┘
@@ -107,7 +109,7 @@ accept divergent designs.
                             ▼                ▼
                    Scorpio firmware    Browser client
                    decode→interp→      decode→interp→
-                   OKLab→RGB→NeoPXL8   OKLab→RGB→Canvas
+                   RGB→NeoPXL8         RGB→Canvas
                         (§13)               (§14)
 ```
 
@@ -180,11 +182,11 @@ given so each decision can be contested individually.
 
 | # | Component (2.0) | Disposition | Rationale |
 |---|---|---|---|
-| 3.1 | `patterns/base.py` `LuminaryPattern.evaluate(array,t)->OKLCH` | **Keep** (tighten contract) | Vectorized pure-function model is exactly right (§1.3.3/1.3.4). Change `t` to integer timestep (§9.1.4); rename to `render` for clarity; keep semantics. |
+| 3.1 | `patterns/base.py` `LuminaryPattern.evaluate(array,t)->OKLCH` | **Keep** (tighten contract) | Vectorized pure-function model is exactly right (§1.3.3/1.3.4). `t` stays float seconds (§9.1, review §19.1); rename to `render` for clarity; keep semantics. |
 | 3.2 | `patterns/schema.py` `BeamArrayColumns` (11 cols) | **Refactor → Rewrite** | Generalize to the lights-array schema with full coordinate set, identity `{controller,channel,index}`, and metadata (§6.3). The 11-column layout is too 2D/pentagon-specific. |
 | 3.3 | `patterns/beam_array.py` `BeamArrayBuilder` | **Rewrite** | Becomes part of lights capture (§7) and the `LightsGeometry` loader (§6). Per-light Python loop replaced with vectorized assembly. Placeholder hardware mapping replaced by real identity columns. |
 | 3.4 | `patterns/discovery.py` | **Refactor** | Good concept; fold into `patterns/registry.py` with real hot-reload (`importlib.reload`), error isolation, and a stable registry object (§9.3). |
-| 3.5 | example patterns (`example_*.py`, `kaleidoscope`, etc.) | **Keep/Port** | Keep as a test corpus; port to the new column enum and integer `t`. They are valuable coverage for the engine and codec. |
+| 3.5 | example patterns (`example_*.py`, `kaleidoscope`, etc.) | **Keep/Port** | Keep as a test corpus; port to the new column enum (`t` semantics unchanged: float seconds). Stateful ones are reworked to be stateless or parked under `patterns/legacy/`. They are valuable coverage for the engine and codec. |
 | 3.6 | `color/oklch.py` `Color` (via `colour` lib) | **Rewrite** | Per-object + `colour` dependency is unusable on the per-frame, per-light hot path. Replace with vectorized `color/convert.py` (§8); keep a thin scalar `Color` for parsing config color names only (§8.5). Drop `colour-science` dependency. |
 | 3.7 | `geometry/primitives.py`, `point.py` | **Keep** (load-time only) | Solid for capture/authoring math. Forbid from the hot path. Apply the existing `plan/todo/refactor.md` cleanup opportunistically, not as a 2.1 gate. |
 | 3.8 | `geometry/net.py`,`triangle.py`,`facet.py`,`beam.py` | **Refactor → Demote** | Move under `geometry/pentagon/`. Repurpose as (a) a **scaffold generator** that emits scaffold lines and (b) a **capture** that emits a default lights geometry, and (c) the diagnostic SVG diagram. Beam *polygons* become a render-only detail; "beam basis point" becomes a light position. Not on the per-frame core path. |
@@ -256,10 +258,16 @@ UI boundaries and are converted at those boundaries.
 
 ### 4.4 Normals and direction
 
-4.4.1 A **normal** is a unit 3-vector pointing away from a scaffold line *along
-the manifold surface* (the brief). It encodes which way a surface faces at that
-point. Planar manifolds have a single constant normal; curved manifolds vary it
-along the line, which is why a line carries normals at three sample points (§5).
+4.4.1 A **normal** is a unit 3-vector pointing *away from the scaffold line, to
+one side of it, lying along the manifold surface* (the brief). It is a lateral
+in-surface direction that distinguishes the two sides of the line on the
+surface — NOT a surface normal (it does not point out of the manifold). On a
+planar manifold a straight line has a single normal per side (in-plane,
+perpendicular to the line), so all three sampled normals of a line are equal;
+on curved manifolds the normal varies along the line, which is why a line
+carries normals at three sample points (§5). Lights mounted on a line shine
+along this direction — across the surface, away from the line — which is
+exactly the pentagon "beam" concept generalized.
 
 4.4.2 A light **direction** is a unit 3-vector giving the axis the light emits
 along, plus an **extent**: the farthest point reachable along that direction
@@ -304,16 +312,18 @@ optional `tags` (list of strings) for grouping/overrides (used by capture, §7).
     { "id": "edge-12",
       "p1": [x, y /*, z*/], "p2": [x, y /*, z*/],
       "midpoint": [x, y /*, z*/],             // optional
-      "n1": [nx, ny, nz], "n_mid": [...], "n2": [...],  // optional (default +Z planar)
+      "n1": [nx, ny, nz], "n_mid": [...], "n2": [...],  // optional (§5.3.2 default)
       "tags": ["ring0"] }
   ],
   "meta": { "name": "...", "notes": "..." }   // optional, free-form
 }
 ```
 
-5.3.2 Defaults: on a planar (`["xy"]`) scaffold, `z=0`, normals default to
-`[0,0,1]`, `midpoint` defaults to the chord midpoint. The loader rejects a file
-that declares `xyz` authoritative without a `projection`.
+5.3.2 Defaults: on a planar (`["xy"]`) scaffold, `z=0` and `midpoint` defaults
+to the chord midpoint. Normals default to the in-plane lateral direction
+obtained by rotating the unit `p1→p2` direction +90° counterclockwise (§4.4.1);
+a file that cares which side the lights face specifies normals explicitly. The
+loader rejects a file that declares `xyz` authoritative without a `projection`.
 
 ### 5.4 Loader/saver contract
 
@@ -431,7 +441,8 @@ decoder never exchange explicit addresses for in-order runs — only deltas
       "kind": "active",
       "pos": [x, y /*, z*/],
       "dir": [dx, dy, dz], "extent": [ex, ey, ez],   // optional
-      "normal": [nx, ny, nz] }                        // optional
+      "normal": [nx, ny, nz],                         // optional
+      "display": [[x,y], [x,y], ...] }                // optional 2D polygon (§6.5.3)
     // interpolated lights may omit pos (derived) but must give controller/channel/index
   ],
   "meta": { "name": "...", "notes": "..." }
@@ -441,6 +452,14 @@ decoder never exchange explicit addresses for in-order runs — only deltas
 6.5.2 The file stores only authoritative quantities; derived coordinate spaces,
 interpolation weights, and the row sort are reconstructed by the loader so the
 file stays minimal and human-diffable.
+
+6.5.3 **Display shapes.** A light may carry an optional `display` polygon (XY
+space): a render-only hint that preview surfaces (SVG and the web client) draw
+instead of a generic dot. This is how beam polygons survive as a *display*
+concept (per review of §19.5): the pentagon constructor emits each light's beam
+polygon here. Display shapes live beside the numeric array (never in it), are
+ignored by the codec/firmware entirely, and are served to the web client via
+the layout endpoint (§15.3).
 
 ### 6.6 Loader/saver contract
 
@@ -478,9 +497,10 @@ capture fully implemented in 2.1; (b) gets an interface (§7.4).
 for each scaffold line, place lights at a configured spacing (or fixed count)
 from `p1` toward `p2`; each light's position is the parametric point on the line
 (using `midpoint` for a quadratic bend when present), its normal is the
-correspondingly-interpolated `n1/n_mid/n2`, its direction defaults to the normal
-(lights aim outward along the manifold) and extent is left `NaN` unless a throw
-distance is given.
+correspondingly-interpolated `n1/n_mid/n2`, its direction defaults to that
+normal — i.e., the light throws across the surface, away from its line (§4.4.1)
+— and extent is `position + throw_distance·direction` when a throw distance is
+given, else `NaN`.
 
 7.2.3 Identity assignment: `params` maps lines (by `id`/`tag`/order) to
 `(controller, channel)` and a starting `index`; lights along a line receive
@@ -501,10 +521,17 @@ the codec then also adapts at run time (§11.6).
 ### 7.3 Pentagon capture (compatibility)
 
 7.3.1 `pentagon.capture(net, params)` reproduces today's behavior: each beam's
-basis point becomes one ACTIVE light; `{controller,channel,index}` derive from
-`{face,facet,edge,position}` via a documented, *real* mapping (replacing the 2.0
-placeholder), so existing `configs/*.json` yield a playable lights geometry. The
-beam polygons are retained only for the SVG diagram (§14.5), not the core path.
+basis point becomes one ACTIVE light, its direction is the beam's forward
+direction (anchor → basis, i.e., the in-surface normal of its edge, §4.4.1) and
+its extent is the far end of the beam polygon along that direction. The beam
+polygon itself is attached as the light's `display` shape (§6.5.3), so beams
+remain a first-class concept of this *constructor* and of the web frontend's
+rendering — but not of the core engine. The `{controller,channel,index}`
+mapping from `{face,facet,edge,position}` is **deferred** pending hardware
+strip-routing decisions (review §19.6): until then capture assigns channels
+round-robin per facet and sequential indices, which is valid for preview and
+demo, and the mapping function is the single documented place to change when
+the physical routing is known.
 
 ### 7.4 Camera scan interface (deferred implementation)
 
@@ -535,9 +562,12 @@ vectorized module and reserves the scalar class for parsing only (§3.6).
 codec quantizes (§11.4), because it is perceptually uniform (good for
 quantization and prediction) and device-independent.
 
-8.2.2 On-device and for interpolation, color is handled in **OKLab** `(L,a,b)`
-(`a=C·cos H`, `b=C·sin H`) because Lab is linear for interpolation (no hue
-wraparound) — interpolation between control lights happens in Lab (§13.5).
+8.2.2 Interpolation between control lights happens in **OKLCH with
+shortest-arc hue** (review §19.3): L and C interpolate linearly; H interpolates
+along the shorter direction around the hue circle. This operates directly on
+the decoded (quantized) OKLCH state, so interpolation needs no color-space
+conversion. **OKLab** `(L,a,b)` (`a=C·cos H`, `b=C·sin H`) remains the
+conversion intermediate on the way to RGB (§8.4).
 
 8.2.3 Output is **gamma-encoded sRGB8** for the LEDs/Canvas. The full chain
 OKLab → linear sRGB → gamma sRGB is in §8.4.
@@ -595,22 +625,25 @@ the per-frame path; a comment and (in tests) a guard enforce this.
 class Pattern(ABC):
     name: str            # class attribute or property
     description: str
-    def render(self, lights: np.ndarray, t: int) -> np.ndarray: ...
+    def render(self, lights: np.ndarray, t: float) -> np.ndarray: ...
 ```
 
-9.1.2 `lights` is the lights array (§6.3); `t` is an **integer timestep**
-(§1.3.4, the brief's "global integer timestep"). Return is an `(n,3)` float
-array of OKLCH for *all* rows (active, interpolated, inactive); the engine
-selects what to transmit (§10.3). Output must be finite for non-`NaN` inputs.
+9.1.2 `lights` is the lights array (§6.3); `t` is **elapsed time in seconds as
+a float** (review §19.1). Return is an `(n,3)` float array of OKLCH for *all*
+rows (active, interpolated, inactive); the engine selects what to transmit
+(§10.3). Output must be finite for non-`NaN` inputs.
 
 9.1.3 The function MUST be vectorized and stateless: no instance mutation across
 calls, no dependence on previous `t`. Determinism: `render(lights,t)` is
 reproducible; any randomness must be a pure function of `t` and a fixed seed
 (helper provided, §9.4) so the server can recompute any frame for the codec.
 
-9.1.4 The engine owns the tick rate `TICKS_PER_SECOND` (default 30). Patterns
-needing wall-clock phase use `seconds = t / TICKS_PER_SECOND` (helper). Using
-integer `t` keeps replay, keyframing, and golden vectors exact.
+9.1.4 The engine owns the frame rate (default 30 fps) and passes patterns
+`t = frame_index / fps` when it is the pacer; patterns simply see seconds.
+Integer frame counters exist only inside the engine/codec (keyframe cadence,
+budgets) and never in the pattern contract. Replay and golden vectors remain
+exact because conformance is defined on encoded bytes (§11.9), and the encoder
+records the `t` of every frame in its header (§11.7.5).
 
 ### 9.2 Idiom
 
@@ -633,9 +666,10 @@ boundary; because rendering is stateless, no transition state is needed.
 
 ### 9.4 Author helpers
 
-9.4.1 `patterns/util` offers vectorized helpers: `seconds(t)`, `seeded_random(t,
-salt)`, `nan_safe` wrappers, hue helpers, and named-column accessors
-(`X(lights)`), so patterns never hardcode column indices (§6.3.3).
+9.4.1 `patterns/util` offers vectorized helpers: `seeded_random(salt, n)` (for
+deterministic per-light constants), `nan_safe` wrappers, hue helpers, and
+named-column accessors (`X(lights)`), so patterns never hardcode column indices
+(§6.3.3).
 
 ---
 
@@ -651,11 +685,13 @@ tick clock; it produces encoded wire frames. It imports no web/serial code.
 
 ### 10.2 Construction and lifecycle
 
-10.2.1 `Engine(lights: LightsGeometry, pattern: Pattern, *, ticks_per_second=30,
-codec_config=CodecConfig())`. Methods: `set_pattern(name|Pattern)`,
+10.2.1 `Engine(lights: LightsGeometry, pattern: Pattern, *, fps=30.0,
+codec_config=CodecConfig())`. Methods: `set_pattern(Pattern)`,
 `set_lights(LightsGeometry)` (both trigger a codec keyframe, §11.7),
-`frame(t:int) -> bytes` (encode one frame), and `frames(start_t=0) -> iterator`
-(a generator yielding `(t, bytes)` paced by the clock or as fast as pulled).
+`session_frames() -> list[bytes]` (one SESSION per controller),
+`frame(t: float) -> list[bytes]` (one encoded frame per controller), and
+`frames(start=0) -> iterator` yielding `(t, list[bytes])` as fast as pulled —
+pacing belongs to drivers.
 
 10.2.2 `frame(t)` is the one place the pipeline is assembled:
 `oklch = pattern.render(lights.array, t)` → `wire = encoder.encode(oklch, t)`.
@@ -688,12 +724,12 @@ goes through the codec (§14.3).
 
 ## 11. Wire Comms Protocol (the Codec)
 
-> This is the central new subsystem and the highest-risk area. It is specified
-> in two layers: a **v1 baseline** that is simple, obviously-correct, and
-> already exercises the entire encode→transport→decode→interpolate→render path;
-> and a **v2 dead-reckoning** upgrade that achieves the "few bits per light per
-> update" goal. v1 ships first (§18) so everything downstream is real while v2
-> is tuned. Both are the *same* codec module with a negotiated version.
+> This is the central new subsystem and the highest-risk area. The wire format
+> (§11.4) and predictor arithmetic (§11.5.4) were fixed at spec review, so the
+> full codec — keyframes *and* dead-reckoning deltas — is implemented as one
+> module from the start. A keyframe-every-frame configuration (budget=∞,
+> interval=1) remains available as the obviously-correct debug baseline; delta
+> budgets and cadence are the tunables (§18.6).
 
 ### 11.1 Goals (from the brief, made testable)
 
@@ -716,29 +752,44 @@ sorted order (§6.4), so consecutive updates need only a **run length** or a
 **gap (skip) count**, never absolute indices. Absolute identity is established
 once by the session header (§11.7).
 
-### 11.4 Quantization
+### 11.4 Quantization and the per-light wire format
 
-11.4.1 OKLCH is quantized for the wire: `L` → 8 bits over [0,1]; `C` → 8 bits
-over [0, C_max=0.4]; `H` → 9 bits over [0,360) (≈0.7°). These widths are in
-`protocol.py` and are the unit the predictor and golden vectors use. Quantizing
-in OKLCH (perceptual) keeps equal codes ≈ equal perceptual steps.
+11.4.1 **Internal quantized precision** (the canonical decoded state, per
+light): `qL` — **6 bits** over L∈[0,1]; `qC` — **5 bits** over C∈[0,
+C_max=0.4]; `qH` — **8 bits** over H∈[0,360), wrapping. All predictor math
+operates in these integer units. Quantizing in OKLCH (perceptual) keeps equal
+codes ≈ equal perceptual steps.
 
-11.4.2 The quantized triple (qL,qC,qH) is the *canonical decoded value*: both
+11.4.2 **Keyframe fields carry the top significant bits**: 5 of qL, 4 of qC,
+7 of qH — `[L5|C4|H7]` = 16 bits (2 bytes) per light. Encode rounds
+(`field = (q+1)>>1`, clamped; hue wraps); decode reconstructs `q = field << 1`.
+A keyframe therefore lands within 1 LSB of full precision; the bottom bit is
+recovered by subsequent deltas.
+
+11.4.3 **Delta fields carry signed fine corrections** in sign+magnitude form:
+1+4 bits for L, 1+3 for C, 1+6 for H — `[sL|mL4|sC|mC3|sH|mH6]` = 16 bits
+(2 bytes) per light. A correction is in LSB units of the full 6/5/8-bit
+precision: range ±15 L, ±7 C, ±63 H (H wraps mod 256). Corrections that would
+exceed the range **saturate**; a saturated light is corrected further on
+following frames (eventual correctness, §11.1.2) or erased by the next
+keyframe. Both frame kinds thus cost exactly 2 bytes/light; deltas win by
+paying only for the lights that need correcting (§11.6).
+
+11.4.4 The quantized triple (qL,qC,qH) is the *canonical decoded value*: both
 encoder and decoder operate on quantized integers, so the encoder's model of the
 decoder is exact (no float divergence across languages, §11.5.3).
 
 ### 11.5 The shared predictor (`predictor.py`)
 
 11.5.1 Per ACTIVE light, both ends keep a small state: last decoded quantized
-value `v=(qL,qC,qH)` and a per-channel-component velocity `dv`. The **prediction**
-for the next frame is `v_pred = v + dv` (component-wise, with hue on the mod-512
+value `q=(qL,qC,qH)` and a per-component velocity `v`. The **prediction** for
+the next frame is `q_pred = q + v` (component-wise, with hue on the mod-256
 ring). This is the "dead reckoning / projective velocity blending" of the brief.
 
-11.5.2 Each transmitted update for a light carries a small signed **correction**
-to the predicted value; the decoder sets `v = v_pred + correction` and updates
-`dv` toward the realized change (a fixed blend, e.g. `dv = round(α·(v_new−v_old)
-+ (1−α)·dv)`), giving projective velocity blending. α and the correction
-codebook are in `protocol.py`.
+11.5.2 Each transmitted update for a light carries the §11.4.3 signed
+**correction** to the predicted value; the decoder sets `q = q_pred +
+correction` and blends `v` toward the realized change, giving projective
+velocity blending. The exact integer arithmetic is normative in §11.5.4.
 
 11.5.3 **Encoder simulates decoder.** The encoder runs this exact integer
 predictor to know what the decoder currently believes, computes each light's
@@ -746,6 +797,16 @@ prediction error against the freshly quantized ground truth (available because
 rendering is stateless, §1.3.4), and chooses corrections. Because both sides run
 identical integer math, they never diverge between keyframes except where the
 encoder *chooses* not to correct (bounded, §11.6).
+
+11.5.4 **Normative integer arithmetic** (identical in Python/NumPy, JS, C++;
+right shifts are arithmetic/floor; int32 state): velocity `v` is stored in
+1/8-LSB fixed point. On every non-keyframe frame, for every ACTIVE light and
+each component: `pred = q + ((v + 4) >> 3)`; L and C clamp to [0,63]/[0,31], H
+reduces mod 256 (always-positive: `((x mod 256) + 256) mod 256`). If a
+correction was transmitted, `q_new = pred + corr` (clamp/wrap), else
+`q_new = pred`. Then, with realized step `d = q_new − q_old` (for H the
+shortest signed difference in [−128,127]): `v += ((d << 3) − v) >> 2`
+(i.e., α = 1/4). A KEYFRAME sets `q` directly and resets `v = 0`.
 
 ### 11.6 Adaptivity: error-ranked, budgeted updates
 
@@ -781,10 +842,10 @@ pattern/lights change (§10.4), on decoder resync request, and periodically ever
 `keyframe_interval` ticks (default ≈ every 2–5 s) to bound drift. 11.7.4 `DELTA`
 carries the budgeted corrections of §11.6 as `(skip run, [corrections])*`.
 
-11.7.5 Frame header fields: version, type, `controller`, `t` (timestep, used for
-logging/sync and to let a late joiner recompute), and payload length. `t` is
-authoritative from the server; the firmware does not need a clock for correctness
-(it applies frames as they arrive) but may use `t` for diagnostics.
+11.7.5 Frame header fields: version, type, `controller`, `t` (float64 seconds,
+used for logging/sync and to let a late joiner recompute), and payload length.
+`t` is authoritative from the server; the firmware does not need a clock for
+correctness (it applies frames as they arrive) but may use `t` for diagnostics.
 
 ### 11.8 Codec API
 
@@ -795,9 +856,11 @@ authoritative from the server; the firmware does not need a clock for correctnes
 `Decoder` is the **reference** (§1.3.7) used by the encoder's self-simulation,
 by tests, and to generate golden vectors.
 
-11.8.2 `CodecConfig` holds quantization widths, α, keyframe interval, budget
-policy, and version. Defaults live in `protocol.py`; the server may tune per
-session (e.g. larger budget for WS).
+11.8.2 `CodecConfig` holds keyframe interval, budget policy, brightness/color
+correction, and version. The quantization widths and predictor constants of
+§11.4/§11.5.4 are fixed by this spec (review §19.2) and live as constants in
+`protocol.py`; the server tunes only budget/cadence per session (e.g. larger
+budget for WS).
 
 ### 11.9 Conformance and golden vectors
 
@@ -810,11 +873,12 @@ how we prevent the demo and production decoders from drifting apart.
 
 ### 11.10 Bandwidth sketch (sanity, not a guarantee)
 
-11.10.1 v1 baseline (every ACTIVE light every frame, 8+8+9≈25 bits ≈ 4 bytes
-incl. framing) at 8 channels × 256 lights × 30 fps ≈ 246 KB/s ≈ 2 Mbit/s — fine
-over USB CDC. 11.10.2 v2 on a typical smooth pattern is expected to drop average
-cost by 5–20× via dead reckoning + budgeting; this is a *target* to be measured,
-and the budget mechanism guarantees we never exceed the link regardless.
+11.10.1 Baseline (keyframe-every-frame: every ACTIVE light at 2 bytes/light,
+§11.4.2) at 8 channels × 256 lights × 30 fps ≈ 123 KB/s ≈ 1.0 Mbit/s — fine
+over USB CDC. 11.10.2 Delta operation on a typical smooth pattern is expected
+to drop average cost by 5–20× (few corrections per frame + dead-reckoning
+coasting); this is a *target* to be measured, and the budget mechanism
+guarantees we never exceed the link regardless.
 
 ---
 
@@ -833,10 +897,13 @@ handshake (§13.3), sends `SESSION` then paces `DELTA`/`KEYFRAME` frames at the
 tick clock, computing the per-tick byte budget from the negotiated baud
 (§11.6.1). 12.2.2 Reads inbound bytes for resync requests / handshake / logs and
 forwards resyncs to the engine. 12.2.3 Handles reconnect (port drop → reopen →
-re-handshake → keyframe). 12.2.4 Supports multiple controllers by running one
-driver instance (and one encoder, since identity includes `controller`) per port,
-or one engine emitting per-controller frames to several ports — decided at
-config; both reuse the same encoder code.
+re-handshake → keyframe). 12.2.4 Multi-controller topology (decided, review §19.7): **one process, one
+engine, several ports.** The engine renders the whole lights array once per
+frame (one vectorized pattern evaluation, one clock) and its encoder emits one
+frame per controller; the serial driver opens one port per controller and
+routes each frame by its header's controller id. Per-consumer predictor
+sessions (§12.4) make this safe. One-process-per-controller is rejected: it
+would duplicate pattern evaluation and desynchronize clocks.
 
 ### 12.3 WebSocket driver (`drivers/websocket_driver.py`)
 
@@ -863,10 +930,12 @@ implement carefully and is covered by tests.
 
 13.1.1 Target: **Adafruit Feather RP2040 SCORPIO** (8 level-shifted parallel
 outputs). Language: **Arduino C++** using **Adafruit_NeoPXL8** for the eight
-parallel strips. Rationale: CircuitPython cannot sustain decode + OKLab→RGB +
+parallel strips. Per review (§19.4) this choice is driven purely by
+performance: CircuitPython cannot sustain decode + color conversion +
 interpolation for thousands of LEDs at 30 fps on the RP2040; C++ with
-fixed-point/LUTs can. (The firmware is the most likely first candidate for
-further optimization, hence the clean contract.)
+fixed-point/LUTs can, with headroom. If bring-up measurements ever show
+otherwise the decision can be revisited, but C++ is the safe default and the
+decoder core is plain C++ (host-testable) either way.
 
 ### 13.2 Responsibilities
 
@@ -897,11 +966,13 @@ round-trip tolerance test guard this approximation against the float reference.
 ### 13.5 Interpolation on device
 
 13.5.1 From the `SESSION` map, each INTERPOLATED light knows its two bounding
-ACTIVE neighbors on the channel and weight `w`. After decoding ACTIVE lights to
-OKLab, the firmware fills each INTERPOLATED light as `lab = (1−w)·lab_prev +
-w·lab_next` (linear in Lab, §8.2.2), then converts to RGB. INACTIVE lights are
-written black/off. 13.5.2 Interpolation is the firmware's main per-light loop;
-it is written branch-light and, if needed, the candidate for SIMD/PIO later.
+ACTIVE neighbors on the channel and weight `w`. The firmware fills each
+INTERPOLATED light in OKLCH with shortest-arc hue (§8.2.2): `L = (1−w)·L_prev +
+w·L_next`, likewise C, and `H = H_prev + w·Δ` where `Δ` is the shortest signed
+hue difference (mod-256 in quantized units) — then converts OKLCH→OKLab→RGB
+like any other light. INACTIVE lights are written black/off. 13.5.2
+Interpolation is the firmware's main per-light loop; it is written
+branch-light and, if needed, the candidate for SIMD/PIO later.
 
 ### 13.6 Build/flash
 
@@ -926,17 +997,21 @@ test (§1.3.2).
 
 14.2.1 `static/decoder.js` implements the §11 decoder (SESSION/KEYFRAME/DELTA,
 predictor, dequantization) — a conformant sibling of the Python/C++ decoders,
-verified by golden vectors (§11.9). It outputs per-light OKLab; `static/color.js`
-does OKLab→sRGB8 (the §8.4 math). Interpolation (§13.5) is done in JS identically
-to firmware.
+verified by golden vectors (§11.9). It outputs per-light quantized OKLCH;
+interpolation (§13.5, OKLCH shortest-arc) is done in JS identically to
+firmware; `static/color.js` then does OKLCH→OKLab→sRGB8 (the §8.4 math).
 
 ### 14.3 Live rendering (Canvas)
 
-14.3.1 Live playback renders to a **Canvas 2D** (not per-element SVG): the client
-receives `SESSION` (geometry + map), builds a per-light draw list once (position
-+ small shape from the projection), then each frame decodes bytes → colors →
-repaints. Canvas is required for thousands of lights at 30 fps; per-frame SVG DOM
-mutation (the 2.0 approach) does not scale and is dropped for playback.
+14.3.1 Live playback renders to a **Canvas 2D** (not per-element SVG): the
+client first fetches the **layout** for its lights geometry over REST
+(`GET /api/lights/{id}/layout` — positions, kinds, weights, display shapes
+(§6.5.3), viewBox) and builds a per-light draw list once; the WebSocket then
+carries *only* wire bytes, identical to serial. Each frame: decode bytes →
+colors → repaint. Lights with a display shape are drawn as that polygon (beams,
+per review §19.5); others as dots. Canvas is required for thousands of lights
+at 30 fps; per-frame SVG DOM mutation (the 2.0 approach) does not scale and is
+dropped for playback.
 
 14.3.2 The client connects to `/api/play?lights=<id>&pattern=<name>` (§15.4),
 which sends binary wire frames. The client may send resync (e.g. on tab
@@ -995,6 +1070,7 @@ slug); patterns are uploaded Python files registered by `name` (§15.5).
 | `GET /api/lights` | List available lights geometries |
 | `GET /api/lights/{id}` | Fetch lights JSON |
 | `GET /api/lights/{id}/view` | HTML page rendering the lights geometry |
+| `GET /api/lights/{id}/layout` | Client draw layout: positions, kinds, weights, display shapes, viewBox (§14.3.1) |
 | `POST /api/lights/from-scaffold` | Produce a lights geometry from `{scaffold_id, params}` using default capture (§7.2) → `{id}` |
 | `POST /api/patterns` | Upload a pattern file; hot-reload registry (§9.3) → `{name}` |
 | `GET /api/patterns` | List available patterns (name, description, load status) |
@@ -1053,8 +1129,8 @@ headless over WebSocket for a manual browser; omitting both prints codec stats
 (a dry-run that still runs encode, for profiling).
 16.2.3 `luminary capture --scaffold <file> [--params <file>] -o <out.lights.json>`
 — default capture (§7.2).
-16.2.4 `luminary render --lights <file|id> --pattern <name> -t <int> -o out.svg`
-— static SVG via §10.5/§14.5 (supersedes 2.0 `pattern sample`).
+16.2.4 `luminary render --lights <file|id> --pattern <name> -t <seconds> -o
+out.svg` — static SVG via §10.5/§14.5 (supersedes 2.0 `pattern sample`).
 16.2.5 Kept utilities: `luminary svg`, `luminary index`, `luminary validate`
 (2.0 behaviors, now over the refactored renderers).
 
@@ -1113,11 +1189,11 @@ the array, convert to sRGB, round-trip.
 adapters (§5.5, §7.3); server skeleton with scaffold/lights save/list/get/view
 (§15.3). *Demo:* upload/inspect a scaffold and a lights geometry in the browser.
 
-18.3 **Phase 2 — Patterns + codec v1 + WS demo.** `Pattern` contract + registry
-(§9); port example patterns (§3.5); engine `frame(t)` (§10); codec **v1 baseline**
-(§11, full-quantized keyframes/frames, no prediction yet); WebSocket driver +
-Canvas client + JS decoder (§12.3, §14). *Demo:* pick a pattern in the browser,
-watch it animate via the real wire codec; bytes/s readout live.
+18.3 **Phase 2 — Patterns + codec + WS demo.** `Pattern` contract + registry
+(§9); port example patterns (§3.5); engine `frame(t)` (§10); the **full codec**
+(§11: SESSION/KEYFRAME/DELTA, predictor, budgets); WebSocket driver + Canvas
+client + JS decoder (§12.3, §14). *Demo:* pick a pattern in the browser, watch
+it animate via the real wire codec; bytes/s readout live.
 
 18.4 **Phase 3 — Serial + Scorpio firmware.** `serial_driver.py` (§12.2);
 `firmware/scorpio/` decoder + fixed-point color + interpolation + NeoPXL8 (§13);
@@ -1129,10 +1205,11 @@ with interpolation policy; `POST /api/lights/from-scaffold` (§15.3);
 `from_scan` interface stub + bundle format (§7.4). *Demo:* generate a lights
 geometry from a scaffold with defaults and immediately play it.
 
-18.6 **Phase 5 — Codec v2 (dead reckoning).** `predictor.py` (§11.5); error-ranked
-budgeted deltas (§11.6); adaptive keyframe scheduling (§11.7.3); update all three
-decoders + golden vectors; measure §11.10/§17.3. *Demo:* bytes/light drops sharply
-on smooth patterns with identical visuals; budget cap holds under stress.
+18.6 **Phase 5 — Codec tuning & measurement.** With the format fixed (§11.4),
+this phase is empirical: measure bytes/light across the pattern corpus, tune
+budget policy, keyframe cadence, and error weights; stress the budget cap;
+freeze golden vectors v1 (§11.9). *Demo:* bytes/light drops sharply on smooth
+patterns with identical visuals; budget cap holds under stress.
 
 18.7 **Phase 6 — Hot-reload + polish.** Pattern upload + reload (§15.5); listing
 completeness; multi-controller serial (§12.2.4); validation/docs; performance
@@ -1141,39 +1218,42 @@ both web and hardware.
 
 ---
 
-## 19. Open Questions / Decisions for Review
+## 19. Review Resolutions (2026-07-09)
 
-19.1 **Integer vs float `t` for patterns.** Spec chooses integer timestep with a
-fixed `TICKS_PER_SECOND` (§9.1.4) for determinism. Confirm 30 as the canonical
-tick (affects keyframe intervals and golden vectors).
+> All ten open questions were resolved in review; the body of this spec has
+> been updated to match. Recorded here for the audit trail.
 
-19.2 **Quantization widths** (§11.4.1: L8/C8/H9, C_max=0.4). These set the visual
-floor and the wire unit. Confirm or adjust before golden vectors are frozen.
+19.1 **Timestep is a float.** `t` is elapsed seconds as a float, not an integer
+tick (§1.3.4, §9.1). Frame counters are internal to the engine/codec only.
 
-19.3 **Interpolation in OKLab vs OKLCH** (§8.2.2/§13.5). Spec uses OKLab (linear,
-no hue wrap). Confirm; OKLCH-with-shortest-arc is the alternative.
+19.2 **Quantization widths fixed by review** (§11.4): internal precision
+6/5/8 bits (L/C/H); keyframes carry the top 5/4/7 bits; deltas carry
+sign+magnitude 1+4 / 1+3 / 1+6 corrections. Both frame kinds are 2 bytes/light.
 
-19.4 **Firmware language: C++/NeoPXL8** (§13.1) vs CircuitPython. Spec strongly
-recommends C++ for the frame budget. Confirm we are willing to maintain an
-Arduino/PlatformIO project.
+19.3 **Interpolation is OKLCH with shortest-arc hue** (§8.2.2, §13.5), not
+OKLab.
 
-19.5 **Pentagon code fate** (§3.8): demote to a scaffold/lights source + diagram,
-off the core path. Confirm we are not preserving beams as a first-class runtime
-concept.
+19.4 **Firmware: C++/NeoPXL8**, chosen on performance grounds; the original
+recommendation is a year old but performance is what matters and C++ is the
+safe default. Decoder core stays plain host-testable C++ so the call can be
+revisited with measurements (§13.1).
 
-19.6 **Identity mapping for pentagon capture** (§7.3.1): the real
-`{controller,channel,index}` formula from `{face,facet,edge,position}` needs a
-concrete rule reflecting how strips will physically run — needs hardware input.
+19.5 **Beams are not a core-engine concept.** They are retained in the
+geometry-based (pentagon) constructor and in the web frontend's rendering, via
+per-light `display` shapes (§6.5.3, §7.3.1, §14.3.1).
 
-19.7 **Multi-controller topology** (§12.2.4): one engine→many ports, or one
-process per controller? Affects predictor-session bookkeeping (§12.4).
+19.6 **Pentagon identity mapping deferred.** Round-robin default documented in
+one place until physical strip routing is known (§7.3.1).
 
-19.8 **Coordinate authoritativeness for the real installation** (§4.1.2): is the
-2025 Luna install planar (XY authoritative) or genuinely 3D (XYZ)? Determines
-which capture/projection paths are exercised first.
+19.7 **Multi-controller: one process, one engine, several ports** (§12.2.4) —
+single vectorized render and a single clock; frames route by controller id.
 
-19.9 **Camera-scan priority** (§7.4): confirm it stays a 2.1 interface-only stub,
-with full implementation deferred to 2.2.
+19.8 **XY projection goes first.** The planar path is the priority for capture,
+preview, and the first installation; XYZ/spherical support ships but is
+exercised second (§4.1, §18).
 
-19.10 **Pattern upload trust model** (§15.5.2): confirm trusted-LAN-operator
-assumption (arbitrary code execution) is acceptable for 2.1.
+19.9 **Camera scan stays an interface-only stub in 2.1** (§7.4).
+
+19.10 **Pattern upload trust model confirmed**: trusted operator on a LAN;
+uploaded patterns execute in-process; sandboxing out of scope for 2.1
+(§15.5.2).
