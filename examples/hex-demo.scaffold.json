@@ -1,0 +1,22 @@
+{
+  "schema": "luminary.scaffold/1",
+  "space": { "authoritative": ["xy"] },
+  "lines": [
+    { "id": "rim-0", "p1": [150.0, 0.0], "p2": [75.0, 129.9], "tags": ["rim"] },
+    { "id": "rim-1", "p1": [75.0, 129.9], "p2": [-75.0, 129.9], "tags": ["rim"] },
+    { "id": "rim-2", "p1": [-75.0, 129.9], "p2": [-150.0, 0.0], "tags": ["rim"] },
+    { "id": "rim-3", "p1": [-150.0, 0.0], "p2": [-75.0, -129.9], "tags": ["rim"] },
+    { "id": "rim-4", "p1": [-75.0, -129.9], "p2": [75.0, -129.9], "tags": ["rim"] },
+    { "id": "rim-5", "p1": [75.0, -129.9], "p2": [150.0, 0.0], "tags": ["rim"] },
+    { "id": "spoke-0", "p1": [0.0, 0.0], "p2": [150.0, 0.0], "tags": ["spoke"] },
+    { "id": "spoke-1", "p1": [0.0, 0.0], "p2": [75.0, 129.9], "tags": ["spoke"] },
+    { "id": "spoke-2", "p1": [0.0, 0.0], "p2": [-75.0, 129.9], "tags": ["spoke"] },
+    { "id": "spoke-3", "p1": [0.0, 0.0], "p2": [-150.0, 0.0], "tags": ["spoke"] },
+    { "id": "spoke-4", "p1": [0.0, 0.0], "p2": [-75.0, -129.9], "tags": ["spoke"] },
+    { "id": "spoke-5", "p1": [0.0, 0.0], "p2": [75.0, -129.9], "tags": ["spoke"] }
+  ],
+  "meta": {
+    "name": "hex-demo",
+    "notes": "Planar hexagon rim plus six spokes; the default demo scaffold."
+  }
+}
