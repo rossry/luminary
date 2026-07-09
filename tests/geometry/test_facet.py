@@ -16,7 +16,7 @@ class TestFacet:
         midpoint2 = Point(0, 5)
 
         facet = Facet(
-            vertex, midpoint1, incenter, midpoint2, "#FF0000", "A", (7, 4, 4, 7)
+            vertex, midpoint1, incenter, midpoint2, "#FF0000", "A", (7, 4, 4, 7), 0, 0
         )
 
         assert facet.vertices == (vertex, midpoint1, incenter, midpoint2)
@@ -33,7 +33,7 @@ class TestFacet:
         midpoint2 = Point(0, 4)
 
         facet = Facet(
-            vertex, midpoint1, incenter, midpoint2, "#00FF00", "B", (7, 4, 4, 7)
+            vertex, midpoint1, incenter, midpoint2, "#00FF00", "B", (7, 4, 4, 7), 0, 0
         )
 
         # Centroid should be at (2, 2) for this square
@@ -49,7 +49,7 @@ class TestFacet:
         midpoint2 = Point(2, 4)
 
         facet = Facet(
-            vertex, midpoint1, incenter, midpoint2, "#0000FF", "D", (7, 4, 4, 7)
+            vertex, midpoint1, incenter, midpoint2, "#0000FF", "D", (7, 4, 4, 7), 0, 0
         )
 
         # Centroid = ((1+5+3+2)/4, (1+2+6+4)/4) = (2.75, 3.25)
@@ -64,7 +64,7 @@ class TestFacet:
         midpoint2 = Point(0, 1)
 
         facet = Facet(
-            vertex, midpoint1, incenter, midpoint2, "#FFFF00", "C", (7, 4, 4, 7)
+            vertex, midpoint1, incenter, midpoint2, "#FFFF00", "C", (7, 4, 4, 7), 0, 0
         )
         vertices = facet.get_vertices()
 
@@ -79,7 +79,7 @@ class TestFacet:
         midpoint2 = Point(2, 6)
 
         facet = Facet(
-            vertex, midpoint1, incenter, midpoint2, "#FF00FF", "E", (7, 4, 4, 7)
+            vertex, midpoint1, incenter, midpoint2, "#FF00FF", "E", (7, 4, 4, 7), 0, 0
         )
         centroid = facet.get_centroid()
 
@@ -95,7 +95,7 @@ class TestFacet:
         midpoint2 = Point(0, 10)
 
         facet = Facet(
-            vertex, midpoint1, incenter, midpoint2, "#00CED1", "F", (7, 4, 4, 7)
+            vertex, midpoint1, incenter, midpoint2, "#00CED1", "F", (7, 4, 4, 7), 0, 0
         )
         svg_elements = facet.get_svg()
 
@@ -127,13 +127,13 @@ class TestFacet:
 
         # Test APEXWARD labels (A-C)
         facet_a = Facet(
-            vertex, midpoint1, incenter, midpoint2, "#FF0000", "A", (7, 4, 4, 7)
+            vertex, midpoint1, incenter, midpoint2, "#FF0000", "A", (7, 4, 4, 7), 0, 0
         )
         facet_b = Facet(
-            vertex, midpoint1, incenter, midpoint2, "#00FF00", "B", (7, 4, 4, 7)
+            vertex, midpoint1, incenter, midpoint2, "#00FF00", "B", (7, 4, 4, 7), 0, 0
         )
         facet_c = Facet(
-            vertex, midpoint1, incenter, midpoint2, "#0000FF", "C", (7, 4, 4, 7)
+            vertex, midpoint1, incenter, midpoint2, "#0000FF", "C", (7, 4, 4, 7), 0, 0
         )
 
         assert facet_a.label == "A"
@@ -142,13 +142,13 @@ class TestFacet:
 
         # Test NADIRWARD labels (D-F)
         facet_d = Facet(
-            vertex, midpoint1, incenter, midpoint2, "#FFFF00", "D", (7, 4, 4, 7)
+            vertex, midpoint1, incenter, midpoint2, "#FFFF00", "D", (7, 4, 4, 7), 0, 0
         )
         facet_e = Facet(
-            vertex, midpoint1, incenter, midpoint2, "#FF00FF", "E", (7, 4, 4, 7)
+            vertex, midpoint1, incenter, midpoint2, "#FF00FF", "E", (7, 4, 4, 7), 0, 0
         )
         facet_f = Facet(
-            vertex, midpoint1, incenter, midpoint2, "#00FFFF", "F", (7, 4, 4, 7)
+            vertex, midpoint1, incenter, midpoint2, "#00FFFF", "F", (7, 4, 4, 7), 0, 0
         )
 
         assert facet_d.label == "D"
@@ -164,7 +164,15 @@ class TestFacet:
         midpoint2 = Point(0, 1)
 
         facet = Facet(
-            vertex, midpoint1, incenter, midpoint2, vertex_color, "A", (7, 4, 4, 7)
+            vertex,
+            midpoint1,
+            incenter,
+            midpoint2,
+            vertex_color,
+            "A",
+            (7, 4, 4, 7),
+            0,
+            0,
         )
 
         assert facet.color == vertex_color

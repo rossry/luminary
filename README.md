@@ -1,129 +1,122 @@
-# Luminary 2.0
+# Luminary 2.1
 
-A project for Next Year on Luna 2025. Luminary 1.0 was a previous, deprecated version; 2.0 is under development and 2.1 will mark the first production release.
+A project for Next Year on Luna 2025. Luminary drives a physical light
+installation: a **scaffold** of structural lines carrying individually
+addressable LEDs, colored every frame by a **pattern** and streamed over a
+bit-efficient **wire protocol** to Adafruit Scorpio controllers — or to a
+browser, through the *same* codec, so the demo continuously exercises the
+production path.
 
-Core development is managed with [Graphite](https://graphite.dev) for the core developer's convenience, but contributors can make PRs on merged branches with whatever git tooling you want. Watch this space for further guidance on contributing.
+The authoritative design is **`plan/spec/luminary-2.1-spec.md`** (paragraph-
+numbered; §-references appear throughout the code). Core development is
+managed with [Graphite](https://graphite.dev); contributors can use plain git.
 
-## Pattern Development
+## Architecture in one paragraph
 
-Luminary supports real-time animated geometric patterns using signed distance functions (SDFs). Patterns are written in Python and can be previewed in a web browser with WebSocket streaming.
+A **lights geometry** (`*.lights.json`, spec §6) is the canonical per-light
+table: identity `{controller, channel, index}`, kind (active / interpolated /
+inactive), coordinates in four spaces, direction+extent, and normal — loaded
+into one NumPy array. **Patterns** (spec §9) are pure vectorized functions
+`render(lights, t) -> OKLCH`. The **engine** (spec §10) renders and encodes
+each frame with the **codec** (spec §11): 6/5/8-bit quantized OKLCH,
+2-byte-per-light keyframes, dead-reckoning deltas ranked by error under a
+byte budget. **Drivers** (spec §12) move those bytes over serial or
+WebSocket; the **Scorpio firmware** (spec §13, `firmware/`) and the **web
+client** (spec §14) decode with bit-identical integer predictors, verified
+against shared golden vectors (`firmware/golden/`).
 
-### Creating a New Pattern
+## Quickstart
 
-1. **Create a pattern file** in the `patterns/` directory (e.g., `patterns/my_pattern.py`)
+```bash
+pip install -r requirements.txt
 
-2. **Implement the LuminaryPattern interface:**
+# Produce a lights geometry from a scaffold (spec §7.2)
+python -m luminary.cli capture --scaffold examples/hex-demo.scaffold.json \
+    -o hex.lights.json
+
+# Static render of a pattern at t=2.5s
+python -m luminary.cli render --lights hex.lights.json --pattern spiral \
+    -t 2.5 -o hex-spiral.svg
+
+# Web server + live canvas client (http://localhost:8080)
+python -m luminary.cli serve --port 8080
+
+# Stream to hardware
+python -m luminary.cli play --lights hex.lights.json --pattern kaleidoscope \
+    --serial /dev/ttyACM0
+
+# Codec dry-run with stats (no output device needed)
+python -m luminary.cli play --lights hex.lights.json --pattern ripple \
+    --duration 5
+```
+
+The web UI (`serve`) lists stored geometries and patterns, plays any pattern
+over the real wire protocol, and shows live bytes/light·frame so you can see
+the dead-reckoning codec work.
+
+## Web API (spec §15)
+
+| Endpoint | Purpose |
+|---|---|
+| `POST /api/scaffolds` / `GET /api/scaffolds[/{id}[/view]]` | save / list / fetch / render scaffolds |
+| `POST /api/lights` / `GET /api/lights[/{id}[/view|/layout]]` | save / list / fetch / render lights; client draw layout |
+| `POST /api/lights/from-scaffold` | capture with defaults: `{scaffold_id, params}` |
+| `GET/POST /api/patterns` | list / upload+hot-reload patterns |
+| `WS /api/play?lights=ID&pattern=NAME` | wire-protocol streaming |
+
+## Pattern development
+
+Create a file in `patterns/`:
 
 ```python
 import numpy as np
-from luminary.patterns.base import LuminaryPattern
-from luminary.patterns.schema import BeamArrayColumns
+from luminary.geometry.lights import LightColumns
+from luminary.patterns.base import Pattern
 
-class MyPattern(LuminaryPattern):
-    @property
-    def name(self) -> str:
-        return "My Amazing Pattern"
-    
-    @property
-    def description(self) -> str:
-        return "Description of what the pattern looks like"
-    
-    def evaluate(self, beam_array: np.ndarray, t: float) -> np.ndarray:
-        """Generate OKLCH color values for each beam at time t.
-        
-        Args:
-            beam_array: Array with shape (n_beams, 11) containing beam data
-            t: Time parameter for animation (seconds)
-        
-        Returns:
-            Array with shape (n_beams, 3) containing [L, C, H] values where:
-            - L (lightness): 0.0 (black) to 1.0 (white)
-            - C (chroma): 0.0 (gray) to ~0.4 (saturated)
-            - H (hue): 0° to 360° (color wheel)
-        """
-        n_beams = beam_array.shape[0]
-        oklch_output = np.zeros((n_beams, 3))
-        
-        # Extract spatial coordinates
-        x = beam_array[:, BeamArrayColumns.X]
-        y = beam_array[:, BeamArrayColumns.Y] 
-        r = beam_array[:, BeamArrayColumns.R]        # Distance from center
-        theta = beam_array[:, BeamArrayColumns.THETA] # Polar angle
-        
-        # Example: Rotating spiral pattern
-        oklch_output[:, 0] = 0.6  # Constant lightness
-        oklch_output[:, 1] = 0.3  # Constant chroma
-        
-        # Hue varies with position and time
-        spiral_hue = (theta * 180.0/np.pi + r * 2.0 + t * 60.0) % 360.0
-        oklch_output[:, 2] = spiral_hue
-        
-        return oklch_output
+class MyPattern(Pattern):
+    name = "my_pattern"
+    description = "What it looks like"
+
+    def render(self, lights: np.ndarray, t: float) -> np.ndarray:
+        x = lights[:, LightColumns.X]
+        y = lights[:, LightColumns.Y]
+        out = np.zeros((lights.shape[0], 3))
+        out[:, 0] = 0.6                                  # L: 0..1
+        out[:, 1] = 0.3                                  # C: 0..0.4
+        out[:, 2] = (x + y + t * 60.0) % 360.0           # H: degrees
+        return out
 ```
 
-### Available Beam Data
+Rules (spec §9.1): vectorized NumPy only, and **stateless** — output depends
+only on `(lights, t)`; use `luminary.patterns.util.seeded_random` for
+per-entity constants. Upload via `POST /api/patterns` or drop the file in
+`patterns/` — the registry hot-reloads. Stateful 2.0 patterns that predate
+this contract are parked in `patterns/legacy/`.
 
-Each beam in the `beam_array` contains 11 columns accessed via `BeamArrayColumns`:
+## Firmware
 
-- **Hardware mapping**: `NODE`, `STRIP`, `STRIP_IDX` - LED hardware addresses
-- **Spatial coordinates**: `X`, `Y` - Cartesian position in net space
-- **Polar coordinates**: `R`, `THETA` - Distance and angle from net center  
-- **Geometry hierarchy**: `FACE`, `FACET`, `EDGE`, `POSITION_INDEX` - Geometric structure
+`firmware/scorpio/` is a PlatformIO/Arduino project for the Feather RP2040
+SCORPIO (spec §13): serial wire in, eight NeoPXL8 strips out, with fixed-point
+OKLCH→RGB and on-device interpolation of non-transmitted lights. Its decoder
+core is plain C++ and host-tested against the golden vectors:
 
-### Pattern Development Tips
-
-- **Use vectorized numpy operations** - Avoid Python loops for performance
-- **Keep values in range** - L: 0-1, C: 0-0.4, H: 0-360
-- **Test with time variation** - Use the `t` parameter for animation
-- **Start simple** - Basic color gradients, then add complexity
-
-### Testing Your Pattern
-
-#### Static Preview (SVG)
 ```bash
-python main.py pattern sample my_pattern -c configs/4A-35.json -t 2.5
+cd firmware/test/host && make run
+node tests/js/test_decoder.mjs        # same vectors, browser decoder
 ```
 
-#### Real-time Animation (WebSocket Server)
+## Tests
+
 ```bash
-# Install dependencies first
-pip install -r requirements.txt
-
-# Start animation server
-python main.py pattern preview my_pattern -c configs/4A-35.json --fps 30
-
-# Open browser to http://localhost:8080
+python -m pytest            # includes golden-vector + JS + C++ conformance
+python -m mypy luminary/... --explicit-package-bases
 ```
 
-#### Interactive Pattern Selection
-```bash
-# Omit pattern name for interactive menu
-python main.py pattern preview -c configs/4A-35.json
-```
+## Pentagon nets (2.0 heritage)
 
-### Server Options
-
-- `--host` - Server hostname (default: localhost)
-- `--port` - Server port (default: 8080) 
-- `--fps` - Animation frame rate (default: 30)
-
-Example for external access:
-```bash
-python main.py pattern preview example_ripple -c configs/4A-35.json --host 0.0.0.0 --port 8080
-```
-
-### Example Patterns
-
-The `patterns/` directory contains several example patterns:
-
-- **`example_simple.py`** - Basic rotating hue pattern for demonstration
-- **`example_ripple.py`** - Expanding circular waves from center
-- **`example_spiral.py`** - Rotating spiral arms with radial gradient  
-- **`example_wave.py`** - Linear traveling waves in multiple directions
-- **`example_breathe.py`** - Gentle breathing with pulsing luminance
-
-Each example demonstrates:
-- Time-based animation techniques
-- Spatial coordinate usage (cartesian and polar)
-- Proper numpy vectorization
-- OKLCH color space manipulation
+The pentagon `Net` (Triangles → Facets → Beams) lives on as a *constructor*
+(spec §3.8): `luminary.geometry.pentagon.to_scaffold/capture` turn any
+`configs/*.json` into scaffold/lights geometries, with beam polygons kept as
+per-light display shapes for the renderers. `main.py` retains the 2.0
+utilities (`svg`, `validate`, `index`) and its `pattern sample`/`preview`
+subcommands now run on the 2.1 engine.

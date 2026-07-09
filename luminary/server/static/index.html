@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Luminary</title>
+  <style>
+    :root { color-scheme: dark; }
+    body {
+      margin: 0; background: #0a0a0d; color: #dcdce4;
+      font-family: system-ui, sans-serif; display: flex; flex-direction: column;
+      height: 100vh;
+    }
+    header {
+      display: flex; gap: .6rem; align-items: center; flex-wrap: wrap;
+      padding: .55rem .8rem; background: #16161c; border-bottom: 1px solid #26262e;
+    }
+    header h1 { font-size: 1rem; margin: 0 .6rem 0 0; font-weight: 600; }
+    select, button {
+      background: #22222b; color: #dcdce4; border: 1px solid #34343e;
+      border-radius: 6px; padding: .35rem .6rem; font-size: .85rem;
+    }
+    button { cursor: pointer; }
+    button:hover { background: #2d2d38; }
+    #stats { margin-left: auto; font-variant-numeric: tabular-nums;
+             font-size: .8rem; color: #9a9aa8; }
+    #status { font-size: .8rem; color: #7fbf7f; }
+    main { flex: 1; min-height: 0; padding: .8rem; }
+    canvas { width: 100%; height: 100%; display: block; border-radius: 8px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Luminary</h1>
+    <select id="lights" title="Lights geometry"></select>
+    <select id="pattern" title="Pattern"></select>
+    <button id="play">Play</button>
+    <button id="pause">Pause</button>
+    <button id="resync" title="Force a keyframe">Resync</button>
+    <span id="status">idle</span>
+    <span id="stats"></span>
+  </header>
+  <main><canvas id="canvas"></canvas></main>
+  <script type="module" src="/static/client.js"></script>
+</body>
+</html>
