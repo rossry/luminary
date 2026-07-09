@@ -1,55 +1,47 @@
-"""Abstract base class for Luminary patterns."""
+"""The Pattern contract (spec §9.1).
+
+A pattern is a pure, vectorized function of the lights array and a time in
+seconds. It must be stateless: same (lights, t) in, same OKLCH out, with no
+dependence on call order (spec §1.3.4, §9.1.3) — the codec relies on being
+able to recompute ground truth at any t.
+"""
+
+from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from typing import Any, Dict
+
 import numpy as np
 
 
-class LuminaryPattern(ABC):
-    """Abstract base class for animated geometric patterns using SDFs.
-    
-    Patterns implement signed distance functions that operate on beam arrays
-    to produce OKLCH color values over time. All SDF operations must use
-    vectorized numpy operations for performance.
+class Pattern(ABC):
+    """Base class for all patterns.
+
+    Subclasses set ``name`` (a stable slug used by the CLI/API) and
+    ``description``, and implement :meth:`render`.
     """
 
+    name: str = "unnamed"
+    description: str = ""
+
     @abstractmethod
-    def evaluate(self, beam_array: np.ndarray, t: float) -> np.ndarray:
-        """Evaluate pattern at time t for all beams.
-        
+    def render(self, lights: np.ndarray, t: float) -> np.ndarray:
+        """Compute OKLCH for every light at time t.
+
         Args:
-            beam_array: Array with columns [node, strip, strip_idx, x, y, r, theta, 
-                       face, facet, edge, position_index]
-            t: Time parameter for animation (typically in seconds)
-        
+            lights: (n, N_LIGHT_COLUMNS) lights array (spec §6.3); index
+                columns via :class:`luminary.geometry.lights.LightColumns`.
+            t: elapsed seconds (float).
+
         Returns:
-            Array with shape (n_beams, 3) containing OKLCH values [l, c, h] 
-            for each beam where:
-            - l (lightness): 0.0 (black) to 1.0 (white)
-            - c (chroma): 0.0 (gray) to ~0.4 (saturated) 
-            - h (hue): 0° to 360° (color wheel position)
+            (n, 3) float array [L, C, H]: L in [0,1], C in [0, ~0.4],
+            H in degrees. Must be finite for rows with finite coordinates,
+            computed with vectorized NumPy only.
         """
-        pass
-    
-    @property
-    @abstractmethod
-    def name(self) -> str:
-        """Human-readable pattern name for display."""
-        pass
-    
-    @property
-    @abstractmethod
-    def description(self) -> str:
-        """Brief pattern description for selection menu."""
-        pass
-    
-    def info(self) -> dict:
-        """Get pattern metadata for discovery system.
-        
-        Returns:
-            Dictionary with pattern information including name and description.
-        """
+
+    def info(self) -> Dict[str, Any]:
         return {
             "name": self.name,
             "description": self.description,
-            "class_name": self.__class__.__name__,
+            "class_name": type(self).__name__,
         }

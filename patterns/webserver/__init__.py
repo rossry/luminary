@@ -1,1 +1,0 @@
-# WebServer module for Luminary patterns
