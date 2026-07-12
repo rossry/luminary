@@ -209,3 +209,9 @@ __marimo__/
 # Luminary output directory - ignore all generated files but keep directory structure
 output/*
 !output/.gitkeep
+
+# Luminary runtime geometry store (spec §15.6) - operator data, ships empty
+store/
+
+# Host-compiled firmware conformance test binary (firmware/test/host/Makefile)
+firmware/test/host/test_decoder
