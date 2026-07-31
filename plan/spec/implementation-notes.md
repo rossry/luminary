@@ -151,9 +151,14 @@ under the 33 ms frame budget.
 - `store/` (gitignored): the server's content-addressed geometry store —
   `scaffolds/<id>.scaffold.json`, `lights/<id>.lights.json`,
   `patterns-uploads/`. Ships empty; ids are short SHA-1 content hashes, so
-  identical saves dedupe. Stage demo data via the API
-  (`POST /api/scaffolds`, `POST /api/lights/from-scaffold`) or
-  `luminary.server.store.Store` directly.
+  identical saves dedupe. Stage demo data with `luminary.cli seed` (or
+  `serve --seed-demo`) — idempotent by content hash — or via the API
+  (`POST /api/scaffolds`, `POST /api/lights/from-scaffold`).
+- Deployment (shared test server): `docs/deploy.md` — VPS/systemd path,
+  Docker path, and the security model (pattern upload is in-process code
+  execution; tailnet or authenticated proxy required).
+- CI: `.github/workflows/ci.yml` runs pytest (incl. all three decoder
+  conformance suites), plus black/mypy on the 2.1 module list.
 - `examples/hex-demo.scaffold.json`: the standard demo scaffold (hexagon rim
   + six spokes, planar XY).
 - `output/` (gitignored): 2.0 SVG outputs.

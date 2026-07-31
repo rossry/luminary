@@ -1,0 +1,116 @@
+# Deploying a Luminary test server
+
+A shared server so anyone on the team can open a browser, pick a geometry,
+and test patterns — without running anything locally. The server is pure
+Python (numpy wheels, no system deps, no database); state is one directory
+(`store/`).
+
+## Security model — read this first
+
+Pattern upload (`POST /api/patterns`) **executes arbitrary Python
+in-process** — that is by design (spec §15.5.2, trusted-operator model), and
+it means the server must never be reachable by people you wouldn't hand a
+shell. Pick one:
+
+- **Tailscale / WireGuard (recommended):** bind to the tailnet address and
+  share the tailnet with the team. Zero exposed ports, no auth to build.
+- **Reverse proxy with auth:** Caddy/nginx in front with basic auth + TLS
+  (Caddy example below). The WebSocket (`/api/play`) proxies transparently.
+- Never `--host 0.0.0.0` on a public interface without one of the above.
+
+## Path 1 — plain VPS (recommended for iteration speed)
+
+Best when you control the box and want `git pull && systemctl restart
+luminary` as the whole update cycle. Needs Python ≥ 3.11.
+
+```bash
+sudo useradd -r -m -d /opt/luminary luminary
+sudo -u luminary git clone https://github.com/rossry/luminary /opt/luminary/app
+cd /opt/luminary/app
+sudo -u luminary python3 -m venv /opt/luminary/venv
+sudo -u luminary /opt/luminary/venv/bin/pip install -r requirements.txt
+
+# one-time: demo geometries so the UI isn't empty (idempotent)
+sudo -u luminary /opt/luminary/venv/bin/python -m luminary.cli seed \
+    --store /opt/luminary/store
+```
+
+`/etc/systemd/system/luminary.service`:
+
+```ini
+[Unit]
+Description=Luminary pattern server
+After=network.target
+
+[Service]
+User=luminary
+WorkingDirectory=/opt/luminary/app
+ExecStart=/opt/luminary/venv/bin/python -m luminary.cli \
+    --store /opt/luminary/store serve --host 127.0.0.1 --port 8080
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl enable --now luminary
+```
+
+Caddy in front (TLS + basic auth), `/etc/caddy/Caddyfile`:
+
+```caddyfile
+luminary.example.com {
+    basic_auth {
+        # caddy hash-password
+        team $2a$14$REPLACE_WITH_HASH
+    }
+    reverse_proxy 127.0.0.1:8080
+}
+```
+
+Update cycle: `cd /opt/luminary/app && sudo -u luminary git pull && sudo
+systemctl restart luminary`. Pattern files alone don't even need the
+restart — upload them through the UI/API and the registry hot-reloads.
+
+## Path 2 — Docker (for container platforms / hosts you don't control)
+
+What Docker buys here: a pinned Python on hosts with old system Pythons,
+direct deploys to Fly.io / Cloud Run / Railway (they take a Dockerfile and
+give you a URL), and a container boundary around in-process pattern
+execution. What it costs: image rebuilds in the update cycle. If you're on
+your own VPS, prefer Path 1.
+
+```bash
+docker build -t luminary .
+docker run -d --name luminary -p 127.0.0.1:8080:8080 \
+    -v luminary-store:/data/store luminary
+```
+
+The image seeds the demo geometries on start (idempotent) and serves on
+`0.0.0.0:8080` **inside the container** — the `-p 127.0.0.1:...` binding
+keeps it loopback-only on the host; put the proxy/tailnet in front exactly
+as in Path 1. On Fly.io: `fly launch` accepts the Dockerfile as-is; add a
+volume for `/data/store` and put the app behind Fly's built-in
+authentication or a tailnet, not on a bare public URL.
+
+## Smoke test (either path)
+
+```bash
+curl -s localhost:8080/api/health     # {"status":"ok",...}
+curl -s localhost:8080/api/lights     # seeded: hex-demo + pentagon-4A-35
+```
+
+Open the page, pick `hex-demo`, pick a pattern, press Play; the header's
+B/light·frame readout confirms the wire codec is doing its job.
+
+## Operational notes
+
+- **State** is only `store/` — back it up or volume-mount it; everything
+  else is stateless and rebuilt from the repo.
+- **CPU:** render+encode measures ~0.8 ms/frame for 2,048 lights
+  (implementation-notes §7); each connected viewer runs its own engine, so
+  budget roughly one core per handful of simultaneous viewers at 30 fps.
+- **Uploads** land in `store/patterns-uploads/` and survive restarts;
+  repo `patterns/` updates arrive with `git pull` (+ restart on Path 1,
+  rebuild on Path 2).

@@ -39,8 +39,22 @@ def cmd_serve(args: argparse.Namespace) -> int:
 
     from luminary.server.app import create_app
 
+    if args.seed_demo:
+        _seed(Path(args.store))
     app = create_app(store_dir=Path(args.store))
     uvicorn.run(app, host=args.host, port=args.port, log_level="info")
+    return 0
+
+
+def _seed(store_dir: Path) -> None:
+    from luminary.server.demo import seed_store
+
+    for entry in seed_store(store_dir):
+        print(f"seeded {entry['kind']:9s} {entry['id']}  {entry['name']}")
+
+
+def cmd_seed(args: argparse.Namespace) -> int:
+    _seed(Path(args.store))
     return 0
 
 
@@ -135,7 +149,17 @@ def main(argv: Optional[list] = None) -> int:
     serve = sub.add_parser("serve", help="Run the web server (spec §15)")
     serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", type=int, default=8080)
+    serve.add_argument(
+        "--seed-demo",
+        action="store_true",
+        help="Load the demo geometries into the store first (idempotent)",
+    )
     serve.set_defaults(func=cmd_serve)
+
+    seed = sub.add_parser(
+        "seed", help="Load demo geometries into the store (idempotent)"
+    )
+    seed.set_defaults(func=cmd_seed)
 
     play = sub.add_parser("play", help="Stream a pattern (serial or dry run)")
     play.add_argument("--lights", required=True, help="Lights file or store id")

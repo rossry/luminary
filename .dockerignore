@@ -1,0 +1,8 @@
+.git
+store/
+output/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+firmware/test/host/test_decoder

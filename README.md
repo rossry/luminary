@@ -28,7 +28,8 @@ python -m luminary.cli render --lights hex.lights.json --pattern spiral \
     -t 2.5 -o hex-spiral.svg
 
 # 3. Watch it live: web server + canvas client at http://localhost:8080
-python -m luminary.cli serve --port 8080
+#    (--seed-demo loads the demo geometries so the UI isn't empty)
+python -m luminary.cli serve --port 8080 --seed-demo
 
 # 4. Stream to hardware (Scorpio on USB serial)
 python -m luminary.cli play --lights hex.lights.json --pattern kaleidoscope \
@@ -38,11 +39,12 @@ python -m luminary.cli play --lights hex.lights.json --pattern kaleidoscope \
 python -m luminary.cli play --lights hex.lights.json --pattern ripple --duration 5
 ```
 
-For the web UI (`serve`), first save a geometry into the store — easiest via
-the API: `POST /api/scaffolds` with a scaffold JSON, then
-`POST /api/lights/from-scaffold` — then open the page, pick a geometry and a
-pattern, and press Play. The header shows live fps and bytes/light·frame so
-you can watch the codec work.
+In the web UI, pick a geometry and a pattern and press Play; the header
+shows live fps and bytes/light·frame so you can watch the codec work. Add
+your own geometries via `POST /api/scaffolds` +
+`POST /api/lights/from-scaffold`. To stand up a shared team server (VPS,
+Docker, or a container platform), see [`docs/deploy.md`](docs/deploy.md) —
+including the security model for the pattern-upload endpoint.
 
 **Where to read more:** the authoritative design is
 [`plan/spec/luminary-2.1-spec.md`](plan/spec/luminary-2.1-spec.md)
