@@ -214,4 +214,9 @@ output/*
 store/
 
 # Host-compiled firmware conformance test binary (firmware/test/host/Makefile)
+# The .exe form is what a Windows/MinGW host build produces.
 firmware/test/host/test_decoder
+firmware/test/host/test_decoder.exe
+
+# PlatformIO build output for the Scorpio firmware (firmware/scorpio/pio run)
+firmware/scorpio/.pio/
