@@ -119,6 +119,16 @@ under the 33 ms frame budget.
 
 ## 5. Sharp edges discovered during implementation
 
+- **Unanchored .gitignore template patterns eat project directories.** The
+  stock Python packaging block (`lib/`, `build/`, `dist/`, …) matches at
+  *any* depth: `lib/` silently excluded `firmware/scorpio/lib/` — the entire
+  C++ decoder core was never committed, and `git add <dir>` skips ignored
+  paths without a word. Those patterns are now root-anchored (`/lib/` etc.).
+  If you add ignore rules, anchor anything that is a plausible source-tree
+  name, and check with `git check-ignore -v <path>` / `git status --ignored`.
+  (The loss was caught — and the restoration verified bit-exact — by the
+  golden-vector conformance test, which is the kind of safety net worth
+  keeping green.)
 - **Hot reload vs. bytecode cache**: `importlib`'s `.pyc` validation keys on
   (mtime-seconds, size); a pattern file re-saved within one second at the
   same size would serve stale code. The registry therefore compiles source
