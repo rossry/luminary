@@ -7,14 +7,17 @@
 
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = join(here, "..", "..");
 const goldenDir = join(repo, "firmware", "golden", "case1");
 const decoderPath = join(repo, "luminary", "server", "static", "decoder.js");
 
-const { LumiDecoder, FRAME_SESSION } = await import(decoderPath);
+// A bare absolute path is not a valid ESM specifier on Windows: node reads
+// the drive letter in "C:\..." as a URL scheme and rejects it. pathToFileURL
+// produces the file:// URL the loader wants, on every platform.
+const { LumiDecoder, FRAME_SESSION } = await import(pathToFileURL(decoderPath).href);
 
 const stream = new Uint8Array(readFileSync(join(goldenDir, "stream.bin")));
 const expected = new Uint8Array(readFileSync(join(goldenDir, "expected.bin")));
