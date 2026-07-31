@@ -76,24 +76,28 @@ def test_4a33_is_4a35_minus_upper_arm_tips():
     assert top33 > top35 + 10
 
 
-def test_4a37_is_4a35_plus_upper_arm_extensions():
-    """configs/4A-37: same net as 4A-35 with one strip triangle added past
-    each upper-arm tip (see configs/4A-37.py)."""
-    net35 = Net.from_json_file(CONFIG.parent / "4A-35.json")
+def test_4a37_is_4a33_plus_lower_arm_extensions():
+    """configs/4A-37: same net as 4A-33 with each lower arm extended by
+    two strip triangles (see configs/4A-37.py). Series [6,11,3,11,6]."""
+    import json
+
+    doc = json.loads((CONFIG.parent / "4A-37.json").read_text())
+    assert [len(s) for s in doc["geometry"]["triangles"]] == [6, 11, 3, 11, 6]
+
+    net33 = Net.from_json_file(CONFIG.parent / "4A-33.json")
     net37 = Net.from_json_file(CONFIG.parent / "4A-37.json")
-    assert len(net35.triangles) == 35 and len(net37.triangles) == 37
+    assert len(net33.triangles) == 33 and len(net37.triangles) == 37
 
-    lights35, lights37 = capture(net35), capture(net37)
-    per_triangle = lights35.n // 35
-    assert lights37.n == lights35.n + 2 * per_triangle
+    lights33, lights37 = capture(net33), capture(net37)
+    per_triangle = lights33.n // 33
+    assert lights37.n == lights33.n + 4 * per_triangle
 
-    # The added tips are new topmost material (SVG y-down: smaller
-    # min-y = higher), symmetric about the vertical axis.
-    top35 = lights35.array[:, LightColumns.Y].min()
+    # The blunted top is untouched; the growth is pure wingspan
+    # (one lattice step per side).
+    top33 = lights33.array[:, LightColumns.Y].min()
     top37 = lights37.array[:, LightColumns.Y].min()
-    assert top37 < top35 - 10
-    xs = lights37.array[:, LightColumns.X]
-    ys = lights37.array[:, LightColumns.Y]
-    new_tip = ys < top35 - 1
-    assert new_tip.any()
-    assert abs(float(xs[new_tip].mean())) < 1e-6
+    assert abs(top37 - top33) < 1e-9
+    xs33 = lights33.array[:, LightColumns.X]
+    xs37 = lights37.array[:, LightColumns.X]
+    assert xs37.max() > xs33.max() + 40
+    assert xs37.min() < xs33.min() - 40
