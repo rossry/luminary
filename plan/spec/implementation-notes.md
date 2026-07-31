@@ -176,6 +176,36 @@ under the 33 ms frame budget.
 - Browser client sustains 30 fps at 6,300 polygon lights (canvas, one strip
   decode per channel per frame).
 
+Bitrate study, 2026-07-31 (4A-35 capture with physical addressing —
+controller = 6 consecutive boards, channel = board; 600 frames at 30 fps,
+keyframe interval 60; per-light rates measured at 180 lights/board and
+projected linearly to a controller of six 360-LED boards = 2,160 active,
+valid because a light's temporal statistics don't depend on neighbor
+density):
+
+- Uncapped wire cost across the nine repo patterns: **1.03–2.77
+  B/light·frame** (firelike/plasma_storm low; spiral/wave high). Projected
+  controller stream: 67–180 KB/s, vs 195.7 KB/s for RGB888 full refresh
+  with identical framing (1.1–2.9×) and 130.6 KB/s for
+  keyframe-every-frame.
+- Uncapped, the encoder chases ±1-LSB rounding churn (spiral corrects 92%
+  of lights every frame), so fast wide-field patterns approach keyframe
+  cost; **the budget is the real operating point**: at 4,096 B/frame,
+  spiral drops to 123 KB/s at ΔE_OKLab p95 0.010 (indistinguishable); at
+  2,048 B/frame every repo pattern fits in ≤62.6 KB/s at p95 0.02–0.05,
+  degrading as slight trailing on the fastest lights (error-ranked
+  corrections), never as banding. Keyframes (budget-exempt) amortize to
+  2.2 KB/s at the default 2 s interval; SESSION is ≈4.4 KB once.
+- Color depth: steady-state 6/5/8 round-trip error mean ΔE_OKLab 0.006,
+  max 0.011 (≈1 JND); keyframe instants (5/4/7 truncation) up to 0.032
+  for one frame until deltas restore the low bits. 145,890 of 524,288
+  grid cells (27.8%) are sRGB-representable; the rest is deliberate
+  chroma headroom to C_MAX 0.4 for LED gamuts beyond sRGB. One delta word
+  caps per-frame slew at 0.24 L / 0.09 C / 88.6° H.
+- Finding: `patterns/firelike.py` renders C up to 0.45, which clips at
+  wire C_MAX 0.4 (a constant ~0.05 ΔE on its most saturated lights).
+  Patterns should stay within C ≤ 0.4 (README pattern how-to).
+
 ## 8. Deliberately deferred (with spec anchors)
 
 - **Pentagon `{controller, channel, index}` routing** (review §19.6):
