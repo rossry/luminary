@@ -269,11 +269,17 @@ constexpr int32_t M_LMS2RGB[9] = {66793, -54194, 3784,
                                   -20782, 42758, -5592,
                                   -69,   -11525, 27978};
 
+// M_PI is a POSIX/GNU extension, not standard C++: it is absent under a
+// strict -std=c++17 host build (e.g. MinGW-w64, MSVC). Define it locally so
+// the core compiles on every conformance-test toolchain. The expression in
+// buildTables() is left unchanged, so the tables stay bit-identical.
+constexpr double kPi = 3.14159265358979323846;
+
 void buildTables() {
   if (g_tablesReady) return;
   for (int h = 0; h < 256; h++) {
     g_cos_q14[h] =
-        static_cast<int32_t>(lround(cos(2.0 * M_PI * h / 256.0) * 16384.0));
+        static_cast<int32_t>(lround(cos(2.0 * kPi * h / 256.0) * 16384.0));
   }
   g_cos_q14[256] = g_cos_q14[0];
   for (int i = 0; i < 64; i++) {
