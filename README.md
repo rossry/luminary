@@ -1,17 +1,56 @@
 # Luminary 2.1
 
-A project for Next Year on Luna 2025. Luminary drives a physical light
-installation: a **scaffold** of structural lines carrying individually
-addressable LEDs, colored every frame by a **pattern** and streamed over a
-bit-efficient **wire protocol** to Adafruit Scorpio controllers — or to a
-browser, through the *same* codec, so the demo continuously exercises the
-production path.
+Luminary drives a physical light installation for Next Year on Luna: a
+**scaffold** of structural lines carrying individually addressable LEDs,
+colored every frame by a **pattern** and streamed over a bit-efficient
+**wire protocol** to Adafruit Scorpio controllers — or to a browser, through
+the *same* codec, so the demo continuously exercises the production path.
 
-The authoritative design is **`plan/spec/luminary-2.1-spec.md`** (paragraph-
-numbered; §-references appear throughout the code). Core development is
-managed with [Graphite](https://graphite.dev); contributors can use plain git.
+## Install
 
-## Architecture in one paragraph
+```bash
+git clone https://github.com/rossry/luminary && cd luminary
+pip install -r requirements.txt
+```
+
+Python ≥ 3.11. That's everything for the server, CLI, and web client.
+(Firmware builds need PlatformIO — see `firmware/scorpio/README.md`.)
+
+## Quick start
+
+```bash
+# 1. Turn a scaffold into a lights geometry (where each LED is, on which strip)
+python -m luminary.cli capture --scaffold examples/hex-demo.scaffold.json \
+    -o hex.lights.json
+
+# 2. Render a pattern to a static SVG
+python -m luminary.cli render --lights hex.lights.json --pattern spiral \
+    -t 2.5 -o hex-spiral.svg
+
+# 3. Watch it live: web server + canvas client at http://localhost:8080
+python -m luminary.cli serve --port 8080
+
+# 4. Stream to hardware (Scorpio on USB serial)
+python -m luminary.cli play --lights hex.lights.json --pattern kaleidoscope \
+    --serial /dev/ttyACM0
+
+# 5. No hardware handy? Dry-run the full render+encode pipeline with stats
+python -m luminary.cli play --lights hex.lights.json --pattern ripple --duration 5
+```
+
+For the web UI (`serve`), first save a geometry into the store — easiest via
+the API: `POST /api/scaffolds` with a scaffold JSON, then
+`POST /api/lights/from-scaffold` — then open the page, pick a geometry and a
+pattern, and press Play. The header shows live fps and bytes/light·frame so
+you can watch the codec work.
+
+**Where to read more:** the authoritative design is
+[`plan/spec/luminary-2.1-spec.md`](plan/spec/luminary-2.1-spec.md)
+(paragraph-numbered; `spec §…` references appear throughout the code), and
+[`CLAUDE.md`](CLAUDE.md) indexes the documentation for contributors and
+agents.
+
+## How it works
 
 A **lights geometry** (`*.lights.json`, spec §6) is the canonical per-light
 table: identity `{controller, channel, index}`, kind (active / interpolated /
@@ -24,35 +63,6 @@ byte budget. **Drivers** (spec §12) move those bytes over serial or
 WebSocket; the **Scorpio firmware** (spec §13, `firmware/`) and the **web
 client** (spec §14) decode with bit-identical integer predictors, verified
 against shared golden vectors (`firmware/golden/`).
-
-## Quickstart
-
-```bash
-pip install -r requirements.txt
-
-# Produce a lights geometry from a scaffold (spec §7.2)
-python -m luminary.cli capture --scaffold examples/hex-demo.scaffold.json \
-    -o hex.lights.json
-
-# Static render of a pattern at t=2.5s
-python -m luminary.cli render --lights hex.lights.json --pattern spiral \
-    -t 2.5 -o hex-spiral.svg
-
-# Web server + live canvas client (http://localhost:8080)
-python -m luminary.cli serve --port 8080
-
-# Stream to hardware
-python -m luminary.cli play --lights hex.lights.json --pattern kaleidoscope \
-    --serial /dev/ttyACM0
-
-# Codec dry-run with stats (no output device needed)
-python -m luminary.cli play --lights hex.lights.json --pattern ripple \
-    --duration 5
-```
-
-The web UI (`serve`) lists stored geometries and patterns, plays any pattern
-over the real wire protocol, and shows live bytes/light·frame so you can see
-the dead-reckoning codec work.
 
 ## Web API (spec §15)
 
@@ -109,8 +119,10 @@ node tests/js/test_decoder.mjs        # same vectors, browser decoder
 
 ```bash
 python -m pytest            # includes golden-vector + JS + C++ conformance
-python -m mypy luminary/... --explicit-package-bases
 ```
+
+New code also passes `black` and strict `mypy` — see
+`plan/guidelines/code-quality.md` and `plan/todo/legacy-mypy-debt.md`.
 
 ## Pentagon nets (2.0 heritage)
 
@@ -120,3 +132,9 @@ The pentagon `Net` (Triangles → Facets → Beams) lives on as a *constructor*
 per-light display shapes for the renderers. `main.py` retains the 2.0
 utilities (`svg`, `validate`, `index`) and its `pattern sample`/`preview`
 subcommands now run on the 2.1 engine.
+
+## Contributing
+
+Core development is managed with [Graphite](https://graphite.dev);
+contributors can make PRs with whatever git tooling you like. Start with
+`CLAUDE.md` for the documentation map and `plan/guidelines/` for workflow.
