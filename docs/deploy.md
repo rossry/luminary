@@ -72,7 +72,9 @@ Caddy in front (TLS + basic auth), `/etc/caddy/Caddyfile`:
 
 ```caddyfile
 luminary.example.com {
-    basic_auth {
+    # "basicauth" works on every Caddy v2 (2.8 renamed it basic_auth;
+    # Ubuntu's apt package predates the rename and rejects the new name)
+    basicauth {
         # caddy hash-password
         team $2a$14$REPLACE_WITH_HASH
     }
