@@ -74,3 +74,26 @@ def test_4a33_is_4a35_minus_upper_arm_tips():
     top35 = lights35.array[:, LightColumns.Y].min()
     top33 = lights33.array[:, LightColumns.Y].min()
     assert top33 > top35 + 10
+
+
+def test_4a37_is_4a35_plus_upper_arm_extensions():
+    """configs/4A-37: same net as 4A-35 with one strip triangle added past
+    each upper-arm tip (see configs/4A-37.py)."""
+    net35 = Net.from_json_file(CONFIG.parent / "4A-35.json")
+    net37 = Net.from_json_file(CONFIG.parent / "4A-37.json")
+    assert len(net35.triangles) == 35 and len(net37.triangles) == 37
+
+    lights35, lights37 = capture(net35), capture(net37)
+    per_triangle = lights35.n // 35
+    assert lights37.n == lights35.n + 2 * per_triangle
+
+    # The added tips are new topmost material (SVG y-down: smaller
+    # min-y = higher), symmetric about the vertical axis.
+    top35 = lights35.array[:, LightColumns.Y].min()
+    top37 = lights37.array[:, LightColumns.Y].min()
+    assert top37 < top35 - 10
+    xs = lights37.array[:, LightColumns.X]
+    ys = lights37.array[:, LightColumns.Y]
+    new_tip = ys < top35 - 1
+    assert new_tip.any()
+    assert abs(float(xs[new_tip].mean())) < 1e-6

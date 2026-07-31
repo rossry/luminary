@@ -37,7 +37,7 @@ def seed_store(store_dir: Path) -> List[Dict[str, str]]:
     lights_id = store.save("lights", lights_doc)
     seeded.append({"kind": "lights", "id": lights_id, "name": "hex-demo"})
 
-    for config_name in ("4A-35", "4A-33"):
+    for config_name in ("4A-35", "4A-33", "4A-37"):
         pentagon_config = _CONFIGS / f"{config_name}.json"
         if not pentagon_config.exists():
             continue
