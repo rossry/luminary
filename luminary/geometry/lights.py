@@ -207,14 +207,14 @@ class LightsGeometry:
         mask = (self.ints(LightColumns.CONTROLLER) == controller) & self.control_mask
         return np.flatnonzero(mask)
 
-    def channel_strips(self, controller: int) -> Dict[int, Dict[str, np.ndarray]]:
+    def channel_strips(self, controller: int) -> Dict[int, Dict[str, Any]]:
         """Per-channel strip layout for SESSION frames (spec §11.7.2).
 
         Returns {channel: {"length": int, "kinds": (len,) uint8,
         "weights": (len,) uint8}} where positions not present in the geometry
         are INACTIVE. Weights are quantized to u8 (0..255).
         """
-        out: Dict[int, Dict[str, np.ndarray]] = {}
+        out: Dict[int, Dict[str, Any]] = {}
         rows = self.rows_for_controller(controller)
         channels = self.ints(LightColumns.CHANNEL)[rows]
         indices = self.ints(LightColumns.INDEX)[rows]
@@ -231,7 +231,7 @@ class LightsGeometry:
             w8 = np.clip(np.rint(np.nan_to_num(w, nan=0.0) * 255.0), 0, 255)
             weight_arr[ch_idx] = w8.astype(np.uint8)
             out[channel] = {
-                "length": np.uint16(length),
+                "length": length,
                 "kinds": kind_arr,
                 "weights": weight_arr,
             }
