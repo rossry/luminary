@@ -56,14 +56,26 @@ void loop() {
     Serial.write(outFrame, len);
   }
 
-  // Repaint at most every 15 ms (double buffering is NeoPXL8's job).
+  // Repaint at most every 15 ms (double buffering is NeoPXL8's job). The test
+  // pattern is self-driven, so it repaints on the timer alone; decoded frames
+  // repaint only when new data has landed.
   uint32_t now = millis();
-  if (dirty && decoder.synced() && now - lastShowMs >= 15) {
+  bool testMode = decoder.testPatternActive();
+  bool due = testMode || (dirty && decoder.synced());
+  if (due && now - lastShowMs >= 15) {
     dirty = false;
     lastShowMs = now;
     for (uint8_t channel = 0; channel < 8; channel++) {
-      uint16_t length = decoder.stripRGB(channel, rgbBuffer);
-      for (uint16_t i = 0; i < length && i < MAX_PER_STRIP; i++) {
+      // Bound by the buffer, not by the wire's declared strip length: a
+      // longer strip is clamped here rather than overrunning rgbBuffer.
+      uint16_t length;
+      if (testMode) {
+        length = MAX_PER_STRIP;
+        lumicodec::testPatternRGB(channel, rgbBuffer, length, now);
+      } else {
+        length = decoder.stripRGB(channel, rgbBuffer, MAX_PER_STRIP);
+      }
+      for (uint16_t i = 0; i < length; i++) {
         pixels.setPixelColor(
             (uint32_t)channel * MAX_PER_STRIP + i,
             rgbBuffer[i * 3], rgbBuffer[i * 3 + 1], rgbBuffer[i * 3 + 2]);

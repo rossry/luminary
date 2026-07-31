@@ -141,6 +141,10 @@ bool Decoder::applySession(const uint8_t* payload, size_t len) {
     channel.length = length;
     channel.kinds.resize(length);
     channel.weights.resize(length);
+    // Reserve up front: push_back's doubling would otherwise churn through
+    // several times this much memory on a long strip. length is already
+    // bounded by the frame size checked above.
+    channel.activePositions.reserve(length);
     channel.base = static_cast<uint32_t>(nActive_);
     for (uint16_t i = 0; i < length; i++) {
       channel.kinds[i] = payload[off + i * 2];
@@ -153,6 +157,25 @@ bool Decoder::applySession(const uint8_t* payload, size_t len) {
     channelIds_.push_back(id);
   }
   if (off + 4 > len) return false;
+
+  // Refuse a geometry too large to hold before sizing q_/v_ off it. At 24
+  // bytes per light these are by far the biggest allocations the decoder
+  // makes, and on a 264KB part the failure is not graceful -- it hangs the
+  // board mid-SESSION with USB half-enumerated, needing a physical replug.
+  // Drop to the onboard test pattern instead, so the board stays responsive
+  // and visibly reports that it has no usable geometry.
+  if (nActive_ > MAX_ACTIVE_LIGHTS) {
+    channels_.clear();
+    channelIds_.clear();
+    q_.clear();
+    v_.clear();
+    nActive_ = 0;
+    hasSession_ = false;
+    synced_ = false;
+    testPattern_ = true;
+    return false;
+  }
+
   brightness_ = payload[off];
   colorCorrection_[0] = payload[off + 1];
   colorCorrection_[1] = payload[off + 2];
@@ -161,6 +184,7 @@ bool Decoder::applySession(const uint8_t* payload, size_t len) {
   v_.assign(nActive_ * 3, 0);
   hasSession_ = true;
   synced_ = false;
+  testPattern_ = false;
   return true;
 }
 
@@ -181,6 +205,12 @@ bool Decoder::applyDelta(const uint8_t* payload, size_t len) {
   if (!hasSession_ || len < 2) return false;
   uint16_t nOps = static_cast<uint16_t>(payload[0] | (payload[1] << 8));
   size_t off = 2;
+
+  // Bound the op count before allocating from it. Positions are strictly
+  // ascending and must each be < nActive_, so more ops than active lights is
+  // never valid; without this a frame claiming nOps=65535 asks for ~1MB on a
+  // 264KB part, and the allocation failure aborts the firmware.
+  if (nOps > nActive_) return false;
 
   // Parse ops first (positions ascending), then run the shared frame step.
   std::vector<int32_t> positions(nOps);
@@ -348,15 +378,21 @@ void oklchQ14ToRgb8(int32_t l_q14, int32_t c_q14, int32_t h_88,
   }
 }
 
-uint16_t Decoder::stripRGB(uint8_t id, uint8_t* rgb) const {
+uint16_t Decoder::stripRGB(uint8_t id, uint8_t* rgb, uint16_t maxPixels) const {
   const ChannelState* ch = channel(id);
   if (ch == nullptr) return 0;
   buildTables();
 
+  // Never write past the caller's buffer: ch->length comes from the SESSION
+  // frame and applySession() bounds it only by the frame size, so a strip
+  // longer than the caller's buffer (a real geometry with long runs, or a
+  // garbled-but-CRC-valid SESSION) would otherwise overrun it.
+  const uint16_t limit = ch->length < maxPixels ? ch->length : maxPixels;
+
   // Active slot lookup by strip position (linear scan cursor: positions are
   // ascending, and we walk the strip in order — O(length) total).
   size_t activeCursor = 0;
-  for (uint16_t pos = 0; pos < ch->length; pos++) {
+  for (uint16_t pos = 0; pos < limit; pos++) {
     uint8_t* out = rgb + static_cast<size_t>(pos) * 3;
     uint8_t kind = ch->kinds[pos];
     if (kind == KIND_INACTIVE) {
@@ -390,7 +426,44 @@ uint16_t Decoder::stripRGB(uint8_t id, uint8_t* rgb) const {
     int32_t h_88 = ((hA << 8) + dH * w) & 0xFFFF;
     oklchQ14ToRgb8(l_q14, c_q14, h_88, brightness_, colorCorrection_, out);
   }
-  return ch->length;
+  return limit;
+}
+
+// -------------------------------------------------------- onboard fallback
+
+void testPatternRGB(uint8_t channel, uint8_t* rgb, uint16_t nPixels,
+                    uint32_t timeMs) {
+  buildTables();
+
+  constexpr int32_t SPACING = 12;  // pixels from one bead to the next
+  constexpr int32_t WIDTH = 4;     // lit pixels per bead
+  // Lightness across a bead in Q14: dim leading edge, bright core, short tail,
+  // so the beads read as moving rather than as a static dashed line.
+  constexpr int32_t PROFILE[WIDTH] = {4500, 14000, 11500, 5500};
+  constexpr int32_t CHROMA_Q14 = 5200;  // vivid but inside the OKLCH palette
+
+  static const uint8_t correction[3] = {255, 255, 255};
+
+  // One pixel of travel every 40ms (~25 px/s). Each channel is offset around
+  // the bead lattice so the eight outputs can be told apart on sight -- useful
+  // when what you are checking is that channel N drives the strip you think.
+  const int32_t travel =
+      static_cast<int32_t>((timeMs / 40) % static_cast<uint32_t>(SPACING));
+  const int32_t offset = (travel + static_cast<int32_t>(channel) * 3) % SPACING;
+
+  for (uint16_t i = 0; i < nPixels; i++) {
+    uint8_t* out = rgb + static_cast<size_t>(i) * 3;
+    // + SPACING keeps this non-negative for every i and offset.
+    const int32_t rel = (static_cast<int32_t>(i) + SPACING - offset) % SPACING;
+    if (rel >= WIDTH) {
+      out[0] = out[1] = out[2] = 0;
+      continue;
+    }
+    // Rainbow along the strip (full sweep every 64px), scrolling with time.
+    const int32_t hue =
+        (static_cast<int32_t>(i) * 4 + static_cast<int32_t>(timeMs / 16)) & 255;
+    oklchQ14ToRgb8(PROFILE[rel], CHROMA_Q14, hue << 8, 255, correction, out);
+  }
 }
 
 // ---------------------------------------------------------- outbound frames

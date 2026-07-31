@@ -13,6 +13,27 @@ outputs on GPIO 16–23), spec §13.
    lookup tables (§13.4), applying brightness / color correction (§8.4.3)
 5. Writes NeoPXL8's eight parallel buffers and shows
 6. Sends HELLO on boot and RESYNC on CRC/framing errors (§13.3)
+7. Falls back to an onboard test pattern — rainbow beads running down each
+   strip — when a SESSION declares more lights than the board can hold
+
+## Limits
+
+Sizes that arrive on the wire are treated as untrusted, because exceeding any
+of them on a 264KB part is not a graceful failure:
+
+| Limit | Value | Behaviour when exceeded |
+|---|---|---|
+| Pixels per strip | `MAX_PER_STRIP`, 512 | Clamped; extra pixels stay dark |
+| Active lights per SESSION | `MAX_ACTIVE_LIGHTS`, 4096 | SESSION refused, test pattern runs |
+| DELTA ops per frame | `nActive` | Frame rejected, RESYNC requested |
+
+The active-light ceiling is the binding one: `q_` and `v_` cost 24 bytes per
+light between them, so 4096 lights is ~100KB. A geometry above it is refused
+outright rather than attempted — an allocation failure mid-SESSION hangs the
+board with USB half-enumerated, which takes a physical replug to clear. The
+test pattern is the visible signal that this happened: if the strips show
+running rainbow beads instead of your pattern, the board has no usable
+geometry loaded.
 
 ## Building
 

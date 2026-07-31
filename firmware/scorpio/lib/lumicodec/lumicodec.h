@@ -29,6 +29,13 @@ constexpr uint8_t KIND_INACTIVE = 2;
 constexpr size_t HEADER_SIZE = 13;  // u8 ver, u8 type, u8 ctrl, f64 t, u16 len
 constexpr size_t MAX_FRAME = 16384; // decoded frame ceiling (RAM guard)
 
+// Most active lights a SESSION may declare. q_ and v_ cost 24 bytes per light
+// between them, so 4096 lights is ~100KB of the RP2040's 264KB -- roughly
+// 1.4x the largest planned geometry (8 channels x 360), with room left for
+// NeoPXL8's buffers and the core. A SESSION above this is refused outright
+// rather than attempted: the allocation would fail and hang the board.
+constexpr size_t MAX_ACTIVE_LIGHTS = 4096;
+
 uint16_t crc16(const uint8_t* data, size_t len);
 
 // COBS-decode in[0..len) (no 0x00 inside) into out; returns decoded length,
@@ -53,6 +60,11 @@ class Decoder {
 
   bool hasSession() const { return hasSession_; }
   bool synced() const { return synced_; }
+
+  // True once a SESSION was refused for exceeding MAX_ACTIVE_LIGHTS. The
+  // board has no usable geometry in this state, so the caller should drive
+  // the onboard test pattern instead. Cleared by the next SESSION that fits.
+  bool testPatternActive() const { return testPattern_; }
   bool wantResync() const { return wantResync_; }
   void clearResync() { wantResync_ = false; }
   uint8_t lastFrameType() const { return lastFrameType_; }
@@ -66,9 +78,15 @@ class Decoder {
   uint16_t stripLength(uint8_t channel) const;
 
   // Full-strip gamma sRGB8 with on-device interpolation (spec §13.5) and
-  // brightness/color-correction (spec §8.4.3). rgb must hold 3*stripLength.
-  // Returns the strip length written (0 for unknown channel).
-  uint16_t stripRGB(uint8_t channel, uint8_t* rgb) const;
+  // brightness/color-correction (spec §8.4.3).
+  //
+  // Writes at most maxPixels pixels and needs 3*maxPixels bytes in rgb;
+  // returns the count written, which is 0 for an unknown channel and may be
+  // less than stripLength(channel) if the wire declares a longer strip than
+  // the caller's buffer holds. Callers must size maxPixels to their buffer,
+  // never to the channel length: the length arrives in the SESSION frame and
+  // is bounded only by the frame size, so trusting it overruns the buffer.
+  uint16_t stripRGB(uint8_t channel, uint8_t* rgb, uint16_t maxPixels) const;
 
  private:
   bool decodeFrame(const uint8_t* raw, size_t len);
@@ -88,6 +106,7 @@ class Decoder {
   uint8_t colorCorrection_[3] = {255, 255, 255};
   bool hasSession_ = false;
   bool synced_ = false;
+  bool testPattern_ = false;
   bool wantResync_ = false;
   uint8_t lastFrameType_ = 0xFF;
   double lastT_ = 0.0;
@@ -100,6 +119,17 @@ class Decoder {
 void oklchQ14ToRgb8(int32_t l_q14, int32_t c_q14, int32_t h_88,
                     uint8_t brightness, const uint8_t correction[3],
                     uint8_t out[3]);
+
+// Onboard fallback shown when no usable geometry is loaded: rainbow beads
+// running down the strip. Self-contained -- it needs no SESSION and no host
+// traffic, which is the point, since it exists for the case where the host
+// sent a geometry this board cannot hold.
+//
+// timeMs drives the animation (millis() on the board). Beads are phase-offset
+// per channel so all eight outputs are distinguishable at a glance. Writes
+// exactly nPixels pixels; rgb must hold 3*nPixels bytes.
+void testPatternRGB(uint8_t channel, uint8_t* rgb, uint16_t nPixels,
+                    uint32_t timeMs);
 
 // Build a HELLO frame into out (>= 64 bytes); returns its length (spec §13.3).
 size_t buildHello(uint8_t controller, uint8_t out[64]);
