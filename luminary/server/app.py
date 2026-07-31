@@ -31,17 +31,25 @@ def create_app(
     store_dir: Optional[Path] = None,
     registry: Optional[PatternRegistry] = None,
     uploads_dir: Optional[Path] = None,
+    allow_pattern_upload: bool = True,
 ) -> FastAPI:
+    """Build the app. ``allow_pattern_upload=False`` hard-disables
+    POST /api/patterns (403) — uploads execute in-process (spec §15.5.2), so
+    shared deployments run without them and take patterns from the repo
+    instead (docs/deploy.md)."""
     store_dir = Path(store_dir or "store")
     uploads_dir = Path(uploads_dir or store_dir / "patterns-uploads")
     uploads_dir.mkdir(parents=True, exist_ok=True)
     store = Store(store_dir)
-    registry = registry or default_registry([uploads_dir])
+    registry = registry or default_registry(
+        [uploads_dir] if allow_pattern_upload else []
+    )
 
     app = FastAPI(title="Luminary", version="2.1")
     app.state.store = store
     app.state.registry = registry
     app.state.uploads_dir = uploads_dir
+    app.state.allow_pattern_upload = allow_pattern_upload
 
     # ------------------------------------------------------------------ health
 
@@ -53,6 +61,7 @@ def create_app(
             "status": "ok",
             "protocol_version": PROTOCOL_VERSION,
             "patterns": len(registry.patterns),
+            "pattern_upload": allow_pattern_upload,
         }
 
     # --------------------------------------------------------------- scaffolds
@@ -129,6 +138,12 @@ def create_app(
 
     @app.post("/api/patterns")
     async def upload_pattern(file: UploadFile) -> Dict[str, Any]:
+        if not allow_pattern_upload:
+            raise HTTPException(
+                403,
+                detail="Pattern upload is disabled on this server; add patterns "
+                "to the repository and redeploy (docs/deploy.md)",
+            )
         name = Path(file.filename or "pattern.py").name
         if not name.endswith(".py"):
             raise HTTPException(422, detail="Pattern uploads must be .py files")

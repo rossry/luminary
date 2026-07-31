@@ -41,7 +41,10 @@ def cmd_serve(args: argparse.Namespace) -> int:
 
     if args.seed_demo:
         _seed(Path(args.store))
-    app = create_app(store_dir=Path(args.store))
+    app = create_app(
+        store_dir=Path(args.store),
+        allow_pattern_upload=not args.disable_pattern_upload,
+    )
     uvicorn.run(app, host=args.host, port=args.port, log_level="info")
     return 0
 
@@ -153,6 +156,12 @@ def main(argv: Optional[list] = None) -> int:
         "--seed-demo",
         action="store_true",
         help="Load the demo geometries into the store first (idempotent)",
+    )
+    serve.add_argument(
+        "--disable-pattern-upload",
+        action="store_true",
+        help="403 POST /api/patterns; patterns come from the repo only "
+        "(shared deployments, docs/deploy.md)",
     )
     serve.set_defaults(func=cmd_serve)
 

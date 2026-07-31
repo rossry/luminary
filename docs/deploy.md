@@ -8,15 +8,25 @@ Python (numpy wheels, no system deps, no database); state is one directory
 ## Security model — read this first
 
 Pattern upload (`POST /api/patterns`) **executes arbitrary Python
-in-process** — that is by design (spec §15.5.2, trusted-operator model), and
-it means the server must never be reachable by people you wouldn't hand a
-shell. Pick one:
+in-process** — that is by design (spec §15.5.2, trusted-operator model).
+For shared deployments, run with **`--disable-pattern-upload`** (the unit
+below does): the endpoint 403s server-side, uploads can't execute code no
+matter what sits in front, and patterns ship via `git pull` + restart
+instead. `GET /api/health` reports `"pattern_upload": false` so you can
+verify.
+
+With upload disabled the remaining write surface is geometry JSON only
+(Pydantic-validated data, no code paths). Access control is still worth
+having — anyone who can reach the box can fill the store's disk — so
+prefer one of:
 
 - **Tailscale / WireGuard (recommended):** bind to the tailnet address and
   share the tailnet with the team. Zero exposed ports, no auth to build.
 - **Reverse proxy with auth:** Caddy/nginx in front with basic auth + TLS
   (Caddy example below). The WebSocket (`/api/play`) proxies transparently.
-- Never `--host 0.0.0.0` on a public interface without one of the above.
+
+Only re-enable pattern upload (drop the flag) on a server locked to people
+you would hand a shell.
 
 ## Path 1 — plain VPS (recommended for iteration speed)
 
@@ -46,7 +56,8 @@ After=network.target
 User=luminary
 WorkingDirectory=/opt/luminary/app
 ExecStart=/opt/luminary/venv/bin/python -m luminary.cli \
-    --store /opt/luminary/store serve --host 127.0.0.1 --port 8080
+    --store /opt/luminary/store serve --host 127.0.0.1 --port 8080 \
+    --disable-pattern-upload
 Restart=on-failure
 
 [Install]
@@ -111,6 +122,7 @@ B/light·frame readout confirms the wire codec is doing its job.
 - **CPU:** render+encode measures ~0.8 ms/frame for 2,048 lights
   (implementation-notes §7); each connected viewer runs its own engine, so
   budget roughly one core per handful of simultaneous viewers at 30 fps.
-- **Uploads** land in `store/patterns-uploads/` and survive restarts;
-  repo `patterns/` updates arrive with `git pull` (+ restart on Path 1,
-  rebuild on Path 2).
+- **Patterns** on a locked-down server come from the repo: `git pull` then
+  restart the service picks up new/changed files in `patterns/`. (With
+  upload enabled instead, uploads land in `store/patterns-uploads/` and
+  hot-reload without a restart.)
