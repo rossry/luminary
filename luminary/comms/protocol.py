@@ -32,6 +32,7 @@ FRAME_KEYFRAME = 1
 FRAME_DELTA = 2
 FRAME_HELLO = 3
 FRAME_RESYNC = 4
+FRAME_ACK = 5
 
 # Quantized precision (spec §11.4.1)
 QL_LEVELS = 64  # 6 bits over L in [0, 1]
@@ -137,6 +138,18 @@ def build_frame(frame_type: int, controller: int, t: float, payload: bytes) -> b
     raw += payload
     raw += CRC_STRUCT.pack(crc16(raw))
     return cobs_encode(raw) + b"\x00"
+
+
+def build_ack(controller: int, t: float) -> bytes:
+    """ACK the frame whose header time was ``t`` (spec §11.7.6).
+
+    The acknowledged time rides in this frame's own header ``t`` field, so the
+    ACK carries no payload. Acknowledging ``t`` retires every frame at or
+    before it, which makes a dropped ACK self-correcting: the next one
+    re-establishes the true position rather than leaving the sender's window
+    permanently short.
+    """
+    return build_frame(FRAME_ACK, controller, t, b"")
 
 
 def parse_frame(raw: bytes) -> Tuple[int, int, float, bytes]:

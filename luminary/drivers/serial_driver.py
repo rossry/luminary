@@ -2,14 +2,22 @@
 
 One process, one engine, one port per controller (spec §12.2.4): each frame's
 header names its controller and the driver routes it to that controller's
-port. Inbound bytes are scanned for RESYNC/HELLO frames (spec §13.3). The
+port. Inbound bytes are scanned for RESYNC/HELLO/ACK frames (spec §13.3). The
 driver contains no color or codec logic (spec §12.1.1).
+
+Outbound frames are paced by an acknowledgement window (spec §11.7.6). This
+is not an optimization: the RP2040's USB stack does not apply backpressure
+when its receive buffer backs up, it stops responding altogether, and
+recovering from that needs a physical replug. The window bounds how far ahead
+of the board the sender may run so that state is never reached.
 """
 
 from __future__ import annotations
 
+import struct
 import time
-from typing import Dict, Iterator, Optional, Tuple, Union
+from collections import deque
+from typing import Deque, Dict, Iterator, List, Optional, Tuple, Union
 
 import serial as pyserial
 
@@ -36,6 +44,7 @@ class SerialDriver:
         *,
         baud: int = 2_000_000,
         hello_timeout: float = 2.0,
+        max_in_flight: Optional[int] = 4,
     ) -> None:
         self.engine = engine
         if isinstance(ports, str):
@@ -49,8 +58,15 @@ class SerialDriver:
         self.port_names = ports
         self.baud = baud
         self.hello_timeout = hello_timeout
+        self.max_in_flight = max_in_flight
         self.connections: Dict[int, pyserial.Serial] = {}
         self._splitters: Dict[int, p.FrameSplitter] = {}
+        # Frames written but not yet acknowledged, per controller: (t, sent_at).
+        self._unacked: Dict[int, Deque[Tuple[float, float]]] = {}
+        self._ever_acked: Dict[int, bool] = {}
+        self._last_sent_t: Dict[int, float] = {}
+        self.ack_latencies: List[float] = []
+        self.stalled_ticks = 0
         if engine.codec_config.budget_bytes is None:
             engine.codec_config.budget_bytes = budget_for_baud(baud, engine.fps)
 
@@ -61,6 +77,8 @@ class SerialDriver:
             connection = pyserial.serial_for_url(name, baudrate=self.baud, timeout=0)
             self.connections[controller] = connection
             self._splitters[controller] = p.FrameSplitter()
+            self._unacked[controller] = deque()
+            self._ever_acked[controller] = False
         self._wait_for_hello()
         self._send_session()
 
@@ -106,9 +124,38 @@ class SerialDriver:
 
     def _poll_inbound(self) -> None:
         for controller in self.connections:
-            for frame_type, _, _, _ in self._read_frames(controller):
+            for frame_type, _, t, _ in self._read_frames(controller):
                 if frame_type == p.FRAME_RESYNC:
                     self.engine.request_keyframe()
+                elif frame_type == p.FRAME_ACK:
+                    self._retire(controller, t)
+
+    def _retire(self, controller: int, acked_t: float) -> None:
+        """Retire every frame at or before ``acked_t`` (spec §11.7.6)."""
+        self._ever_acked[controller] = True
+        pending = self._unacked[controller]
+        now = time.monotonic()
+        while pending and pending[0][0] <= acked_t:
+            _, sent_at = pending.popleft()
+            self.ack_latencies.append(now - sent_at)
+
+    # -------------------------------------------------------------- flow control
+
+    def _window_full(self) -> bool:
+        """True if any controller has reached its unacknowledged-frame limit.
+
+        A controller that has never acknowledged anything is exempt: firmware
+        without ACK support would otherwise deadlock the stream after
+        ``max_in_flight`` frames rather than degrading to the old behaviour.
+        """
+        if not self.max_in_flight:
+            return False
+        for controller, pending in self._unacked.items():
+            if not self._ever_acked.get(controller):
+                continue
+            if len(pending) >= self.max_in_flight:
+                return True
+        return False
 
     # ------------------------------------------------------------------ outbound
 
@@ -118,8 +165,20 @@ class SerialDriver:
         body = p.cobs_decode(frame.rstrip(b"\x00"))
         controller = body[2]
         connection = self.connections.get(controller)
-        if connection is not None:
-            connection.write(frame)
+        if connection is None:
+            return
+        connection.write(frame)
+        if not self.max_in_flight:
+            return
+        (t,) = struct.unpack_from("<d", body, 3)
+        pending = self._unacked.setdefault(controller, deque())
+        # A non-monotonic t means the timeline restarted (pattern loop or
+        # seek). Outstanding entries can never be retired by a later ACK
+        # then, so drop them rather than let the window wedge shut.
+        if t < self._last_sent_t.get(controller, float("-inf")):
+            pending.clear()
+        self._last_sent_t[controller] = t
+        pending.append((t, time.monotonic()))
 
     def run(self, duration: Optional[float] = None, start_frame: int = 0) -> None:
         """Blocking stream loop at engine.fps until duration (or forever)."""
@@ -132,9 +191,17 @@ class SerialDriver:
             while duration is None or (time.monotonic() - started) < duration:
                 tick_start = time.monotonic()
                 self._poll_inbound()
-                t = frame_index / self.engine.fps
-                for frame in self.engine.frame(t):
-                    self._route(frame)
+                # Skip the whole tick when the window is full -- do not render
+                # and discard. The encoder models the decoder's state, so
+                # advancing it without sending would desync every subsequent
+                # DELTA. Skipping leaves both ends on the last applied frame,
+                # and the next DELTA is computed correctly from there.
+                if self._window_full():
+                    self.stalled_ticks += 1
+                else:
+                    t = frame_index / self.engine.fps
+                    for frame in self.engine.frame(t):
+                        self._route(frame)
                 frame_index += 1
                 sleep_for = interval - (time.monotonic() - tick_start)
                 if sleep_for > 0:

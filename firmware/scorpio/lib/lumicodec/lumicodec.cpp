@@ -109,8 +109,12 @@ bool Decoder::decodeFrame(const uint8_t* raw, size_t len) {
   if (hasSession_ && controller != controller_ && type != FRAME_SESSION) {
     return true;  // frame for another controller on a shared bus: ignore
   }
+  // Counted here rather than after the switch: a frame the board consumed but
+  // could not apply (an oversized SESSION, say) still occupied its input
+  // buffer, so it must be acknowledged or the sender's window never reopens.
   lastT_ = t;
   lastFrameType_ = type;
+  framesApplied_++;
   switch (type) {
     case FRAME_SESSION:
       controller_ = controller;
@@ -468,12 +472,12 @@ void testPatternRGB(uint8_t channel, uint8_t* rgb, uint16_t nPixels,
 
 // ---------------------------------------------------------- outbound frames
 
-static size_t buildFrame(uint8_t type, uint8_t controller, uint8_t out[64]) {
+static size_t buildFrame(uint8_t type, uint8_t controller, double t,
+                         uint8_t out[64]) {
   uint8_t raw[HEADER_SIZE + 2];
   raw[0] = PROTOCOL_VERSION;
   raw[1] = type;
   raw[2] = controller;
-  double t = 0.0;
   std::memcpy(raw + 3, &t, sizeof(double));
   raw[11] = 0;
   raw[12] = 0;
@@ -486,11 +490,15 @@ static size_t buildFrame(uint8_t type, uint8_t controller, uint8_t out[64]) {
 }
 
 size_t buildHello(uint8_t controller, uint8_t out[64]) {
-  return buildFrame(FRAME_HELLO, controller, out);
+  return buildFrame(FRAME_HELLO, controller, 0.0, out);
 }
 
 size_t buildResync(uint8_t controller, uint8_t out[64]) {
-  return buildFrame(FRAME_RESYNC, controller, out);
+  return buildFrame(FRAME_RESYNC, controller, 0.0, out);
+}
+
+size_t buildAck(uint8_t controller, double t, uint8_t out[64]) {
+  return buildFrame(FRAME_ACK, controller, t, out);
 }
 
 }  // namespace lumicodec

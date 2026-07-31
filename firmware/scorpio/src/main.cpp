@@ -22,7 +22,16 @@
 
 // SCORPIO's eight level-shifted outputs are GPIO 16-23.
 static int8_t PINS[8] = {16, 17, 18, 19, 20, 21, 22, 23};
-static const uint16_t MAX_PER_STRIP = 512;
+// Every show() stages and clocks out this many pixels on all eight outputs
+// regardless of how many the loaded geometry uses, so this constant sets the
+// per-frame cost outright and is the single biggest lever on frame rate:
+// 360 px is 360*24 bits at 1.25 us = 10.8 ms of DMA plus proportional
+// staging, 180 px is half that. Set it to the longest strip actually
+// installed -- overshooting costs frame rate for pixels that do not exist.
+#ifndef LUMINARY_MAX_PER_STRIP
+#define LUMINARY_MAX_PER_STRIP 360
+#endif
+static const uint16_t MAX_PER_STRIP = LUMINARY_MAX_PER_STRIP;
 
 static Adafruit_NeoPXL8 pixels(MAX_PER_STRIP, PINS, NEO_GRB);
 static lumicodec::Decoder decoder;
@@ -31,9 +40,16 @@ static uint8_t serialBuffer[512];
 static uint8_t outFrame[64];
 static bool dirty = false;
 static uint32_t lastShowMs = 0;
+static uint32_t ackedFrames = 0;
 
 void setup() {
   Serial.begin(2000000);
+  // Single-buffered deliberately. Double buffering (begin(true) plus a
+  // split stage()/show()) was measured and gave no frame-rate gain -- the
+  // per-frame CPU cost already exceeds the DMA time, so there is nothing
+  // left to overlap -- and the board wedged under sustained load with it
+  // enabled where the same test had run clean without. Not re-enabled
+  // without a repeat of that overdrive test.
   pixels.begin();
   pixels.show();  // all off
   size_t helloLen = lumicodec::buildHello(LUMINARY_CONTROLLER_ID, outFrame);
@@ -56,13 +72,18 @@ void loop() {
     Serial.write(outFrame, len);
   }
 
-  // Repaint at most every 15 ms (double buffering is NeoPXL8's job). The test
-  // pattern is self-driven, so it repaints on the timer alone; decoded frames
-  // repaint only when new data has landed.
+  // Repaint at most every 15 ms. The test pattern is self-driven, so it
+  // repaints on the timer alone; decoded frames repaint only when new data
+  // has landed.
+  //
+  // canShow() gates on the previous DMA having finished. Without it, show()
+  // busy-waits inside the library (while (sending);) and the loop stops
+  // draining USB for the rest of the transfer. Skipping the repaint instead
+  // costs a frame of latency and keeps the serial side responsive.
   uint32_t now = millis();
   bool testMode = decoder.testPatternActive();
   bool due = testMode || (dirty && decoder.synced());
-  if (due && now - lastShowMs >= 15) {
+  if (due && now - lastShowMs >= 15 && pixels.canShow()) {
     dirty = false;
     lastShowMs = now;
     for (uint8_t channel = 0; channel < 8; channel++) {
@@ -82,6 +103,19 @@ void loop() {
       }
     }
     pixels.show();
+  }
+
+  // Flow control (spec §11.7.6). Acknowledge after the repaint, so an ACK
+  // means a whole consume-and-render cycle finished, not merely that bytes
+  // were parsed -- the sender paces on this, and pacing on decode alone would
+  // let it run ahead of the strips. One ACK per changed count, so an idle
+  // board is silent and a busy one self-limits to its actual loop rate.
+  uint32_t consumed = decoder.framesApplied();
+  if (consumed != ackedFrames) {
+    ackedFrames = consumed;
+    size_t len = lumicodec::buildAck(LUMINARY_CONTROLLER_ID, decoder.lastT(),
+                                     outFrame);
+    Serial.write(outFrame, len);
   }
 }
 

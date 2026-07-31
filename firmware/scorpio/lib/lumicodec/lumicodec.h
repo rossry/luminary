@@ -21,6 +21,7 @@ constexpr uint8_t FRAME_KEYFRAME = 1;
 constexpr uint8_t FRAME_DELTA = 2;
 constexpr uint8_t FRAME_HELLO = 3;
 constexpr uint8_t FRAME_RESYNC = 4;
+constexpr uint8_t FRAME_ACK = 5;
 
 constexpr uint8_t KIND_ACTIVE = 0;
 constexpr uint8_t KIND_INTERPOLATED = 1;
@@ -69,6 +70,11 @@ class Decoder {
   void clearResync() { wantResync_ = false; }
   uint8_t lastFrameType() const { return lastFrameType_; }
   double lastT() const { return lastT_; }
+
+  // Frames consumed from the input stream, whether or not they applied
+  // cleanly. The sketch acknowledges a change in this count, which is what
+  // paces the sender (spec §11.7.6).
+  uint32_t framesApplied() const { return framesApplied_; }
   uint8_t controllerId() const { return controller_; }
 
   size_t nActive() const { return nActive_; }
@@ -110,6 +116,7 @@ class Decoder {
   bool wantResync_ = false;
   uint8_t lastFrameType_ = 0xFF;
   double lastT_ = 0.0;
+  uint32_t framesApplied_ = 0;
 };
 
 // Fixed-point OKLCH -> gamma sRGB8 (spec §13.4). Q14 L/C with an 8.8
@@ -136,5 +143,11 @@ size_t buildHello(uint8_t controller, uint8_t out[64]);
 
 // Build a RESYNC frame into out (>= 64 bytes); returns its length.
 size_t buildResync(uint8_t controller, uint8_t out[64]);
+
+// Build an ACK for the frame whose header time was t (spec §11.7.6). The
+// acknowledged time travels in this frame's own header t field, so the ACK
+// has no payload. Acknowledging t retires every frame at or before it, which
+// is what makes a dropped ACK self-correcting rather than cumulative drift.
+size_t buildAck(uint8_t controller, double t, uint8_t out[64]);
 
 }  // namespace lumicodec
