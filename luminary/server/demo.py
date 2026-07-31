@@ -37,15 +37,18 @@ def seed_store(store_dir: Path) -> List[Dict[str, str]]:
     lights_id = store.save("lights", lights_doc)
     seeded.append({"kind": "lights", "id": lights_id, "name": "hex-demo"})
 
-    pentagon_config = _CONFIGS / "4A-35.json"
-    if pentagon_config.exists():
+    for config_name in ("4A-35", "4A-33"):
+        pentagon_config = _CONFIGS / f"{config_name}.json"
+        if not pentagon_config.exists():
+            continue
         from luminary.geometry.net import Net
         from luminary.geometry.pentagon import capture as pentagon_capture
 
         pentagon = pentagon_capture(Net.from_json_file(pentagon_config))
         pentagon_doc = pentagon.to_file_dict()
-        pentagon_doc["meta"]["name"] = "pentagon-4A-35"
+        name = f"pentagon-{config_name}"
+        pentagon_doc["meta"]["name"] = name
         pentagon_id = store.save("lights", pentagon_doc)
-        seeded.append({"kind": "lights", "id": pentagon_id, "name": "pentagon-4A-35"})
+        seeded.append({"kind": "lights", "id": pentagon_id, "name": name})
 
     return seeded

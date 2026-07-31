@@ -16,6 +16,6 @@ def test_seed_idempotent_and_served(tmp_path):
     app = create_app(store_dir=store_dir)
     with TestClient(app) as client:
         names = {entry["name"] for entry in client.get("/api/lights").json()}
-        assert "hex-demo" in names and "pentagon-4A-35" in names
+        assert {"hex-demo", "pentagon-4A-35", "pentagon-4A-33"} <= names
         scaffolds = client.get("/api/scaffolds").json()
         assert any(entry["name"] == "hex-demo" for entry in scaffolds)

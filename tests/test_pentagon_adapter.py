@@ -56,3 +56,21 @@ def test_capture_identity_is_valid_and_dense(net):
     for ch in range(8):
         indices = np.sort(lights.ints(LightColumns.INDEX)[channels == ch])
         assert np.array_equal(indices, np.arange(indices.size))
+
+
+def test_4a33_is_4a35_minus_upper_arm_tips():
+    """configs/4A-33: same net as 4A-35 with the two upper-arm tip
+    triangles removed (see configs/4A-33.py)."""
+    net35 = Net.from_json_file(CONFIG.parent / "4A-35.json")
+    net33 = Net.from_json_file(CONFIG.parent / "4A-33.json")
+    assert len(net35.triangles) == 35 and len(net33.triangles) == 33
+
+    lights35, lights33 = capture(net35), capture(net33)
+    per_triangle = lights35.n // 35
+    assert lights33.n == lights35.n - 2 * per_triangle
+
+    # The removed tips were the topmost material: the highest remaining
+    # light sits strictly lower (SVG y-down: larger min-y = lower).
+    top35 = lights35.array[:, LightColumns.Y].min()
+    top33 = lights33.array[:, LightColumns.Y].min()
+    assert top33 > top35 + 10
