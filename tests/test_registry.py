@@ -34,6 +34,13 @@ def test_repo_patterns_discovered():
         "tunnel_vision",
         "firelike",
         "plasma_storm",
+        # The look-dev set (2026-07): each explores one axis of the medium.
+        "aurora",
+        "emberfall",
+        "sanctum",
+        "prism",
+        "tidepool",
+        "vespers",
     } <= names
     assert not registry.errors, f"pattern load errors: {registry.errors}"
 
