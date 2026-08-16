@@ -1,5 +1,8 @@
 [tool.mypy]
-python_version = "3.10"
+# 3.12 matches CI and the reference deployment. Must be >= 3.12: current
+# numpy ships PEP 695 `type` statements in its stubs, which mypy rejects
+# outright for older targets (this broke CI on 2026-07-31).
+python_version = "3.12"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true

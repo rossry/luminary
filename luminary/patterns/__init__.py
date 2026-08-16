@@ -1,17 +1,6 @@
-"""Luminary pattern system for animated geometric patterns via SDF."""
+"""Pattern system: contract, helpers, and registry (spec §9)."""
 
-from .base import LuminaryPattern
-from .discovery import discover_patterns, get_pattern_choices, interactive_pattern_selection, get_pattern_or_select
-from .schema import BEAM_ARRAY_COLUMNS, OKLCH_COLUMNS
-from .beam_array import BeamArrayBuilder
+from luminary.patterns.base import Pattern
+from luminary.patterns.registry import PatternRegistry, default_registry
 
-__all__ = [
-    "LuminaryPattern",
-    "discover_patterns", 
-    "get_pattern_choices",
-    "interactive_pattern_selection",
-    "get_pattern_or_select",
-    "BEAM_ARRAY_COLUMNS",
-    "OKLCH_COLUMNS",
-    "BeamArrayBuilder",
-]
+__all__ = ["Pattern", "PatternRegistry", "default_registry"]

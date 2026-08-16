@@ -59,7 +59,7 @@ class TestMainCLI:
                 # Check that save_svg was called with the expected path
                 expected_output = temp_path / "output" / "test_config.svg"
                 mock_net.save_svg.assert_called_once_with(
-                    expected_output, extended=False
+                    expected_output, extended=False, show_vertices=False
                 )
 
     def test_svg_custom_output_path(self):
@@ -108,7 +108,9 @@ class TestMainCLI:
                 main()
 
                 # Check that save_svg was called with custom output path
-                mock_net.save_svg.assert_called_once_with(custom_output, extended=False)
+                mock_net.save_svg.assert_called_once_with(
+                    custom_output, extended=False, show_vertices=False
+                )
 
     def test_svg_config_file_not_found(self, capsys):
         """Test SVG command with non-existent config file."""
@@ -159,7 +161,9 @@ class TestMainCLI:
                 main()
 
                 # Verify the directory creation was handled
-                mock_net.save_svg.assert_called_once_with(output_path, extended=False)
+                mock_net.save_svg.assert_called_once_with(
+                    output_path, extended=False, show_vertices=False
+                )
 
     def test_no_command_shows_help(self, capsys):
         """Test that running without a command shows help."""

@@ -22,6 +22,8 @@ class TestBeam:
             anchor_point=Point(2.5, 0),
             starboard_vector=Vector(5, 0),
             parity=0,
+            face_index=0,
+            facet_index=0,
         )
 
         assert beam.beam_index == 0
@@ -45,6 +47,8 @@ class TestBeam:
             anchor_point=Point(2.5, 0),
             starboard_vector=Vector(5, 0),
             parity=0,
+            face_index=0,
+            facet_index=0,
         )
 
         vertices = beam.vertices
@@ -84,6 +88,8 @@ class TestBeam:
             anchor_point=Point(0, 0),
             starboard_vector=Vector(5, 0),
             parity=0,
+            face_index=0,
+            facet_index=0,
         )
 
         # Forward vector should be perpendicular: (-0, 5) = (0, 5)
@@ -98,6 +104,8 @@ class TestBeam:
             anchor_point=Point(0, 0),
             starboard_vector=Vector(0, 5),
             parity=0,
+            face_index=0,
+            facet_index=0,
         )
 
         # Forward vector should be perpendicular: (-5, 0)
@@ -124,6 +132,8 @@ class TestBeam:
                 anchor_point=Point(0, 0),
                 starboard_vector=Vector(5, 0),
                 parity=parity,
+                face_index=0,
+                facet_index=0,
             )
 
             multiplier = beam.get_fill_color_multiplier()
@@ -143,6 +153,8 @@ class TestBeam:
             anchor_point=Point(0, 0),
             starboard_vector=Vector(5, 0),
             parity=0,  # Bright beam
+            face_index=0,
+            facet_index=0,
         )
 
         adjusted_color = bright_beam._adjust_color_brightness("#FF0000", 1.2)
@@ -173,6 +185,8 @@ class TestBeam:
             anchor_point=Point(0, 0),
             starboard_vector=Vector(5, 0),
             parity=1,  # Dim beam
+            face_index=0,
+            facet_index=0,
         )
 
         adjusted_color = dim_beam._adjust_color_brightness("#0000FF", 0.8)
@@ -201,6 +215,8 @@ class TestBeam:
             anchor_point=Point(0, 0),
             starboard_vector=Vector(5, 0),
             parity=0,  # Bright beam
+            face_index=0,
+            facet_index=0,
         )
 
         svg_elements = beam.get_svg("#FF0000")
@@ -225,6 +241,8 @@ class TestBeam:
             anchor_point=Point(2.5, 0),
             starboard_vector=Vector(5, 0),
             parity=0,
+            face_index=0,
+            facet_index=0,
         )
 
         samples = beam.generate_samples()
@@ -255,6 +273,8 @@ class TestBeam:
             anchor_point=Point(2.5, 0),
             starboard_vector=Vector(5, 0),
             parity=0,
+            face_index=0,
+            facet_index=0,
         )
 
         # Should successfully create beam with appropriate extent selection
@@ -280,6 +300,8 @@ class TestBeam:
                 anchor_point=Point(0, 0),
                 starboard_vector=Vector(5, 0),
                 parity=0,
+                face_index=0,
+                facet_index=0,
             )
 
     def test_beam_point_in_geometry(self):
@@ -295,6 +317,8 @@ class TestBeam:
             anchor_point=Point(5, 0),
             starboard_vector=Vector(10, 0),
             parity=0,
+            face_index=0,
+            facet_index=0,
         )
 
         # Point inside beam should return True
@@ -325,6 +349,8 @@ class TestBeam:
                 anchor_point=Point(1, 0),
                 starboard_vector=Vector(2, 0),
                 parity=i % 2,  # Sequential alternation: 0, 1, 0, 1, 0, 1
+                face_index=0,
+                facet_index=0,
             )
             beams.append(beam)
 
@@ -348,6 +374,8 @@ class TestBeam:
             anchor_point=Point(0, 0),
             starboard_vector=Vector(5, 0),
             parity=0,  # Same parity
+            face_index=0,
+            facet_index=0,
         )
 
         beam2 = Beam(
@@ -357,6 +385,8 @@ class TestBeam:
             anchor_point=Point(0, 0),
             starboard_vector=Vector(5, 0),
             parity=0,  # Same parity
+            face_index=0,
+            facet_index=0,
         )
 
         # Should have same color multiplier

@@ -829,7 +829,8 @@ payload (so the serial reader resynchronizes on corruption). The WS driver sends
 the same buffers as binary messages (no extra framing needed, but kept identical
 for golden-vector reuse).
 
-11.7.2 Frame types: `SESSION` (once at start / on resync), `KEYFRAME`, `DELTA`.
+11.7.2 Frame types: `SESSION` (once at start / on resync), `KEYFRAME`, `DELTA`
+host→device; `HELLO`, `RESYNC`, `ACK` (§11.7.6) device→host.
 The `SESSION` frame uploads, per channel: the count and `index` of ACTIVE lights;
 and the interpolation map — for each INTERPOLATED light, its bounding ACTIVE
 neighbors and weight `w` (u8) (§6.2.3) — and per-controller brightness/color
@@ -846,6 +847,45 @@ carries the budgeted corrections of §11.6 as `(skip run, [corrections])*`.
 used for logging/sync and to let a late joiner recompute), and payload length.
 `t` is authoritative from the server; the firmware does not need a clock for
 correctness (it applies frames as they arrive) but may use `t` for diagnostics.
+
+### 11.7.6 Flow control
+
+11.7.6.1 `ACK` (type 5, device→host) acknowledges consumed frames. The
+acknowledged frame is identified by its header `t`, echoed in the ACK's own
+header `t`; the ACK carries no payload. Acknowledging `t` retires every frame
+at or before it, so a dropped ACK is self-correcting — the next one
+re-establishes the true position instead of leaving the sender permanently
+short. Reusing `t` as the sequence key keeps the header at 13 bytes and the
+golden vectors (§11.9) untouched, since those cover host→device frames only.
+
+11.7.6.2 The device emits at most one ACK per loop iteration, and only when
+its consumed-frame count has changed, so an idle device is silent and a busy
+one self-limits to its true service rate. A frame that was consumed but could
+not be applied — an oversized `SESSION` (§13.7) — is still acknowledged: it
+occupied the input buffer, and withholding the ACK would stall the sender
+with no way to recover.
+
+11.7.6.3 The sender maintains at most `max_in_flight` unacknowledged frames
+per controller (default 4, ≈130 ms of added latency at 30 fps). When the
+window is full it **skips the tick entirely** rather than rendering and
+discarding: the encoder models the decoder's state (§11.8.1), so advancing it
+without transmitting would desync every subsequent `DELTA`. Skipping leaves
+both ends on the last applied frame and the next `DELTA` follows correctly
+from there, needing no keyframe.
+
+11.7.6.4 A controller that has never sent an ACK is exempt from the window,
+so firmware predating this section degrades to unpaced streaming rather than
+deadlocking after `max_in_flight` frames. A non-monotonic `t` (pattern loop or
+seek, §10.4) clears that controller's outstanding entries, since no later ACK
+could ever retire them.
+
+11.7.6.5 Rationale: the RP2040's USB-CDC stack does not apply backpressure
+when its receive buffer backs up — it stops responding to the host entirely,
+and recovery requires physically reconnecting the device. Flow control is
+therefore a correctness requirement of the transport, not a throughput
+optimization. Measured on a Feather SCORPIO: ~117 KiB/s of framing the device
+discards without decoding, ~69 KiB/s decoded and rendered for a 104-active-light
+geometry, and an unrecoverable stall after roughly 4 s of sustained overdrive.
 
 ### 11.8 Codec API
 

@@ -1,5 +1,6 @@
-"""Color handling utilities for Luminary."""
+"""Color subsystem: vectorized conversions plus a scalar parsing Color (spec §8)."""
 
-from .oklch import Color
+from luminary.color import convert
+from luminary.color.color import Color
 
-__all__ = ["Color"]
+__all__ = ["Color", "convert"]

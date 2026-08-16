@@ -1,0 +1,53 @@
+# CI: full pytest (incl. golden-vector + JS + C++ decoder conformance,
+# spec §11.9/§17.2) plus black/mypy on the 2.1 modules. ubuntu-latest ships
+# node and g++, so the cross-language conformance tests run rather than skip
+# — a fresh checkout here would have caught the .gitignore'd-lumicodec loss
+# the moment it was pushed.
+
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: pytest (incl. golden-vector, JS, C++ conformance)
+        run: python -m pytest -q
+
+      - name: black --check (2.1 modules)
+        run: >
+          black --check
+          luminary/geometry/coords.py luminary/geometry/lights.py
+          luminary/geometry/scaffold.py luminary/geometry/capture/
+          luminary/geometry/pentagon/ luminary/color/convert.py
+          luminary/color/color.py luminary/comms/ luminary/engine/
+          luminary/patterns/base.py luminary/patterns/registry.py
+          luminary/patterns/util.py luminary/render/ luminary/server/
+          luminary/drivers/ luminary/cli.py patterns/*.py
+
+      - name: mypy (2.1 modules)
+        run: >
+          python -m mypy
+          luminary/geometry/coords.py luminary/geometry/lights.py
+          luminary/geometry/scaffold.py luminary/geometry/capture/
+          luminary/geometry/pentagon/ luminary/color/convert.py
+          luminary/color/color.py luminary/comms/ luminary/engine/
+          luminary/patterns/base.py luminary/patterns/registry.py
+          luminary/patterns/util.py luminary/render/ luminary/server/
+          luminary/drivers/ luminary/cli.py
+          --explicit-package-bases --follow-imports=silent
