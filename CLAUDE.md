@@ -12,6 +12,7 @@ quick start). Agents start here.
 | `plan/spec/luminary-2.1-spec.md` | **The authoritative design.** Paragraph-numbered; code references it as `spec §…`. §3 is the keep/refactor/rewrite ledger for 2.0 components; §19 records the design-review resolutions. |
 | `plan/spec/implementation-notes.md` | **How the design is realized here.** Component map (module → spec §), the invariants you must not break, the wire-protocol conformance workflow, verified performance numbers, deferred work, sharp edges. Read this before touching engine/codec/geometry code. |
 | `README.md` | Human-facing overview, install, quick start, API table, pattern how-to. |
+| `patterns/README.md` | **The pattern contributor guide**: contract, columns, statelessness idioms, craft rules for the medium, test loop, worked-example reading list. Read it before writing or reviewing any pattern. |
 | `plan/guidelines/collaboration.md` | **Especially important with human developers**: plan first, get approval, draft before writing, test, document in the same commit. |
 | `plan/guidelines/code-quality.md` | Mandatory tooling: `black` immediately after writing; `pytest` + `mypy` together on every change. |
 | `plan/guidelines/developer.md`, `plan/guidelines/version-control.md` | Graphite stacked-branch workflow and naming. |
