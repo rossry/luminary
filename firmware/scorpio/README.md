@@ -147,9 +147,11 @@ need a human until the hardware itself is dead:
 | Host frozen with port open | Outbound writes never block (dropped ACKs are safe — they are cumulative), so the watchdog cannot be tripped by a stuck host |
 | Boards power up after the host | `open()` fails fast only if *no* port opens; stragglers join via the reconnect loop |
 
-The fade-to-black and the watchdog reboot have not been observed on physical
-LEDs yet — the fade is verified only as "board survives the silent period and
-resumes at full brightness", from a host with no strips attached.
+Verified on a physical strip (2026-08-16): the rainbow test pattern, clean
+decoded rendering of a live pattern, and the hold-then-fade — last frame held
+~60 s after the stream stopped, then faded to black. The watchdog reboot is
+the one behaviour not yet observed end-to-end on LEDs, since it requires a
+genuine firmware hang to trigger.
 
 ## Things that did not work
 
