@@ -147,7 +147,7 @@ need a human until the hardware itself is dead:
 | Corrupt frame (CRC/COBS) | Frame dropped, RESYNC, keyframe re-sent |
 | Geometry too big for the board | SESSION refused, rainbow test pattern |
 | Sender overruns the board | ACK window throttles it (spec §11.7.6) |
-| Cable/board drops mid-show | That controller marked down, others continue; reconnect ~1 s, SESSION + keyframe re-sent. Verified live: fault injected mid-stream, 29.9 fps held across the gap |
+| Cable/board drops mid-show | That controller marked down, others continue; reconnect ~1 s, SESSION + keyframe re-sent. Verified single-board (29.9 fps across the gap) and dual-board: 5760 lights on two boards at 29.25 fps, controller 1 faulted mid-stream and back in 1.19 s while controller 0 kept streaming (worst hiccup ~172 ms while the reopen call blocked the loop) |
 | Board reboots, port stays up | Board repeats HELLO until first frame; driver sees mid-session HELLO, re-uploads SESSION |
 | Firmware hangs | Hardware watchdog (8 s) reboots it, then recovery as above — no more physical replug |
 | Host goes silent | Board holds the frame 60 s, then fades to black over ~2 s; resumes instantly on the next frame |

@@ -101,6 +101,27 @@ def synth(
     )
 
 
+def synth_multi(controllers, channels, per_strip, interpolate_every=0):
+    """One geometry spanning several controllers -- the multi-board topology.
+
+    Rows are emitted in canonical (controller, channel, index) order, which
+    the codec and SESSION maps assume.
+    """
+    parts = [
+        synth(channels, per_strip, interpolate_every, controller).array
+        for controller in sorted(controllers)
+    ]
+    array = np.vstack(parts)
+    n = array.shape[0]
+    return LightsGeometry(
+        array=array,
+        display=[None] * n,
+        space=SpaceSpec(authoritative=["xy"]),
+        source={"kind": "synthetic", "note": "bench multi-controller"},
+        meta={"name": f"bench-{len(parts)}x{channels}x{per_strip}"},
+    )
+
+
 # -------------------------------------------------------------------- shared
 
 

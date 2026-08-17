@@ -27,7 +27,10 @@ import neopixel
 
 # ----------------------------- CONFIG -----------------------------
 NUM_PIXELS = 1000       # how many LEDs to drive per output (extra is harmless)
-BRIGHTNESS = 0.02       # 0.0-1.0. Keep modest so you don't overdraw power.
+BRIGHTNESS = 0.6        # 0.0-1.0. Bench setting — fine for a single strip.
+                        # ⚠️ Turn this down before driving the sphere. The documented cap is
+                        # 0.25: "25% keeps 4x 5m @ 60/m down to 18A" — and that budget
+                        # assumed 4 strips, so 8 roughly doubles the draw.
 OUTPUTS    = "all"      # "all" = drive all 8 outputs, or a list like [0] or [0, 3]
 PHASE_SECONDS = 1       # seconds per solid-color phase
 DOT_STEP_SECONDS = 0.04 # how fast the walking dot moves
