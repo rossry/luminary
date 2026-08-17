@@ -62,8 +62,9 @@ BAUD = 2_000_000
 # ------------------------------------------------------------------ geometry
 
 
-def synth(channels: int, per_strip: int, interpolate_every: int = 0,
-          controller: int = 0) -> LightsGeometry:
+def synth(
+    channels: int, per_strip: int, interpolate_every: int = 0, controller: int = 0
+) -> LightsGeometry:
     """N strips of M physical LEDs, laid out as horizontal runs.
 
     ``interpolate_every=2`` makes every other light INTERPOLATED -- the "180
@@ -118,12 +119,20 @@ def flush_boundary(conn, seconds: float = 0.25):
     return p.FrameSplitter()
 
 
-def encode_frames(lights, budget, count, pattern="wave", fps=30.0):
+def encode_frames(lights, budget, count, pattern="wave", fps=30.0, brightness=0.2):
     config = CodecConfig()
+    # Brightness rides in the SESSION frame and is applied in linear space on
+    # the board (spec 8.4.3), so it scales strip current draw ~linearly. It
+    # does not change decode or render cost (same arithmetic either way), so
+    # bench numbers are brightness-independent. Default is dim: these tests
+    # are often run with a live strip attached, and full-white at production
+    # length is a power-supply event, not a measurement.
+    config.brightness = max(1, min(255, round(255 * brightness)))
     if budget:
         config.budget_bytes = budget
-    engine = Engine(lights, default_registry().get(pattern), fps=fps,
-                    codec_config=config)
+    engine = Engine(
+        lights, default_registry().get(pattern), fps=fps, codec_config=config
+    )
     session = list(engine.session_frames())
     frames = []
     for i in range(count):
@@ -191,27 +200,37 @@ def windowed_push(conn, splitter, frames, window, seconds, precomputed_t=None):
         sent += 1
     elapsed = time.perf_counter() - started
     return {
-        "sent": sent, "acked": acked, "resyncs": resyncs,
-        "stalled": stalled, "elapsed": elapsed,
+        "sent": sent,
+        "acked": acked,
+        "resyncs": resyncs,
+        "stalled": stalled,
+        "elapsed": elapsed,
         "fps": sent / elapsed if elapsed else 0.0,
         "latencies": sorted(latencies),
     }
 
 
 def report(stats, mean_bytes=None):
-    print(f"  frames pushed  : {stats['sent']} in {stats['elapsed']:.1f}s "
-          f"= {stats['fps']:.1f} fps")
+    print(
+        f"  frames pushed  : {stats['sent']} in {stats['elapsed']:.1f}s "
+        f"= {stats['fps']:.1f} fps"
+    )
     if mean_bytes:
         rate = stats["sent"] * mean_bytes / stats["elapsed"] / 1024
-        print(f"  throughput     : {rate:.1f} KiB/s "
-              f"(mean frame {mean_bytes:.0f} B)")
-    print(f"  RESYNC         : {stats['resyncs']}"
-          f"{'   WRITE STALLED' if stats['stalled'] else ''}")
+        print(
+            f"  throughput     : {rate:.1f} KiB/s " f"(mean frame {mean_bytes:.0f} B)"
+        )
+    print(
+        f"  RESYNC         : {stats['resyncs']}"
+        f"{'   WRITE STALLED' if stats['stalled'] else ''}"
+    )
     lat = stats["latencies"]
     if lat:
-        print(f"  ACK rtt        : n={len(lat)} "
-              f"median={statistics.median(lat):.2f}ms "
-              f"p95={lat[int(len(lat) * 0.95) - 1]:.2f}ms max={lat[-1]:.2f}ms")
+        print(
+            f"  ACK rtt        : n={len(lat)} "
+            f"median={statistics.median(lat):.2f}ms "
+            f"p95={lat[int(len(lat) * 0.95) - 1]:.2f}ms max={lat[-1]:.2f}ms"
+        )
     else:
         print("  ACK rtt        : no ACKs seen (firmware predates spec 11.7.6?)")
 
@@ -233,32 +252,41 @@ def open_and_session(port, session, settle=0.5):
 def cmd_geometry(args):
     lights = synth(args.channels, args.per_strip, args.interpolate_every)
     active = int(lights.control_mask.sum())
-    print(f"{lights.meta['name']}: n={lights.n} active={active} "
-          f"interpolated={lights.n - active}")
-    session, frames = encode_frames(lights, args.budget, 60)
+    print(
+        f"{lights.meta['name']}: n={lights.n} active={active} "
+        f"interpolated={lights.n - active}"
+    )
+    session, frames = encode_frames(lights, args.budget, 60, brightness=args.brightness)
     mean = sum(len(f) for f in frames) / max(1, len(frames))
-    print(f"  session {len(session)} frame(s), "
-          f"{sum(len(f) for f in session)} bytes")
-    print(f"  steady-state mean frame: {mean:.0f} bytes "
-          f"({mean * 30 / 1024:.1f} KiB/s at 30fps)")
+    print(
+        f"  session {len(session)} frame(s), " f"{sum(len(f) for f in session)} bytes"
+    )
+    print(
+        f"  steady-state mean frame: {mean:.0f} bytes "
+        f"({mean * 30 / 1024:.1f} KiB/s at 30fps)"
+    )
     return 0
 
 
 def cmd_capability(args):
     lights = synth(args.channels, args.per_strip, args.interpolate_every)
     active = int(lights.control_mask.sum())
-    print(f"geometry: n={lights.n} active={active} "
-          f"({args.channels}x{args.per_strip})")
-    session, frames = encode_frames(lights, args.budget, args.precount)
+    print(
+        f"geometry: n={lights.n} active={active} " f"({args.channels}x{args.per_strip})"
+    )
+    session, frames = encode_frames(
+        lights, args.budget, args.precount, brightness=args.brightness
+    )
     mean = sum(len(f) for f in frames) / max(1, len(frames))
     times = [frame_t(f) for f in frames]
-    print(f"  {len(frames)} frames encoded, mean {mean:.0f} bytes, "
-          f"window={args.window}\n")
+    print(
+        f"  {len(frames)} frames encoded, mean {mean:.0f} bytes, "
+        f"window={args.window}\n"
+    )
 
     conn, splitter = open_and_session(args.port, session)
     try:
-        stats = windowed_push(conn, splitter, frames, args.window,
-                              args.seconds, times)
+        stats = windowed_push(conn, splitter, frames, args.window, args.seconds, times)
     finally:
         conn.close()
 
@@ -267,8 +295,10 @@ def cmd_capability(args):
     alive = still_alive(args.port)
     print(f"  board alive    : {'yes' if alive else 'NO -- wedged'}")
     headroom = stats["fps"] / args.target
-    print(f"\n  vs {args.target:.0f} fps target: {headroom:.2f}x "
-          f"({'PASS' if headroom >= 1.0 and alive else 'SHORT'})")
+    print(
+        f"\n  vs {args.target:.0f} fps target: {headroom:.2f}x "
+        f"({'PASS' if headroom >= 1.0 and alive else 'SHORT'})"
+    )
     return 0 if headroom >= 1.0 and alive else 1
 
 
@@ -278,19 +308,20 @@ def cmd_overdrive(args):
     frames, start = [], 0
     for i, byte in enumerate(stream):
         if byte == 0:
-            frames.append(stream[start:i + 1])
+            frames.append(stream[start : i + 1])
             start = i + 1
     times = [frame_t(f) for f in frames]
-    print(f"overdrive: {len(frames)} golden frames on repeat, "
-          f"window={args.window}, {args.seconds:.0f}s")
+    print(
+        f"overdrive: {len(frames)} golden frames on repeat, "
+        f"window={args.window}, {args.seconds:.0f}s"
+    )
     print("  (this is the test that wedged the board before flow control)\n")
 
     conn = serial.Serial(args.port, baudrate=BAUD, timeout=0, write_timeout=2.0)
     try:
         time.sleep(0.3)
         splitter = flush_boundary(conn)
-        stats = windowed_push(conn, splitter, frames, args.window,
-                              args.seconds, times)
+        stats = windowed_push(conn, splitter, frames, args.window, args.seconds, times)
     finally:
         conn.close()
 
@@ -298,7 +329,9 @@ def cmd_overdrive(args):
     alive = still_alive(args.port)
     print(f"  board alive    : {'yes' if alive else 'NO -- wedged, needs replug'}")
     ok = alive and not stats["stalled"]
-    print(f"\n  {'PASS: window held' if ok else 'FAIL: window did not protect the board'}")
+    print(
+        f"\n  {'PASS: window held' if ok else 'FAIL: window did not protect the board'}"
+    )
     return 0 if ok else 1
 
 
@@ -308,20 +341,25 @@ def cmd_sweep(args):
     print(f"geometry: n={lights.n} active={int(lights.control_mask.sum())}")
     print(f"\n  budget   mean frame   fps    ACK rtt median   RESYNC")
     for budget in budgets:
-        session, frames = encode_frames(lights, budget, args.precount)
+        session, frames = encode_frames(
+            lights, budget, args.precount, brightness=args.brightness
+        )
         mean = sum(len(f) for f in frames) / max(1, len(frames))
         times = [frame_t(f) for f in frames]
         conn, splitter = open_and_session(args.port, session)
         try:
-            stats = windowed_push(conn, splitter, frames, args.window,
-                                  args.seconds, times)
+            stats = windowed_push(
+                conn, splitter, frames, args.window, args.seconds, times
+            )
         finally:
             conn.close()
         lat = stats["latencies"]
         med = statistics.median(lat) if lat else float("nan")
-        print(f"  {budget:6d}   {mean:9.0f}B   {stats['fps']:5.1f}  "
-              f"{med:13.2f}ms   {stats['resyncs']:4d}"
-              f"{'  STALLED' if stats['stalled'] else ''}")
+        print(
+            f"  {budget:6d}   {mean:9.0f}B   {stats['fps']:5.1f}  "
+            f"{med:13.2f}ms   {stats['resyncs']:4d}"
+            f"{'  STALLED' if stats['stalled'] else ''}"
+        )
         if not still_alive(args.port):
             print("  board wedged -- stopping sweep")
             return 1
@@ -329,8 +367,9 @@ def cmd_sweep(args):
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__,
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     sub = ap.add_subparsers(dest="cmd", required=True)
 
     def common(q, hardware=True):
@@ -343,6 +382,12 @@ def main() -> int:
         q.add_argument("--interpolate-every", type=int, default=0)
         q.add_argument("--budget", type=int, default=800)
         q.add_argument("--precount", type=int, default=200)
+        q.add_argument(
+            "--brightness",
+            type=float,
+            default=0.2,
+            help="0..1 output scale; ~linear in strip current draw",
+        )
 
     q = sub.add_parser("capability", help="board fps ceiling and true ACK rtt")
     common(q)

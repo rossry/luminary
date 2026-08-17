@@ -77,10 +77,17 @@ domain and the PIO strip timing is derived from the real clock, so both are
 unaffected — but if a board misbehaves after a flash, the overclock is the
 first thing to back out):
 
-| Config | Board ceiling 133 MHz | 200 MHz | Driver fps | Budget settles at |
-|---|---|---|---|---|
-| 6 x 360 all-ACTIVE | 39.1 | 70.2 | 29.99 | 1527 |
-| 8 x 360 all-ACTIVE | 29.3 | 55.5 | 29.93 | 1357 |
+| Config | Ceiling 133 MHz | 200 MHz | + direct writes | Driver fps | Budget settles at |
+|---|---|---|---|---|---|
+| 6 x 360 all-ACTIVE | 39.1 | 70.2 | 72.6 | 29.99 | 1527 |
+| 8 x 360 all-ACTIVE | 29.3 | 55.5 | 58.4 | 29.93 | 1357 |
+
+The render loop writes NeoPXL8's pixel buffer directly (one swizzle-copy per
+pixel) instead of a `setPixelColor()` call per pixel. Strip byte order is the
+`LUMINARY_COLOR_ORDER` build flag (default `NEO_GRB`, correct for WS2812B) —
+verified against the physical strip with `firmware/tools/color_cycle.py`,
+which cycles firmware-intended solid R→G→B so a wrong order is visible as a
+permuted sequence. Verified before and after the direct-write change.
 
 The overclock compounds with the adaptive budget (spec §11.7.6.6): the
 controller spends the extra service headroom on ~3x richer DELTA frames

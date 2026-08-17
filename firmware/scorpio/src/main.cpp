@@ -33,7 +33,14 @@ static int8_t PINS[8] = {16, 17, 18, 19, 20, 21, 22, 23};
 #endif
 static const uint16_t MAX_PER_STRIP = LUMINARY_MAX_PER_STRIP;
 
-static Adafruit_NeoPXL8 pixels(MAX_PER_STRIP, PINS, NEO_GRB);
+// Strip byte order, as a build flag so a differing batch is a rebuild and
+// not a code change. Verified against the physical strip by the solid-colour
+// cycle (firmware-intended R->G->B observed as R->G->B): WS2812B is GRB.
+// If a strip shows red and green swapped, it wants -DLUMINARY_COLOR_ORDER=NEO_RGB.
+#ifndef LUMINARY_COLOR_ORDER
+#define LUMINARY_COLOR_ORDER NEO_GRB
+#endif
+static Adafruit_NeoPXL8 pixels(MAX_PER_STRIP, PINS, LUMINARY_COLOR_ORDER);
 static lumicodec::Decoder decoder;
 static uint8_t rgbBuffer[MAX_PER_STRIP * 3];
 static uint8_t serialBuffer[512];
@@ -164,13 +171,24 @@ void loop() {
       } else {
         length = decoder.stripRGB(channel, rgbBuffer, MAX_PER_STRIP);
       }
+      // Write the pixel buffer directly rather than one setPixelColor()
+      // call per pixel -- at 8x360 that was 2880 calls per frame of offset
+      // math and bounds checks. The base class stores raw bytes in strip
+      // order (its brightness member stays 0 = no scaling; NeoPXL8 applies
+      // its own brightness during stage()), so this swizzle-copy stores
+      // exactly what setPixelColor stored. The channel offsets come from
+      // the library's own encoding of the neoPixelType constant.
       const uint32_t scale = fadeScale;  // 256 is exact identity (x*256>>8)
+      constexpr uint8_t R_OFF = (LUMINARY_COLOR_ORDER >> 4) & 0b11;
+      constexpr uint8_t G_OFF = (LUMINARY_COLOR_ORDER >> 2) & 0b11;
+      constexpr uint8_t B_OFF = LUMINARY_COLOR_ORDER & 0b11;
+      uint8_t* out = pixels.getPixels() +
+                     (uint32_t)channel * MAX_PER_STRIP * 3;
       for (uint16_t i = 0; i < length; i++) {
-        pixels.setPixelColor(
-            (uint32_t)channel * MAX_PER_STRIP + i,
-            (uint8_t)((rgbBuffer[i * 3] * scale) >> 8),
-            (uint8_t)((rgbBuffer[i * 3 + 1] * scale) >> 8),
-            (uint8_t)((rgbBuffer[i * 3 + 2] * scale) >> 8));
+        out[R_OFF] = (uint8_t)((rgbBuffer[i * 3] * scale) >> 8);
+        out[G_OFF] = (uint8_t)((rgbBuffer[i * 3 + 1] * scale) >> 8);
+        out[B_OFF] = (uint8_t)((rgbBuffer[i * 3 + 2] * scale) >> 8);
+        out += 3;
       }
     }
     pixels.show();
