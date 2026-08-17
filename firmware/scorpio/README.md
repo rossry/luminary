@@ -70,14 +70,22 @@ alive after each.
 
 ## Performance
 
-**30 fps at 6 x 360 is met**, end to end through `SerialDriver`, all lights
-ACTIVE, zero RESYNC and zero window stalls:
+**30 fps is met with headroom to spare**, end to end through `SerialDriver`,
+all lights ACTIVE, zero RESYNC and zero window stalls. The board runs at
+200 MHz (`board_build.f_cpu` in `platformio.ini`; USB has its own 48 MHz
+domain and the PIO strip timing is derived from the real clock, so both are
+unaffected — but if a board misbehaves after a flash, the overclock is the
+first thing to back out):
 
-| Config | Board ceiling | Through the driver |
-|---|---|---|
-| 6 x 360 all-ACTIVE | 39.1 fps | 29.91 fps |
-| 6 x 360 every-other INTERPOLATED | — | 30.00 fps |
-| 8 x 360 all-ACTIVE | 29.3 fps | 29.38 fps |
+| Config | Board ceiling 133 MHz | 200 MHz | Driver fps | Budget settles at |
+|---|---|---|---|---|
+| 6 x 360 all-ACTIVE | 39.1 | 70.2 | 29.99 | 1527 |
+| 8 x 360 all-ACTIVE | 29.3 | 55.5 | 29.93 | 1357 |
+
+The overclock compounds with the adaptive budget (spec §11.7.6.6): the
+controller spends the extra service headroom on ~3x richer DELTA frames
+rather than frame rate, with no configuration. At 133 MHz the same runs
+settled at 512 and 384 bytes.
 
 Getting there took four fixes, two of them worth more than the rest:
 
