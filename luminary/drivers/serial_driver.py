@@ -100,8 +100,23 @@ class SerialDriver:
         # How early _pace stops sleeping and starts spinning. 2 ms covers
         # the residual jitter once the 1 ms timer period is granted.
         self._pace_slack = 0.002
-        if engine.codec_config.budget_bytes is None:
-            engine.codec_config.budget_bytes = budget_for_baud(baud, engine.fps)
+        # Adaptive DELTA budget (spec §11.7.6.6). budget_for_baud answers
+        # "what can the LINK carry", but the binding limit is what the BOARD
+        # can decode and repaint at frame rate -- a Feather SCORPIO digests a
+        # baud-sized 5333-byte frame in ~86 ms, less than 12 fps. The
+        # sustainable size depends on geometry and hardware, so rather than
+        # hardcode one measurement, the driver finds it: window stalls mean
+        # the board is behind, so shrink multiplicatively; sustained clean
+        # ticks grow it additively back toward the link-rate ceiling. An
+        # explicitly configured budget is respected and never adapted.
+        self._budget_auto = engine.codec_config.budget_bytes is None
+        self._budget_cap = budget_for_baud(baud, engine.fps)
+        if self._budget_auto:
+            engine.codec_config.budget_bytes = min(512, self._budget_cap)
+        self._adapt_ticks = 0
+        self._adapt_last_stalls = 0
+        self._adapt_last_ack_idx = 0
+        self._adapt_clean_intervals = 0
 
     # --------------------------------------------------------------- lifecycle
 
@@ -190,6 +205,49 @@ class SerialDriver:
                 return True
         return False
 
+    def _adapt_budget(self) -> None:
+        """AIMD control of the DELTA byte budget (spec §11.7.6.6).
+
+        Runs once per second of ticks. Two overload signals, because
+        saturation shows up in different places depending on where it bites:
+
+        * a skipped tick (window full) — the board is behind and the window
+          caught it;
+        * median ACK round trip above the frame interval — the board takes
+          longer to service a frame than the frame rate allows. This is the
+          one that actually fires in practice: serial writes block when the
+          OS buffer backs up, ACKs arrive *during* the blocked write, and so
+          the window never fills — frame rate just quietly sinks. RTT
+          measures the service time directly and cannot be masked that way.
+
+        Either shrinks the budget by a quarter. Growth needs two consecutive
+        clean seconds with the median RTT under 70% of the interval — the
+        band between 70% and 100% deliberately holds steady. The encoder
+        reads the budget fresh on every DELTA and DELTA frames are
+        self-describing, so decoders never notice it moving.
+        """
+        if not self._budget_auto:
+            return
+        self._adapt_ticks += 1
+        if self._adapt_ticks < max(1, int(self.engine.fps)):
+            return
+        self._adapt_ticks = 0
+        stalls = self.stalled_ticks - self._adapt_last_stalls
+        self._adapt_last_stalls = self.stalled_ticks
+        recent = self.ack_latencies[self._adapt_last_ack_idx :]
+        self._adapt_last_ack_idx = len(self.ack_latencies)
+        median_rtt = sorted(recent)[len(recent) // 2] if recent else None
+        interval = 1.0 / self.engine.fps
+        budget = int(self.engine.codec_config.budget_bytes or 64)
+        if stalls > 0 or (median_rtt is not None and median_rtt > interval):
+            self._adapt_clean_intervals = 0
+            budget = max(64, (budget * 3) // 4)
+        elif median_rtt is None or median_rtt < 0.7 * interval:
+            self._adapt_clean_intervals += 1
+            if self._adapt_clean_intervals >= 2:
+                budget = min(self._budget_cap, budget + max(64, budget // 8))
+        self.engine.codec_config.budget_bytes = budget
+
     # ------------------------------------------------------------------ outbound
 
     def _route(self, frame: bytes) -> None:
@@ -216,16 +274,26 @@ class SerialDriver:
         pending.append((t, time.monotonic()))
 
     def _pace(self, deadline: float) -> None:
-        """Wait until ``deadline``, accurately.
+        """Wait until ``deadline``, accurately, polling inbound while at it.
 
         ``time.sleep`` alone cannot pace 30 fps on Windows: the default system
         timer granularity is ~15.6 ms, so a requested 20 ms sleep returns after
         ~31 ms and the loop settles around 24 fps no matter how fast the board
-        is. Sleep to within a slack margin, then spin the remainder.
+        is. Sleep in short slices to within a slack margin, then spin the
+        remainder.
+
+        The slices matter beyond accuracy: inbound is polled between them, so
+        an ACK is seen within ~2 ms of arriving. Polling only once per tick
+        quantizes every measured round trip up to a full frame interval, which
+        blinds the budget controller (§11.7.6.6) — a fast board reads as
+        border-line and the growth path becomes unreachable.
         """
-        remaining = deadline - time.monotonic()
-        if remaining > self._pace_slack:
-            time.sleep(remaining - self._pace_slack)
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= self._pace_slack:
+                break
+            self._poll_inbound()
+            time.sleep(min(0.002, remaining - self._pace_slack))
         while time.monotonic() < deadline:
             pass
 
@@ -253,6 +321,7 @@ class SerialDriver:
                     for frame in self.engine.frame(t):
                         self._route(frame)
                 frame_index += 1
+                self._adapt_budget()
                 self._pace(tick_start + interval)
         finally:
             if timer_raised:

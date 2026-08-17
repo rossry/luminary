@@ -887,6 +887,24 @@ optimization. Measured on a Feather SCORPIO: ~117 KiB/s of framing the device
 discards without decoding, ~69 KiB/s decoded and rendered for a 104-active-light
 geometry, and an unrecoverable stall after roughly 4 s of sustained overdrive.
 
+11.7.6.6 The window doubles as the feedback for budget adaptation. The §11.6.1
+baud math answers what the *link* can carry, but the binding limit is what the
+*device* can decode and repaint at frame rate, which varies by geometry and
+hardware. When the sender fills its budget from the link rate alone (a
+`SerialDriver` whose caller did not set `budget_bytes`), it instead starts
+small and adapts on two overload signals: a skipped tick (window full,
+§11.7.6.3), and a median ACK round trip exceeding the frame interval. The
+second signal is essential, not redundant — when serial writes block on a
+backed-up OS buffer, ACKs arrive during the blocked write and the window
+never fills, so frame rate sinks with no stall ever recorded; the round trip
+measures device service time directly and cannot be masked that way. Either
+signal shrinks the budget multiplicatively; sustained clean operation with
+round trips comfortably inside the interval grows it additively back toward
+the §11.6.1 ceiling. DELTA frames are self-describing, so the
+budget may move mid-session without decoders noticing (§11.8.2's "the server
+tunes only budget/cadence" is understood to include tuning *within* a
+session). An explicitly configured budget is never adapted.
+
 ### 11.8 Codec API
 
 11.8.1 `Encoder(lights, config)` → `.session_frame()`, `.keyframe(oklch)`,

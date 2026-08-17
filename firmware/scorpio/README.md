@@ -99,10 +99,23 @@ Getting there took four fixes, two of them worth more than the rest:
 Per-frame cost scales as roughly **10 ms fixed + 3 ms per 360-px channel** —
 the fixed part is the DMA (360 px x 24 bits x 1.25 us = 10.8 ms).
 
-`budget_for_baud` still derives the per-frame budget from the link rate, not
-from what the board can consume: at 2 Mbaud/30 fps it asks for 5333 bytes,
-which the board cannot digest at frame rate (12.4 fps measured). Pass an
-explicit `budget_bytes` of ~800 until that is fixed.
+When the caller does not set `budget_bytes`, `SerialDriver` finds the
+sustainable per-frame budget itself (spec §11.7.6.6): it starts at 512 and
+adapts each second — shrinking when the window stalls **or** the median ACK
+round trip exceeds the frame interval, growing only when round trips sit
+comfortably inside it. The RTT signal is the essential one: serial writes
+block when the OS buffer backs up, ACKs arrive during the blocked write, and
+the window never fills — so frame rate can sink without a single stall being
+recorded. Measured, default config, 30 s each:
+
+| Geometry | fps | Budget settled at |
+|---|---|---|
+| 1 x 48 (hex-sized) | 29.99 | 5333 (the link-rate cap) |
+| 6 x 360 | 29.89 | 512 |
+| 8 x 360 | 29.69 | 384 |
+
+An explicitly configured `budget_bytes` is respected and never adapted —
+`firmware/tools/bench.py` relies on that for reproducible measurements.
 
 Note that "180 on the wire, 360 on the strip" (every other light
 INTERPOLATED) buys almost nothing — 28.4 fps against 27.8 before the int32
