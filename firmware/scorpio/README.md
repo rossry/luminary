@@ -130,6 +130,27 @@ INTERPOLATED) buys almost nothing — 28.4 fps against 27.8 before the int32
 work. It halves wire size and decode cost, but DMA and per-pixel colour
 conversion scale with *physical* LEDs.
 
+## Failure behaviour
+
+Every failure mode has a defined degradation (spec §11.7.7); none of them
+need a human until the hardware itself is dead:
+
+| Event | Behaviour |
+|---|---|
+| Corrupt frame (CRC/COBS) | Frame dropped, RESYNC, keyframe re-sent |
+| Geometry too big for the board | SESSION refused, rainbow test pattern |
+| Sender overruns the board | ACK window throttles it (spec §11.7.6) |
+| Cable/board drops mid-show | That controller marked down, others continue; reconnect ~1 s, SESSION + keyframe re-sent. Verified live: fault injected mid-stream, 29.9 fps held across the gap |
+| Board reboots, port stays up | Board repeats HELLO until first frame; driver sees mid-session HELLO, re-uploads SESSION |
+| Firmware hangs | Hardware watchdog (8 s) reboots it, then recovery as above — no more physical replug |
+| Host goes silent | Board holds the frame 60 s, then fades to black over ~2 s; resumes instantly on the next frame |
+| Host frozen with port open | Outbound writes never block (dropped ACKs are safe — they are cumulative), so the watchdog cannot be tripped by a stuck host |
+| Boards power up after the host | `open()` fails fast only if *no* port opens; stragglers join via the reconnect loop |
+
+The fade-to-black and the watchdog reboot have not been observed on physical
+LEDs yet — the fade is verified only as "board survives the silent period and
+resumes at full brightness", from a host with no strips attached.
+
 ## Things that did not work
 
 Recorded so they are not retried blindly. Both are attempts to overlap the

@@ -905,6 +905,39 @@ budget may move mid-session without decoders noticing (§11.8.2's "the server
 tunes only budget/cadence" is understood to include tuning *within* a
 session). An explicitly configured budget is never adapted.
 
+### 11.7.7 Recovery
+
+11.7.7.1 Faults degrade per controller, not per stream: a serial error on one
+port marks that controller down while the others continue, with reconnection
+attempted about once per second. Writes carry a timeout so a device that
+stops draining its buffer reads as a fault rather than hanging the sender. If
+no port opens at startup the sender fails fast (probable misconfiguration);
+if at least one opens, the rest go to the reconnect loop, since boards may
+power up after the host.
+
+11.7.7.2 A device that lost its decoder state can never resynchronize from
+DELTAs, or even KEYFRAMEs — it needs its `SESSION` again. The sender
+therefore re-uploads `SESSION` and requests a keyframe (a) whenever a
+controller reconnects, and (b) whenever it sees a `HELLO` mid-session, which
+means the device rebooted while the port stayed up. This is why the device
+repeats `HELLO` until its first frame arrives (§13.3): the repetition is what
+makes an in-place reboot detectable at all. Mid-session re-uploads are
+throttled (~1 s) because several boot HELLOs may already be in flight when
+the `SESSION` lands.
+
+11.7.7.3 The device defends itself three ways. A hardware watchdog (~8 s,
+far above any legitimate loop iteration) turns a firmware hang into a reboot,
+which the sender heals via 11.7.7.2 — end-to-end automatic recovery instead
+of a physical replug. Outbound writes never block: USB-CDC writes can stall
+when a frozen host keeps the port open without reading, and a blocked write
+would starve the loop and trip the watchdog for no fault of the device's;
+dropping is safe because ACKs are cumulative (§11.7.6.1) and HELLO/RESYNC
+repeat by design. And after 60 s without a frame the device fades its output
+to black over ~2 s — a crashed server otherwise leaves the last frame lit
+indefinitely, indistinguishable from working, at full power draw. Output
+resumes at full brightness on the next frame. The test pattern is *not* used
+for silence: it keeps its single meaning, "no usable geometry loaded".
+
 ### 11.8 Codec API
 
 11.8.1 `Encoder(lights, config)` → `.session_frame()`, `.keyframe(oklch)`,
