@@ -101,9 +101,16 @@ class MyPattern(Pattern):
 
 Rules (spec §9.1): vectorized NumPy only, and **stateless** — output depends
 only on `(lights, t)`; use `luminary.patterns.util.seeded_random` for
-per-entity constants. Upload via `POST /api/patterns` or drop the file in
-`patterns/` — the registry hot-reloads. Stateful 2.0 patterns that predate
-this contract are parked in `patterns/legacy/`.
+per-entity constants. Files in `patterns/` are discovered on server start
+(and on any `POST /api/patterns` upload, which hot-reloads the registry).
+
+**The full contributor guide is [`patterns/README.md`](patterns/README.md)**:
+the contract, the lights-array columns, statelessness idioms for events and
+randomness, craft notes for the physical medium (gamut, scale, motion, wire
+cost), the iterate/test loop, and a reading list mapping every shipped
+pattern to the technique it demonstrates. If you have an idea for a pattern,
+that page is everything you need. Stateful 2.0 patterns that predate the
+contract are parked in `patterns/legacy/`.
 
 ## Firmware
 
