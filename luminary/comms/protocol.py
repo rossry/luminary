@@ -127,6 +127,37 @@ def cobs_decode(data: bytes) -> bytes:
     return bytes(out)
 
 
+def cobs_decode_header(data: bytes) -> bytes:
+    """COBS-decode only the leading :data:`HEADER` bytes of a frame body.
+
+    The driver needs the controller and ``t`` out of every outbound frame to
+    route and track it, but running the full :func:`cobs_decode` for that is
+    O(frame) Python per frame — at production frame sizes it costs more than
+    rendering and encoding the frame did. This stops once the header is out,
+    which is O(1) in the payload size.
+
+    Returns at least ``HEADER.size`` bytes when the input is long enough;
+    callers must not assume anything past that is present.
+    """
+    out = bytearray()
+    idx = 0
+    n = len(data)
+    while idx < n and len(out) < HEADER.size:
+        code = data[idx]
+        if code == 0:
+            raise ProtocolError("COBS data contains a zero byte")
+        block = data[idx + 1 : idx + code]
+        if len(block) != code - 1:
+            raise ProtocolError("Truncated COBS block")
+        out.extend(block)
+        idx += code
+        if code != 0xFF and idx < n:
+            out.append(0)
+    if len(out) < HEADER.size:
+        raise ProtocolError(f"Frame shorter than a header: {len(out)} bytes")
+    return bytes(out)
+
+
 # --------------------------------------------------------------------- frames
 
 

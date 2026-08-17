@@ -62,42 +62,63 @@ full. Measured on a Feather SCORPIO over a 1 ft lead:
 | Unpaced overdrive, before flow control | unrecoverable stall after ~4 s |
 | Same overdrive, with the window | 15 s clean at 1102 frames/s |
 
-**The window reduces but does not eliminate the wedge.** A later repeat of
-that overdrive stalled the board after ~5 s at ~1126 frames/s with the window
-holding correctly (never more than 3 outstanding of 4), so sustained
-high-frame-rate load can still kill it by some mechanism other than queue
-depth. That run differed only in having NeoPXL8 double-buffering enabled,
-which has since been reverted; the interaction is unresolved and is the first
-thing to re-test.
+The one failure ever seen with the window in place turned out to be the
+NeoPXL8 double-buffering experiment, since reverted (see *Things that did not
+work*). On the shipped single-buffered firmware the overdrive has now run
+clean five consecutive times, ~105 s and ~150k frames total, with the board
+alive after each.
 
-## Performance at production sizing
+## Performance
 
-Numbers above use the hex demo (104 ACTIVE, 48 px strips). Against a
-6 × 360 all-ACTIVE geometry the picture is different and **30 fps is not yet
-met**:
+**30 fps at 6 x 360 is met**, end to end through `SerialDriver`, all lights
+ACTIVE, zero RESYNC and zero window stalls:
 
-| Config | Achieved | Note |
+| Config | Board ceiling | Through the driver |
 |---|---|---|
-| 6 × 360, default budget | 10.7 fps | `budget_for_baud` yields 5333 B/frame |
-| 6 × 360, 800 B budget | ~21 fps | board-limited |
-| ≤ 1080 px, 800 B budget | 24.6 fps | host-limited, see below |
+| 6 x 360 all-ACTIVE | 39.1 fps | 29.91 fps |
+| 6 x 360 every-other INTERPOLATED | — | 30.00 fps |
+| 8 x 360 all-ACTIVE | 29.3 fps | 29.38 fps |
 
-Two independent ceilings, both open:
+Getting there took four fixes, two of them worth more than the rest:
 
-1. **`budget_for_baud` derives the per-frame budget from the link rate**, not
-   from what the board can consume. At 2 Mbaud/30 fps it asks for 5333 bytes
-   per frame, which costs the board ~86 ms each. Capping the budget by
-   measured device throughput roughly doubles frame rate on its own.
-2. **`SerialDriver.run` paces with `time.sleep()`**, which Windows rounds to
-   ~15.6 ms granularity, capping the host at ~24.6 fps regardless of geometry
-   or hardware. `_poll_inbound` also runs once per tick, so ACK latency
-   measured through the driver is quantised to the tick period rather than
-   reflecting the board.
+1. **The colour pipeline was doing 64-bit multiplies on a Cortex-M0+**, which
+   has no 64-bit multiply — every one became an `__aeabi_lmul` call, ~20 per
+   pixel. Narrowing the OKLab->LMS matrix, the a/b projection and `cube_q14`
+   to int32 (proven safe by the bounds check in the host conformance test)
+   took 6 x 360 from 27.8 to 38.7 fps. The LMS->RGB accumulator stays 64-bit:
+   its worst case is ~2.04e9 against a 2.15e9 limit, too little margin.
+2. **`SerialDriver.run` paced with `time.sleep()`**, whose granularity on
+   Windows is ~15.6 ms, capping the host near 24 fps regardless of hardware.
+   It now requests a 1 ms timer period and spins the last 2 ms.
+3. **`_route` COBS-decoded whole frames** to read a 13-byte header. Now
+   decodes the header only.
+4. **HELLO was unreceivable**, so every run burned the full `hello_timeout`
+   at startup. The board now repeats HELLO until its first frame arrives;
+   `open()` went from 2.07 s to 0.10 s.
+
+Per-frame cost scales as roughly **10 ms fixed + 3 ms per 360-px channel** —
+the fixed part is the DMA (360 px x 24 bits x 1.25 us = 10.8 ms).
+
+`budget_for_baud` still derives the per-frame budget from the link rate, not
+from what the board can consume: at 2 Mbaud/30 fps it asks for 5333 bytes,
+which the board cannot digest at frame rate (12.4 fps measured). Pass an
+explicit `budget_bytes` of ~800 until that is fixed.
 
 Note that "180 on the wire, 360 on the strip" (every other light
-INTERPOLATED) halves wire size and decode cost but **not** the repaint: the
-DMA and the per-pixel colour conversion scale with physical LEDs, not with
-ACTIVE ones.
+INTERPOLATED) buys almost nothing — 28.4 fps against 27.8 before the int32
+work. It halves wire size and decode cost, but DMA and per-pixel colour
+conversion scale with *physical* LEDs.
+
+## Things that did not work
+
+Recorded so they are not retried blindly. Both are attempts to overlap the
+DMA with CPU work, and both measured *worse* on this hardware, which points
+at the RP2040's DMA and CPU contending for the same banked SRAM:
+
+| Attempt | Result |
+|---|---|
+| NeoPXL8 double buffering (`begin(true)` + split `stage()`/`show()`) | No frame-rate gain, and the board wedged under sustained load where the same test ran clean without |
+| Rendering during the transfer (gating only `show()` on `canShow()`) | 24.0 fps against 27.8 serial, with worse jitter (max RTT 230 ms vs 102 ms) |
 
 ## Building
 

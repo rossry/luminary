@@ -40,6 +40,7 @@ static uint8_t serialBuffer[512];
 static uint8_t outFrame[64];
 static bool dirty = false;
 static uint32_t lastShowMs = 0;
+static uint32_t lastHelloMs = 0;
 static uint32_t ackedFrames = 0;
 
 void setup() {
@@ -66,6 +67,17 @@ void loop() {
     available -= got;
   }
 
+  // HELLO (spec §13.3). setup() runs before USB-CDC enumerates, so the boot
+  // HELLO is written into a void and no host has ever received one -- the
+  // sender then blocks its whole hello_timeout at startup for nothing.
+  // Repeat until the first frame arrives, which is the only evidence that a
+  // host is actually listening.
+  if (decoder.framesApplied() == 0 && millis() - lastHelloMs >= 250) {
+    lastHelloMs = millis();
+    size_t len = lumicodec::buildHello(LUMINARY_CONTROLLER_ID, outFrame);
+    Serial.write(outFrame, len);
+  }
+
   if (decoder.wantResync()) {
     decoder.clearResync();
     size_t len = lumicodec::buildResync(LUMINARY_CONTROLLER_ID, outFrame);
@@ -73,13 +85,19 @@ void loop() {
   }
 
   // Repaint at most every 15 ms. The test pattern is self-driven, so it
-  // repaints on the timer alone; decoded frames repaint only when new data
-  // has landed.
+  // repaints on the timer alone; decoded frames only when new data landed.
   //
-  // canShow() gates on the previous DMA having finished. Without it, show()
-  // busy-waits inside the library (while (sending);) and the loop stops
-  // draining USB for the rest of the transfer. Skipping the repaint instead
-  // costs a frame of latency and keeps the serial side responsive.
+  // canShow() gates the whole repaint deliberately, keeping the colour
+  // conversion strictly *after* the previous transfer rather than during it.
+  // Overlapping the two looks like free parallelism and measures worse --
+  // 24.0 fps against 27.8 at 6x360 -- because the DMA and the CPU contend
+  // for the same banked SRAM, so the conversion stalls more than the
+  // serialisation costs. Double-buffering (begin(true) + split stage/show)
+  // was tried for the same reason and also gave nothing. Re-measure before
+  // trying either again.
+  //
+  // Without the gate, show() busy-waits inside the library
+  // (while (sending);) and the loop stops draining USB mid-transfer.
   uint32_t now = millis();
   bool testMode = decoder.testPatternActive();
   bool due = testMode || (dirty && decoder.synced());

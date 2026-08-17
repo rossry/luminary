@@ -343,12 +343,30 @@ inline int32_t cosInterp_q14(int32_t h_88) {
   return a + (((b - a) * frac) >> 8);
 }
 
+// 32-bit where the operand range provably allows it. The RP2040 is a
+// Cortex-M0+: 32x32->32 is a single-cycle MULS, but it has no 64-bit
+// multiply at all, so every int64 product becomes an __aeabi_lmul call.
+// That dominated the per-pixel cost (measured ~12 us/pixel, ~1500 cycles).
+//
+// Bounds over the whole quantized input space -- qL in 0..63 so l_q14 <=
+// 16384, qC in 0..31 so c_q14 <= 6554, cos/sin in +-16384, and INTERPOLATED
+// values are blends of two such and so no larger:
+//
+//   x*x in cube_q14   <= 25400^2       = 6.5e8   (int32 max 2.15e9)
+//   xx*x in cube_q14  <= 39400*25400   = 1.0e9
+//   gammaEncode       <= 124000*255    = 3.2e7
+//
+// None can overflow, so results are bit-identical to the int64 form -- which
+// the golden-vector conformance test (spec 11.9) verifies directly. The
+// LMS->RGB accumulator in oklchQ14ToRgb8 is deliberately NOT converted: its
+// worst case reaches ~2.04e9 against a 2.15e9 limit, too little margin to
+// call safe.
 inline int32_t cube_q14(int32_t x) {
-  int64_t xx = (static_cast<int64_t>(x) * x) >> 14;
+  int32_t xx = static_cast<int32_t>((x * x) >> 14);
   return static_cast<int32_t>((xx * x) >> 14);
 }
 
-inline uint8_t gammaEncode(int64_t linear_q14, uint8_t scale1, uint8_t scale2) {
+inline uint8_t gammaEncode(int32_t linear_q14, uint8_t scale1, uint8_t scale2) {
   if (linear_q14 < 0) linear_q14 = 0;
   // brightness and per-channel correction in linear space (spec §8.4.3)
   linear_q14 = (linear_q14 * scale1) >> 8;
@@ -364,21 +382,27 @@ void oklchQ14ToRgb8(int32_t l_q14, int32_t c_q14, int32_t h_88,
   buildTables();
   int32_t cosH = cosInterp_q14(h_88);
   int32_t sinH = cosInterp_q14(((64 << 8) - h_88) & 0xFFFF);  // sin x = cos(64-x)
-  int32_t a = static_cast<int32_t>((static_cast<int64_t>(c_q14) * cosH) >> 14);
-  int32_t b = static_cast<int32_t>((static_cast<int64_t>(c_q14) * sinH) >> 14);
+  // c_q14 <= 6554 and |cos| <= 16384, so the product peaks near 2^26.7 --
+  // int32 with room to spare. See the bounds note above cube_q14().
+  int32_t a = (c_q14 * cosH) >> 14;
+  int32_t b = (c_q14 * sinH) >> 14;
 
   int32_t lms[3];
   for (int i = 0; i < 3; i++) {
-    int64_t acc = static_cast<int64_t>(M_L2LMS[i * 3]) * l_q14 +
-                  static_cast<int64_t>(M_L2LMS[i * 3 + 1]) * a +
-                  static_cast<int64_t>(M_L2LMS[i * 3 + 2]) * b;
-    lms[i] = cube_q14(static_cast<int32_t>(acc >> 14));
+    // Worst row peaks near 4.2e8 against an int32 limit of 2.15e9.
+    int32_t acc = M_L2LMS[i * 3] * l_q14 +
+                  M_L2LMS[i * 3 + 1] * a +
+                  M_L2LMS[i * 3 + 2] * b;
+    lms[i] = cube_q14(acc >> 14);
   }
   for (int i = 0; i < 3; i++) {
+    // Stays 64-bit: this one peaks near 2.04e9, too close to the int32
+    // limit to be provably safe.
     int64_t acc = static_cast<int64_t>(M_LMS2RGB[i * 3]) * lms[0] +
                   static_cast<int64_t>(M_LMS2RGB[i * 3 + 1]) * lms[1] +
                   static_cast<int64_t>(M_LMS2RGB[i * 3 + 2]) * lms[2];
-    out[i] = gammaEncode(acc >> 14, brightness, correction[i]);
+    out[i] = gammaEncode(static_cast<int32_t>(acc >> 14), brightness,
+                         correction[i]);
   }
 }
 

@@ -15,6 +15,7 @@ of the board the sender may run so that state is never reached.
 from __future__ import annotations
 
 import struct
+import sys
 import time
 from collections import deque
 from typing import Deque, Dict, Iterator, List, Optional, Tuple, Union
@@ -23,6 +24,35 @@ import serial as pyserial
 
 from luminary.comms import protocol as p
 from luminary.engine.engine import Engine
+
+
+def _raise_timer_resolution() -> bool:
+    """Ask Windows for 1 ms timer granularity; no-op elsewhere.
+
+    Without this the scheduler quantum is ~15.6 ms, which the spin in
+    :meth:`SerialDriver._pace` would otherwise have to absorb entirely --
+    burning most of a core. Returns whether it was granted, so it can be
+    released again.
+    """
+    if sys.platform != "win32":
+        return False
+    try:
+        import ctypes
+
+        return bool(ctypes.WinDLL("winmm").timeBeginPeriod(1) == 0)
+    except Exception:
+        return False
+
+
+def _restore_timer_resolution() -> None:
+    if sys.platform != "win32":
+        return
+    try:
+        import ctypes
+
+        ctypes.WinDLL("winmm").timeEndPeriod(1)
+    except Exception:
+        pass
 
 
 def budget_for_baud(baud: int, fps: float, utilization: float = 0.8) -> int:
@@ -67,6 +97,9 @@ class SerialDriver:
         self._last_sent_t: Dict[int, float] = {}
         self.ack_latencies: List[float] = []
         self.stalled_ticks = 0
+        # How early _pace stops sleeping and starts spinning. 2 ms covers
+        # the residual jitter once the 1 ms timer period is granted.
+        self._pace_slack = 0.002
         if engine.codec_config.budget_bytes is None:
             engine.codec_config.budget_bytes = budget_for_baud(baud, engine.fps)
 
@@ -160,9 +193,11 @@ class SerialDriver:
     # ------------------------------------------------------------------ outbound
 
     def _route(self, frame: bytes) -> None:
-        # Header layout is fixed; controller is byte 2 of the decoded frame,
-        # but frames are COBS-encoded here — decode just the routing field.
-        body = p.cobs_decode(frame.rstrip(b"\x00"))
+        # Header layout is fixed; controller is byte 2 and t bytes 3..10 of
+        # the decoded frame. Decode only the header: a full cobs_decode here
+        # is O(frame) Python and at production frame sizes costs more than
+        # rendering and encoding the frame did.
+        body = p.cobs_decode_header(frame.rstrip(b"\x00"))
         controller = body[2]
         connection = self.connections.get(controller)
         if connection is None:
@@ -180,6 +215,20 @@ class SerialDriver:
         self._last_sent_t[controller] = t
         pending.append((t, time.monotonic()))
 
+    def _pace(self, deadline: float) -> None:
+        """Wait until ``deadline``, accurately.
+
+        ``time.sleep`` alone cannot pace 30 fps on Windows: the default system
+        timer granularity is ~15.6 ms, so a requested 20 ms sleep returns after
+        ~31 ms and the loop settles around 24 fps no matter how fast the board
+        is. Sleep to within a slack margin, then spin the remainder.
+        """
+        remaining = deadline - time.monotonic()
+        if remaining > self._pace_slack:
+            time.sleep(remaining - self._pace_slack)
+        while time.monotonic() < deadline:
+            pass
+
     def run(self, duration: Optional[float] = None, start_frame: int = 0) -> None:
         """Blocking stream loop at engine.fps until duration (or forever)."""
         if not self.connections:
@@ -187,6 +236,7 @@ class SerialDriver:
         interval = 1.0 / self.engine.fps
         started = time.monotonic()
         frame_index = start_frame
+        timer_raised = _raise_timer_resolution()
         try:
             while duration is None or (time.monotonic() - started) < duration:
                 tick_start = time.monotonic()
@@ -203,8 +253,8 @@ class SerialDriver:
                     for frame in self.engine.frame(t):
                         self._route(frame)
                 frame_index += 1
-                sleep_for = interval - (time.monotonic() - tick_start)
-                if sleep_for > 0:
-                    time.sleep(sleep_for)
+                self._pace(tick_start + interval)
         finally:
+            if timer_raised:
+                _restore_timer_resolution()
             self.close()
