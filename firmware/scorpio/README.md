@@ -160,6 +160,24 @@ decoded rendering of a live pattern, and the hold-then-fade — last frame held
 the one behaviour not yet observed end-to-end on LEDs, since it requires a
 genuine firmware hang to trigger.
 
+## Host requirements at multi-board scale
+
+Driving two boards (5760 lights) costs the host ~25-32 ms of render+encode
+per frame after optimization -- fitting a 33.3 ms tick with margin only on a
+**reasonably idle machine**. Measured live: a desktop at ~68% background load
+sank the stream to 19 fps with every tick overrunning. Deployment
+requirements for the installation host:
+
+- dedicated (or near-idle) machine; a busy desktop will not hold 30 fps
+- system sleep disabled -- sleep froze a soak test mid-run, and the driver
+  process does not survive it usefully
+
+The budget controller recognizes host-side lateness (ticks that overrun
+before pacing begins quantize every measured RTT up to the tick period) and
+holds the budget rather than misreading its own lateness as board slowness
+and collapsing to the floor -- which is exactly what happened before the
+guard existed.
+
 ## Things that did not work
 
 Recorded so they are not retried blindly. Both are attempts to overlap the

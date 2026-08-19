@@ -141,6 +141,12 @@ class SerialDriver:
         self._adapt_ticks = 0
         self._adapt_last_stalls = 0
         self._adapt_clean_intervals = 0
+        # Ticks whose work overran the frame interval before pacing began.
+        # When the host itself is late, _pace never gets to poll, measured
+        # RTT quantizes up to the tick period, and the budget controller
+        # would misread its own lateness as board slowness.
+        self.late_ticks = 0
+        self._adapt_last_late = 0
 
     # --------------------------------------------------------------- lifecycle
 
@@ -355,15 +361,25 @@ class SerialDriver:
         self._adapt_ticks = 0
         stalls = self.stalled_ticks - self._adapt_last_stalls
         self._adapt_last_stalls = self.stalled_ticks
+        late = self.late_ticks - self._adapt_last_late
+        self._adapt_last_late = self.late_ticks
         recent = self._ack_interval
         self._ack_interval = []
         median_rtt = sorted(recent)[len(recent) // 2] if recent else None
         interval = 1.0 / self.engine.fps
         budget = int(self.engine.codec_config.budget_bytes or 64)
-        if stalls > 0 or (median_rtt is not None and median_rtt > interval):
+        # When the host overran its own tick in this interval, _pace never
+        # polled and every RTT is quantized up to the tick period -- treating
+        # that as board slowness once collapsed the budget to the floor while
+        # the board was fine. Hold instead: the lateness is ours, and cutting
+        # the budget does not shrink render/encode cost anyway.
+        host_late = late > max(1, int(self.engine.fps) // 10)
+        if stalls > 0 or (
+            not host_late and median_rtt is not None and median_rtt > interval
+        ):
             self._adapt_clean_intervals = 0
             budget = max(64, (budget * 3) // 4)
-        elif median_rtt is None or median_rtt < 0.7 * interval:
+        elif not host_late and (median_rtt is None or median_rtt < 0.7 * interval):
             self._adapt_clean_intervals += 1
             if self._adapt_clean_intervals >= 2:
                 budget = min(self._budget_cap, budget + max(64, budget // 8))
@@ -450,6 +466,8 @@ class SerialDriver:
                         self._route(frame)
                 frame_index += 1
                 self._adapt_budget()
+                if time.monotonic() > tick_start + interval:
+                    self.late_ticks += 1
                 self._pace(tick_start + interval)
         finally:
             if timer_raised:

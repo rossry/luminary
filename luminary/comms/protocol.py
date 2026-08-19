@@ -19,6 +19,7 @@ Per-light wire format (spec §11.4):
 
 from __future__ import annotations
 
+import binascii
 import struct
 from typing import Iterator, List, Tuple
 
@@ -73,7 +74,19 @@ for _byte in range(256):
 
 
 def crc16(data: bytes) -> int:
-    """CRC16/CCITT-FALSE: poly 0x1021, init 0xFFFF, no reflection or xor-out."""
+    """CRC16/CCITT-FALSE: poly 0x1021, init 0xFFFF, no reflection or xor-out.
+
+    Implemented via :func:`binascii.crc_hqx`, which is this exact CRC (poly
+    0x1021, MSB-first, caller-supplied init) in C. The Python table loop it
+    replaced cost ~3 ms per production frame -- a fifth of the whole tick.
+    ``_crc16_reference`` keeps the table implementation for the equivalence
+    test; the golden vectors would also break on any drift.
+    """
+    return binascii.crc_hqx(data, 0xFFFF)
+
+
+def _crc16_reference(data: bytes) -> int:
+    """Table-driven reference implementation of :func:`crc16` (tests only)."""
     crc = 0xFFFF
     table = _CRC_TABLE
     for b in data:
@@ -418,13 +431,32 @@ def build_delta_payload(positions: np.ndarray, words: np.ndarray) -> bytes:
     (spec §11.7.4): first op is at slot = skip; each subsequent op is at
     slot = previous + 1 + skip.
     """
-    out = bytearray(struct.pack("<H", len(positions)))
+    n = len(positions)
+    out = bytearray(struct.pack("<H", n))
+    if n == 0:
+        return bytes(out)
+    pos = positions.astype(np.int64)
+    skips = np.empty(n, dtype=np.int64)
+    skips[0] = pos[0]
+    skips[1:] = np.diff(pos) - 1
+    words_le = np.ascontiguousarray(words.astype("<u2"))
+    if int(skips.max()) < 0x80:
+        # Fast path: every skip fits a single varint byte (a one-byte varint
+        # IS the value), so each op is exactly [skip][word lo][word hi] and
+        # the whole payload assembles as one (n, 3) uint8 array. The per-op
+        # Python loop this replaces was the single largest cost in the whole
+        # host tick (~15 ms/frame at production sizing).
+        rows = np.empty((n, 3), dtype=np.uint8)
+        rows[:, 0] = skips.astype(np.uint8)
+        rows[:, 1:] = words_le.view(np.uint8).reshape(n, 2)
+        out += rows.tobytes()
+        return bytes(out)
+    # Rare path (a correction gap of 128+ slots): reference per-op loop.
     prev = -1
-    words_le = words.astype("<u2")
-    for pos, word in zip(positions.tolist(), words_le.tolist()):
-        out.extend(encode_varint(pos - prev - 1))
+    for p, word in zip(pos.tolist(), words_le.tolist()):
+        out.extend(encode_varint(p - prev - 1))
         out.extend(struct.pack("<H", word))
-        prev = pos
+        prev = p
     return bytes(out)
 
 

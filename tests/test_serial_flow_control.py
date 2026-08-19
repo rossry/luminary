@@ -452,3 +452,39 @@ def test_ack_latency_stats_are_bounded(lights):
     for _ in range(10_000):
         driver.ack_latencies.append(0.01)
     assert len(driver.ack_latencies) <= 4096
+
+
+def test_host_lateness_does_not_shrink_budget(lights):
+    """When the host overruns its own ticks, measured RTT quantizes up to
+    the tick period. That is the host's lateness, not the board's -- the
+    budget must hold, not collapse to the floor (which happened live)."""
+    port = FakePort()
+    driver, _ = make_driver(lights, port)
+    before = driver.engine.codec_config.budget_bytes
+    driver.late_ticks += 30  # every tick in the interval overran
+    driver._ack_interval.extend([0.050] * 30)  # quantized-garbage RTTs
+    _cycle(driver)
+    assert driver.engine.codec_config.budget_bytes == before
+
+
+def test_host_lateness_does_not_grow_budget_either(lights):
+    """Late-tick intervals have no trustworthy signal in either direction."""
+    port = FakePort()
+    driver, _ = make_driver(lights, port)
+    before = driver.engine.codec_config.budget_bytes
+    for _ in range(4):
+        driver.late_ticks += 30
+        driver._ack_interval.extend([0.001] * 30)
+        _cycle(driver)
+    assert driver.engine.codec_config.budget_bytes == before
+
+
+def test_window_stalls_shrink_even_when_host_late(lights):
+    """A full window is direct evidence regardless of host lateness."""
+    port = FakePort()
+    driver, _ = make_driver(lights, port)
+    before = driver.engine.codec_config.budget_bytes
+    driver.late_ticks += 30
+    driver.stalled_ticks += 3
+    _cycle(driver)
+    assert driver.engine.codec_config.budget_bytes == (before * 3) // 4
