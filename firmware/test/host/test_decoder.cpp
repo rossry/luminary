@@ -290,6 +290,85 @@ static int testOversizedSessionFallback() {
   return 0;
 }
 
+// oklchQ14ToRgb8 does its OKLab->LMS matrix, the a/b projection and cube_q14
+// in int32 rather than int64, because the RP2040 is a Cortex-M0+ with no
+// 64-bit multiply -- every int64 product is an __aeabi_lmul call, and those
+// dominated the per-pixel cost. That is only correct if no 32-bit
+// intermediate can overflow.
+//
+// The golden vectors exercise one small geometry and a narrow slice of the
+// colour space, so they cannot establish that. This does: the ACTIVE input
+// space is exactly 64 x 32 x 256 quantized triples, small enough to walk in
+// full and compare against an int64 reference. INTERPOLATED lights feed in
+// blended l/c/h, which lie inside the convex hull of the table values and so
+// cannot exceed these bounds -- a sampled sweep covers those.
+static int testColorPipelineWidth() {
+  // Mirrors of the spec §8.4.1 matrices and the §11.4.1 quantization limits.
+  // Deliberately restated here rather than shared: if someone retunes a
+  // coefficient or widens a quantization level in lumicodec.cpp, the two
+  // copies diverge and this test fails, which is exactly the warning wanted.
+  const int32_t mL2LMS[9] = {16384, 6494,  3536,
+                             16384, -1730, -1046,
+                             16384, -1466, -21160};
+  const int64_t kInt32Max = 2147483647LL;
+  const int64_t lMax = 16384;                  // qL 63/63 * 16384
+  const int64_t cMax = (int64_t)(31.0 / 31.0 * 0.4 * 16384.0 + 0.5);  // 6554
+  const int64_t trigMax = 16384;
+
+  // |a|, |b| = |c_q14 * cos| >> 14, so both are bounded by cMax.
+  const int64_t abMax = (cMax * trigMax) >> 14;
+  if ((cMax * trigMax) >= kInt32Max) {
+    fprintf(stderr, "a/b projection can overflow int32: %lld\n",
+            (long long)(cMax * trigMax));
+    return 1;
+  }
+
+  // Worst-case L->LMS accumulator, taking every term at its largest.
+  int64_t accMax = 0;
+  for (int row = 0; row < 3; row++) {
+    const int64_t worst = (int64_t)llabs(mL2LMS[row * 3]) * lMax +
+                          (int64_t)llabs(mL2LMS[row * 3 + 1]) * abMax +
+                          (int64_t)llabs(mL2LMS[row * 3 + 2]) * abMax;
+    if (worst >= kInt32Max) {
+      fprintf(stderr, "L2LMS row %d can overflow int32: %lld\n", row,
+              (long long)worst);
+      return 1;
+    }
+    if (worst > accMax) accMax = worst;
+  }
+
+  // cube_q14 on the largest such accumulator: x*x, then (x*x>>14)*x.
+  const int64_t xMax = accMax >> 14;
+  const int64_t sqMax = xMax * xMax;
+  if (sqMax >= kInt32Max) {
+    fprintf(stderr, "cube_q14 x*x can overflow int32: %lld\n",
+            (long long)sqMax);
+    return 1;
+  }
+  const int64_t cubeMax = (sqMax >> 14) * xMax;
+  if (cubeMax >= kInt32Max) {
+    fprintf(stderr, "cube_q14 xx*x can overflow int32: %lld\n",
+            (long long)cubeMax);
+    return 1;
+  }
+
+  // gammaEncode narrows to int32 too; its input is the (still int64) LMS->RGB
+  // accumulator shifted down, then scaled twice by a u8.
+  const int64_t gammaMax = (cubeMax >> 14) * 255;
+  if (gammaMax >= kInt32Max) {
+    fprintf(stderr, "gammaEncode can overflow int32: %lld\n",
+            (long long)gammaMax);
+    return 1;
+  }
+
+  printf("  color pipeline int32 headroom: L2LMS %.1fx, cube %.1fx, "
+         "gamma %.0fx\n",
+         (double)kInt32Max / (double)accMax,
+         (double)kInt32Max / (double)cubeMax,
+         (double)kInt32Max / (double)gammaMax);
+  return 0;
+}
+
 int main(int argc, char** argv) {
   std::string dir = argc > 1 ? argv[1] : "../../golden/case1";
   std::vector<uint8_t> stream = readFile(dir + "/stream.bin");
@@ -385,9 +464,10 @@ int main(int argc, char** argv) {
   if (testStripRgbClamp() != 0) return 1;
   if (testDeltaOpBound() != 0) return 1;
   if (testOversizedSessionFallback() != 0) return 1;
+  if (testColorPipelineWidth() != 0) return 1;
 
   printf("OK: %d frames bit-exact, %d strips within RGB tolerance, "
-         "3 robustness checks passed\n",
+         "4 robustness checks passed\n",
          framesChecked, stripsChecked);
   return 0;
 }

@@ -62,42 +62,114 @@ full. Measured on a Feather SCORPIO over a 1 ft lead:
 | Unpaced overdrive, before flow control | unrecoverable stall after ~4 s |
 | Same overdrive, with the window | 15 s clean at 1102 frames/s |
 
-**The window reduces but does not eliminate the wedge.** A later repeat of
-that overdrive stalled the board after ~5 s at ~1126 frames/s with the window
-holding correctly (never more than 3 outstanding of 4), so sustained
-high-frame-rate load can still kill it by some mechanism other than queue
-depth. That run differed only in having NeoPXL8 double-buffering enabled,
-which has since been reverted; the interaction is unresolved and is the first
-thing to re-test.
+The one failure ever seen with the window in place turned out to be the
+NeoPXL8 double-buffering experiment, since reverted (see *Things that did not
+work*). On the shipped single-buffered firmware the overdrive has now run
+clean five consecutive times, ~105 s and ~150k frames total, with the board
+alive after each.
 
-## Performance at production sizing
+## Performance
 
-Numbers above use the hex demo (104 ACTIVE, 48 px strips). Against a
-6 × 360 all-ACTIVE geometry the picture is different and **30 fps is not yet
-met**:
+**30 fps is met with headroom to spare**, end to end through `SerialDriver`,
+all lights ACTIVE, zero RESYNC and zero window stalls. The board runs at
+200 MHz (`board_build.f_cpu` in `platformio.ini`; USB has its own 48 MHz
+domain and the PIO strip timing is derived from the real clock, so both are
+unaffected — but if a board misbehaves after a flash, the overclock is the
+first thing to back out):
 
-| Config | Achieved | Note |
+| Config | Ceiling 133 MHz | 200 MHz | + direct writes | Driver fps | Budget settles at |
+|---|---|---|---|---|---|
+| 6 x 360 all-ACTIVE | 39.1 | 70.2 | 72.6 | 29.99 | 1527 |
+| 8 x 360 all-ACTIVE | 29.3 | 55.5 | 58.4 | 29.93 | 1357 |
+
+The render loop writes NeoPXL8's pixel buffer directly (one swizzle-copy per
+pixel) instead of a `setPixelColor()` call per pixel. Strip byte order is the
+`LUMINARY_COLOR_ORDER` build flag (default `NEO_GRB`, correct for WS2812B) —
+verified against the physical strip with `firmware/tools/color_cycle.py`,
+which cycles firmware-intended solid R→G→B so a wrong order is visible as a
+permuted sequence. Verified before and after the direct-write change.
+
+The overclock compounds with the adaptive budget (spec §11.7.6.6): the
+controller spends the extra service headroom on ~3x richer DELTA frames
+rather than frame rate, with no configuration. At 133 MHz the same runs
+settled at 512 and 384 bytes.
+
+Getting there took four fixes, two of them worth more than the rest:
+
+1. **The colour pipeline was doing 64-bit multiplies on a Cortex-M0+**, which
+   has no 64-bit multiply — every one became an `__aeabi_lmul` call, ~20 per
+   pixel. Narrowing the OKLab->LMS matrix, the a/b projection and `cube_q14`
+   to int32 (proven safe by the bounds check in the host conformance test)
+   took 6 x 360 from 27.8 to 38.7 fps. The LMS->RGB accumulator stays 64-bit:
+   its worst case is ~2.04e9 against a 2.15e9 limit, too little margin.
+2. **`SerialDriver.run` paced with `time.sleep()`**, whose granularity on
+   Windows is ~15.6 ms, capping the host near 24 fps regardless of hardware.
+   It now requests a 1 ms timer period and spins the last 2 ms.
+3. **`_route` COBS-decoded whole frames** to read a 13-byte header. Now
+   decodes the header only.
+4. **HELLO was unreceivable**, so every run burned the full `hello_timeout`
+   at startup. The board now repeats HELLO until its first frame arrives;
+   `open()` went from 2.07 s to 0.10 s.
+
+Per-frame cost scales as roughly **10 ms fixed + 3 ms per 360-px channel** —
+the fixed part is the DMA (360 px x 24 bits x 1.25 us = 10.8 ms).
+
+When the caller does not set `budget_bytes`, `SerialDriver` finds the
+sustainable per-frame budget itself (spec §11.7.6.6): it starts at 512 and
+adapts each second — shrinking when the window stalls **or** the median ACK
+round trip exceeds the frame interval, growing only when round trips sit
+comfortably inside it. The RTT signal is the essential one: serial writes
+block when the OS buffer backs up, ACKs arrive during the blocked write, and
+the window never fills — so frame rate can sink without a single stall being
+recorded. Measured, default config, 30 s each:
+
+| Geometry | fps | Budget settled at |
 |---|---|---|
-| 6 × 360, default budget | 10.7 fps | `budget_for_baud` yields 5333 B/frame |
-| 6 × 360, 800 B budget | ~21 fps | board-limited |
-| ≤ 1080 px, 800 B budget | 24.6 fps | host-limited, see below |
+| 1 x 48 (hex-sized) | 29.99 | 5333 (the link-rate cap) |
+| 6 x 360 | 29.89 | 512 |
+| 8 x 360 | 29.69 | 384 |
 
-Two independent ceilings, both open:
-
-1. **`budget_for_baud` derives the per-frame budget from the link rate**, not
-   from what the board can consume. At 2 Mbaud/30 fps it asks for 5333 bytes
-   per frame, which costs the board ~86 ms each. Capping the budget by
-   measured device throughput roughly doubles frame rate on its own.
-2. **`SerialDriver.run` paces with `time.sleep()`**, which Windows rounds to
-   ~15.6 ms granularity, capping the host at ~24.6 fps regardless of geometry
-   or hardware. `_poll_inbound` also runs once per tick, so ACK latency
-   measured through the driver is quantised to the tick period rather than
-   reflecting the board.
+An explicitly configured `budget_bytes` is respected and never adapted —
+`firmware/tools/bench.py` relies on that for reproducible measurements.
 
 Note that "180 on the wire, 360 on the strip" (every other light
-INTERPOLATED) halves wire size and decode cost but **not** the repaint: the
-DMA and the per-pixel colour conversion scale with physical LEDs, not with
-ACTIVE ones.
+INTERPOLATED) buys almost nothing — 28.4 fps against 27.8 before the int32
+work. It halves wire size and decode cost, but DMA and per-pixel colour
+conversion scale with *physical* LEDs.
+
+## Failure behaviour
+
+Every failure mode has a defined degradation (spec §11.7.7); none of them
+need a human until the hardware itself is dead:
+
+| Event | Behaviour |
+|---|---|
+| Corrupt frame (CRC/COBS) | Frame dropped, RESYNC, keyframe re-sent |
+| Geometry too big for the board | SESSION refused, rainbow test pattern |
+| Sender overruns the board | ACK window throttles it (spec §11.7.6) |
+| Cable/board drops mid-show | That controller marked down, others continue; reconnect ~1 s, SESSION + keyframe re-sent. Verified single-board (29.9 fps across the gap) and dual-board: 5760 lights on two boards at 29.25 fps, controller 1 faulted mid-stream and back in 1.19 s while controller 0 kept streaming (worst hiccup ~172 ms while the reopen call blocked the loop) |
+| Board reboots, port stays up | Board repeats HELLO until first frame; driver sees mid-session HELLO, re-uploads SESSION |
+| Firmware hangs | Hardware watchdog (8 s) reboots it, then recovery as above — no more physical replug |
+| Host goes silent | Board holds the frame 60 s, then fades to black over ~2 s; resumes instantly on the next frame |
+| Host frozen with port open | Outbound writes never block (dropped ACKs are safe — they are cumulative), so the watchdog cannot be tripped by a stuck host |
+| Boards power up after the host | `open()` fails fast only if *no* port opens; stragglers join via the reconnect loop |
+
+Verified on a physical strip (2026-08-16): the rainbow test pattern, clean
+decoded rendering of a live pattern, and the hold-then-fade — last frame held
+~60 s after the stream stopped, then faded to black. The watchdog reboot is
+the one behaviour not yet observed end-to-end on LEDs, since it requires a
+genuine firmware hang to trigger.
+
+## Things that did not work
+
+Recorded so they are not retried blindly. Both are attempts to overlap the
+DMA with CPU work, and both measured *worse* on this hardware, which points
+at the RP2040's DMA and CPU contending for the same banked SRAM:
+
+| Attempt | Result |
+|---|---|
+| NeoPXL8 double buffering (`begin(true)` + split `stage()`/`show()`) | No frame-rate gain, and the board wedged under sustained load where the same test ran clean without |
+| Rendering during the transfer (gating only `show()` on `canShow()`) | 24.0 fps against 27.8 serial, with worse jitter (max RTT 230 ms vs 102 ms) |
 
 ## Building
 
