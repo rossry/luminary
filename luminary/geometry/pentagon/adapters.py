@@ -69,6 +69,31 @@ def capture(
     next_index = {ch: 0 for ch in range(channels)}
     facet_ordinal = 0
 
+    # Structural overlays for the renderers (served per spec §14.3.1): the piece
+    # is inset cloth+PVC+LED triangles inside a metal frame, so clients draw
+    # dark seams — "frame" (triangle perimeter, metal) fat, "pvc" (facet
+    # boundary pipes, midpoint↔incenter) thin. World XY segments, deduped.
+    frame_seen: Set[Tuple[Tuple[float, float], Tuple[float, float]]] = set()
+    frame_lines: List[List[List[float]]] = []
+    pvc_lines: List[List[List[float]]] = []
+    tri_polys: List[List[List[float]]] = []  # per structural triangle, for hit tests
+    for triangle in net.triangles:
+        vs = triangle.vertices
+        tri_polys.append([[v.x, v.y] for v in vs])
+        for i in range(3):
+            a, b = vs[i], vs[(i + 1) % 3]
+            key = tuple(
+                sorted(((round(a.x, 6), round(a.y, 6)), (round(b.x, 6), round(b.y, 6))))
+            )
+            if key in frame_seen:
+                continue
+            frame_seen.add(key)
+            frame_lines.append([[a.x, a.y], [b.x, b.y]])
+        for facet in triangle.get_facets():
+            _, m1, inc, m2 = facet.vertices
+            pvc_lines.append([[m1.x, m1.y], [inc.x, inc.y]])
+            pvc_lines.append([[inc.x, inc.y], [m2.x, m2.y]])
+
     for triangle in net.triangles:
         for facet in triangle.get_facets():
             channel = facet_ordinal % channels
@@ -113,5 +138,12 @@ def capture(
         specs,
         space=SpaceSpec(authoritative=["xy"]),
         source={"type": "pentagon", "channels": channels},
-        meta={"name": "pentagon-lights"},
+        meta={
+            "name": "pentagon-lights",
+            "overlays": {
+                "frame": frame_lines,
+                "pvc": pvc_lines,
+                "triangles": tri_polys,
+            },
+        },
     )

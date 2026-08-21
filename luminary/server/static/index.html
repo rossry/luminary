@@ -27,7 +27,9 @@
              font-size: .8rem; color: #9a9aa8; }
     #status { font-size: .8rem; color: #7fbf7f; }
     main { flex: 1; min-height: 0; padding: .8rem; }
-    canvas { width: 100%; height: 100%; display: block; border-radius: 8px; }
+    #stage { position: relative; width: 100%; height: 100%; }
+    #stage canvas { position: absolute; inset: 0; width: 100%; height: 100%;
+                    display: block; border-radius: 8px; }
   </style>
 </head>
 <body>
@@ -38,10 +40,16 @@
     <button id="play">Play</button>
     <button id="pause">Pause</button>
     <button id="resync" title="Force a keyframe">Resync</button>
+    <button id="render" disabled
+            title="Press Play first — toggles realistic cloth render / flat light cells">Flat cells</button>
+    <label id="cloth-label" for="cloth" title="Extra cloth scatter width (fabric thickness)"
+           style="font-size:.8rem;color:#9a9aa8;">cloth thin</label>
+    <input id="cloth" type="range" min="0" max="24" step="1" value="0"
+           title="Extra cloth scatter width (fabric thickness)">
     <span id="status">idle</span>
     <span id="stats"></span>
   </header>
-  <main><canvas id="canvas"></canvas></main>
+  <main><div id="stage"><canvas id="glow"></canvas><canvas id="canvas"></canvas></div></main>
   <script type="module" src="/static/client.js"></script>
 </body>
 </html>

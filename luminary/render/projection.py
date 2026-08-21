@@ -62,6 +62,8 @@ def lights_layout(
     entries = []
     for row in range(lights.n):
         weight = arr[row, LightColumns.WEIGHT]
+        dx = arr[row, LightColumns.DX]
+        dy = arr[row, LightColumns.DY]
         entries.append(
             {
                 "controller": int(arr[row, LightColumns.CONTROLLER]),
@@ -70,6 +72,9 @@ def lights_layout(
                 "kind": int(arr[row, LightColumns.KIND]),
                 "x": _num(arr[row, LightColumns.X]),
                 "y": _num(arr[row, LightColumns.Y]),
+                # Emission direction in the layout plane (unit XY, spec §7.3.1);
+                # lets renderers model the physical throw (strips face inward).
+                "dir": None if np.isnan(dx) else [float(dx), float(dy)],
                 "weight": None if np.isnan(weight) else float(weight),
                 "display": lights.display[row],
             }
@@ -78,6 +83,7 @@ def lights_layout(
         "viewBox": list(viewbox),
         "lights": entries,
         "scaffold": scaffold_lines,
+        "overlays": lights.meta.get("overlays"),
         "counts": {
             "total": lights.n,
             "active": int(np.sum(arr[:, LightColumns.KIND] == Kind.ACTIVE)),
