@@ -152,7 +152,11 @@ void loop() {
                 (now - lastFrameMs) >= SILENCE_TIMEOUT_MS;
   bool fading = silent && fadeScale > 0;
 
-  bool testMode = decoder.testPatternActive();
+  // The rainbow runs whenever the board has no usable geometry: from boot
+  // until the first accepted SESSION, and after a refused one. A freshly
+  // powered board is visibly alive and attributable (per-channel phase
+  // offset) before the server says a word, instead of sitting dark.
+  bool testMode = decoder.testPatternActive() || !decoder.hasSession();
   bool due = testMode || fading || (dirty && decoder.synced());
   if (due && now - lastShowMs >= 15 && pixels.canShow()) {
     dirty = false;

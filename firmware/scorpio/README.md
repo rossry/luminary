@@ -13,8 +13,10 @@ outputs on GPIO 16–23), spec §13.
    lookup tables (§13.4), applying brightness / color correction (§8.4.3)
 5. Writes NeoPXL8's eight parallel buffers and shows
 6. Sends HELLO on boot and RESYNC on CRC/framing errors (§13.3)
-7. Falls back to an onboard test pattern — rainbow beads running down each
-   strip — when a SESSION declares more lights than the board can hold
+7. Plays an onboard test pattern — rainbow beads running down each strip,
+   at 25% brightness (the documented power cap) — whenever it has no usable
+   geometry: from boot until the first accepted SESSION, and when a SESSION
+   declares more lights than the board can hold
 8. ACKs each consumed frame so the sender can bound frames in flight
    (§11.7.6) — see *Flow control* below
 
@@ -38,9 +40,9 @@ The active-light ceiling is the binding one: `q_` and `v_` cost 24 bytes per
 light between them, so 4096 lights is ~100KB. A geometry above it is refused
 outright rather than attempted — an allocation failure mid-SESSION hangs the
 board with USB half-enumerated, which takes a physical replug to clear. The
-test pattern is the visible signal that this happened: if the strips show
-running rainbow beads instead of your pattern, the board has no usable
-geometry loaded.
+test pattern is the visible signal for the whole class: rainbow beads mean
+"no usable geometry loaded" — a freshly booted board that has not yet heard
+from the server, or one whose SESSION was refused.
 
 ## Flow control
 
@@ -146,6 +148,7 @@ need a human until the hardware itself is dead:
 |---|---|
 | Corrupt frame (CRC/COBS) | Frame dropped, RESYNC, keyframe re-sent |
 | Geometry too big for the board | SESSION refused, rainbow test pattern |
+| No SESSION yet (fresh boot) | Rainbow test pattern until the first accepted SESSION |
 | Sender overruns the board | ACK window throttles it (spec §11.7.6) |
 | Cable/board drops mid-show | That controller marked down, others continue; reconnect ~1 s, SESSION + keyframe re-sent. Verified single-board (29.9 fps across the gap) and dual-board: 5760 lights on two boards at 29.25 fps, controller 1 faulted mid-stream and back in 1.19 s while controller 0 kept streaming (worst hiccup ~172 ms while the reopen call blocked the loop) |
 | Board reboots, port stays up | Board repeats HELLO until first frame; driver sees mid-session HELLO, re-uploads SESSION |

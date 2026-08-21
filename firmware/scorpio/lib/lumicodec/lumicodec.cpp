@@ -490,7 +490,11 @@ void testPatternRGB(uint8_t channel, uint8_t* rgb, uint16_t nPixels,
     // Rainbow along the strip (full sweep every 64px), scrolling with time.
     const int32_t hue =
         (static_cast<int32_t>(i) * 4 + static_cast<int32_t>(timeMs / 16)) & 255;
-    oklchQ14ToRgb8(PROFILE[rel], CHROMA_Q14, hue << 8, 255, correction, out);
+    // Brightness 64/255: the pattern runs unattended by definition -- at
+    // boot, or with a refused geometry -- so it respects the installation's
+    // documented power cap (0.25 keeps 4x 5m @ 60/m at 18 A; 8 strips
+    // roughly doubles the draw). No host is present to know better.
+    oklchQ14ToRgb8(PROFILE[rel], CHROMA_Q14, hue << 8, 64, correction, out);
   }
 }
 
