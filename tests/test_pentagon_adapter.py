@@ -65,7 +65,7 @@ def test_beam_throw_points_into_its_own_facet(name):
     most of these nets are wound the other way. Without the correction in
     ``capture()`` this assertion passes for 6% of 4A-33's lights. The nets
     are parameterized because they carry different winding mixes (3A-33 is
-    14 clockwise of 22 triangles, 4A-33 is 31 of 33), so a fix that
+    19 clockwise of 33 triangles, 4A-33 is 31 of 33), so a fix that
     hardcodes one winding still fails here.
     """
     net = Net.from_json_file(CONFIG.parent / f"{name}.json")

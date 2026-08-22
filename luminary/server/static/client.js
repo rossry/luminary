@@ -153,14 +153,14 @@ class Client {
     this.offTriangles = new Set();
     if (overlays) {
       const toSeg = (seg) => [tx(seg[0][0]), ty(seg[0][1]), tx(seg[1][0]), ty(seg[1][1])];
-      // Physical scale: mean strut = 57.30" (class-count-weighted; keep in
-      // sync with _MEAN_STRUT_INCHES in pentagon/adapters.py); calibrate
-      // world-units-per-inch against the mean world strut length.
+      // Physical scale: a net's mean world edge maps to 58.86" — the mean
+      // length of the B/C struts the panels actually mount on (keep in sync
+      // with _MEAN_STRUT_INCHES in pentagon/adapters.py).
       const frameSegs = overlays.frame || [];
       let meanWorld = 0;
       for (const [a, b] of frameSegs) meanWorld += Math.hypot(b[0] - a[0], b[1] - a[1]);
-      meanWorld = frameSegs.length ? meanWorld / frameSegs.length : 57.3;
-      const inch = (meanWorld / 57.3) * scale; // device px per physical inch
+      meanWorld = frameSegs.length ? meanWorld / frameSegs.length : 58.86;
+      const inch = (meanWorld / 58.86) * scale; // device px per physical inch
       // Draw the pipes where they physically are — riding the inset panel,
       // not spanning the full structural triangle. overlays.pvc stays in
       // structural space for the anchor ray-cast below.
@@ -297,12 +297,12 @@ class Client {
         edgeCount.set(k, (edgeCount.get(k) || 0) + 1);
       }
     }
-    // world units per physical inch, from the mean strut length (57.30",
-    // class-count-weighted — see seams comment / adapters.py _MEAN_STRUT_INCHES)
+    // world units per physical inch (58.86" per mean world edge — see the
+    // seams comment above / adapters.py _MEAN_STRUT_INCHES)
     let meanWorld = 0;
     for (const [a, b] of frameSegs) meanWorld += Math.hypot(b[0] - a[0], b[1] - a[1]);
-    meanWorld = frameSegs.length ? meanWorld / frameSegs.length : 57.3;
-    const wpi = meanWorld / 57.3;
+    meanWorld = frameSegs.length ? meanWorld / frameSegs.length : 58.86;
+    const wpi = meanWorld / 58.86;
     // Strip standoffs from their baselines: 1.25" at frame seams (measured
     // from a build photo: strips 5.31" apart across a seam, panel inset
     // 1.5", so standoff ≈ one pipe OD), ~pipe radius on interior spokes

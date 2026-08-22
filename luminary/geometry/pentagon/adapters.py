@@ -32,11 +32,19 @@ from luminary.geometry.triangle import Triangle
 # position, identity, or anything on the wire.
 PANEL_INSET_INCHES = 1.5
 
-# World-units-per-inch calibration, mirroring the clients: a net's mean strut
-# length in world units fixes the scale of that net. 57.30" is the class-
-# count-weighted mean of the build's strut list (A 50.25"×30, B 58.125"×55,
-# C 59.375"×80 — a 3V geodesic at 24 ft).
-_MEAN_STRUT_INCHES = 57.30
+# World-units-per-inch calibration, mirroring the clients: a net's mean edge
+# length in world units maps to this many inches, fixing the scale of that net.
+#
+# This is a net-world-to-inches conversion, not a property of the net's own
+# geometry: the 2D layout is an idealization whose edges fall in three classes
+# (50.0 / 53.52 / 56.46 world, ratio 1.129) that do NOT correspond class-for-
+# class to the sphere's struts (A 50.25" / B 58.125" / C 59.375", ratio 1.182).
+# So the scale has to come from the physical struts the panels actually mount
+# on. Those are all class B or C — the installed faces avoid the pentagon-tip
+# A struts entirely — giving 58.85" over 4A-33's 62 struts and 58.88" over
+# 4A-37's 70. Derived from the panel-to-sphere-face mapping, which exists for
+# those two configs only; the others are assumed to be the same family.
+_MEAN_STRUT_INCHES = 58.86
 
 
 def to_scaffold(net: Net) -> Scaffold:

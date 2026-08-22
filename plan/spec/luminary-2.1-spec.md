@@ -1099,7 +1099,11 @@ client first fetches the **layout** for its lights geometry over REST
 (`GET /api/lights/{id}/layout` — positions, kinds, weights, display shapes
 (§6.5.3), per-light emission direction (`dir`, the in-plane beam forward of
 §7.3.1, null when unknown), structural overlays (frame / PVC / triangle
-polygons emitted as capture metadata, null when the constructor has none),
+polygons emitted as capture metadata, null when the constructor has none;
+the pentagon constructor adds `panel`, the per-triangle affine
+`[cx, cy, scale]` that shrinks a structural triangle onto its illuminated
+panel, `pvc_panel`, the PVC segments pushed through that affine, and
+`panel_inset_in`, the inset in physical inches),
 viewBox) and builds a per-light draw list once; the WebSocket then
 carries *only* wire bytes, identical to serial. Each frame: decode bytes →
 colors → repaint. Lights with a display shape are drawn as that polygon (beams,
