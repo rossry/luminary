@@ -128,10 +128,10 @@ class Client {
     const tx = (x) => x * scale + ox;
     const ty = (y) => y * scale + oy;
 
-    // Structural seams (pentagon geometries): the piece is inset cloth+PVC+LED
-    // triangles in a metal frame, so the seams read dark over the lit cells.
+    // Structural overlays (pentagon geometries): the piece is inset
+    // cloth+PVC+LED triangles in a metal frame.
     const overlays = this.layout.overlays;
-    this.seams = null;
+    this.glowSeams = null;
     // Clickable structural triangles: toggle a whole PVC subunit off/on to
     // preview build holes (frontend-only; the wire stream is untouched).
     this.triangles = ((overlays && overlays.triangles) || []).map((tri) =>
@@ -166,15 +166,11 @@ class Client {
       // structural space for the anchor ray-cast below.
       const pvcSegs = (overlays.pvc_panel || overlays.pvc || []).map(toSeg);
       const frame = frameSegs.map(toSeg);
-      this.seams = [
-        // PVC pipe (1" schedule 40, 1.315" OD): occludes its LEDs, reads dark.
-        { color: "#0d0d11", width: Math.max(1, 1.315 * inch), segs: pvcSegs },
-        // Panel-to-strut deadband: dark between the lit panel and the strut.
-        { color: "#08080a", width: Math.max(2, 5.5 * inch), segs: frame },
-        // The metal strut itself: gray, so the structure stays visible.
-        { color: "#55565e", width: Math.max(1, 1.5 * inch), segs: frame },
-      ];
-      // Realistic mode: at night the structure is just dark, not gray, and
+      // Structure is drawn in the realistic render only. Flat cells is the
+      // schematic view — bare display polygons, the way it read before the
+      // cloth work — so it gets no seams (see the un-inset pass below).
+      //
+      // At night the structure is just dark, not gray, and
       // cloth in front of a pipe still glows from light scattered in the
       // fabric — so the seams are near-black and semi-transparent, dimming
       // the glow underneath instead of erasing it.
@@ -218,6 +214,23 @@ class Client {
       }
       return this.triangles.findIndex((tri) => pointInTriangle(cx, cy, tri));
     });
+    // Flat cells draws the structural facet, not the lit panel. The panel
+    // affine is a fidelity map for the cloth render; leaving it applied here
+    // would open a gap along every seam that the flat view never had. It is
+    // invertible and shipped per triangle, so undo it — done after lightTri,
+    // which needs the centroids to still be well inside their own triangle.
+    if (panelAffine.length) {
+      this.draws.forEach((d, i) => {
+        const pa = panelAffine[this.lightTri[i]];
+        if (!pa || d.kind !== "poly" || !pa[2]) return;
+        const cx = tx(pa[0]);
+        const cy = ty(pa[1]);
+        d.points = d.points.map(([px, py]) => [
+          cx + (px - cx) / pa[2],
+          cy + (py - cy) / pa[2],
+        ]);
+      });
+    }
     this.proj = { scale, ox, oy };
     this.updateTriCount();
     this.resetScene();
@@ -422,7 +435,7 @@ class Client {
     // the lights whose quantized color changed since they were last drawn
     // (frames are budget-capped deltas, so that's typically a small fraction),
     // then composites the buffer in one drawImage.
-    if (this.updateScene() > 0) this.strokeSeams(this.bufferCtx);
+    this.updateScene();
     this.ctx.drawImage(this.buffer, 0, 0);
   }
 
@@ -490,7 +503,7 @@ class Client {
     this.glow.markColors();
   }
 
-  strokeSeams(ctx, seams = this.seams) {
+  strokeSeams(ctx, seams) {
     if (!seams) return;
     ctx.lineCap = "round";
     for (const cls of seams) {
