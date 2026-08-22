@@ -23,6 +23,9 @@
     }
     button { cursor: pointer; }
     button:hover { background: #2d2d38; }
+    button:disabled { color: #5a5a66; background: #1a1a21; border-color: #26262e;
+                      cursor: not-allowed; }
+    button:disabled:hover { background: #1a1a21; }
     #stats { margin-left: auto; font-variant-numeric: tabular-nums;
              font-size: .8rem; color: #9a9aa8; }
     #status { font-size: .8rem; color: #7fbf7f; }
@@ -42,11 +45,13 @@
     <button id="resync" title="Force a keyframe">Resync</button>
     <button id="render" disabled
             title="Press Play first — toggles realistic cloth render / flat light cells">Flat cells</button>
-    <label id="cloth-label" for="cloth" title="Extra cloth scatter width (fabric thickness)"
-           style="font-size:.8rem;color:#9a9aa8;">cloth thin</label>
+    <label id="cloth-label" for="cloth" title="Simulate cloth diffusion (blur radius)"
+           style="font-size:.8rem;color:#9a9aa8;">cloth off</label>
     <input id="cloth" type="range" min="0" max="24" step="1" value="0"
-           title="Extra cloth scatter width (fabric thickness)">
+           title="Simulate cloth diffusion (blur radius)">
     <span id="status">idle</span>
+    <span id="tricount" title="Click a triangle on the canvas to toggle its PVC subunit"
+          style="font-size:.8rem;color:#9a9aa8;"></span>
     <span id="stats"></span>
   </header>
   <main><div id="stage"><canvas id="glow"></canvas><canvas id="canvas"></canvas></div></main>

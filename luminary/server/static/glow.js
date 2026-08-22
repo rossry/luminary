@@ -245,13 +245,13 @@ export class GlowRenderer {
       standoffIn: 1.0, // LED-to-cloth height: sets grazing falloff
       sigmaIn: 0.8, // bead width
       scatterIn: 0.0, // extra fabric scatter, driven by the cloth slider
-      lobeM: 1.2, // forward exponent: LED cosine x grazing incidence
+      lobeM: 2.0, // forward exponent: LED cosine x grazing incidence
       rangeIn: 38.0, // throw fade-out radius
       spillRangeIn: 15.0, // spill: faint rim just past the pipe, then gone
-      beadGain: 2.0,
+      beadGain: 10.0,
       throwGain: 5.0,
       spillGain: 0.4,
-      exposure: 0.9,
+      exposure: 0.1,
       bg: [0.0033, 0.0033, 0.0045], // ~#101014 in linear
     };
     this.ok = true;
