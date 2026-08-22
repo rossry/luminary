@@ -91,6 +91,13 @@ This costs you nothing once you know the idioms:
   Worked examples, simplest first: `plasma_storm.py` (one bolt per slot),
   `emberfall.py` (per-lane spawns), `tidepool.py` (events timed to when a
   moving crest passed each anchor).
+- **Whole simulations**, when the thing you want genuinely has state (a
+  game, a growth, a collapse): simulate it *once* as a pure function of
+  the geometry and an epoch index `floor(t / epoch_len)`, memoize the
+  result on a content fingerprint of `lights`, and make `render` a
+  lookup into that timeline. Memoization is not state — the cache is
+  fully determined by its key, so any call order gives identical
+  output. `pacman.py` is the worked example.
 - **Envelopes in closed form**: an event at `t0` has intensity
   `attack((t - t0)/rise) * exp(-(t - t0)/decay)` — a pure function of
   `t`, no accumulation.
@@ -186,6 +193,8 @@ Every file here is a worked example. By what it teaches:
 | `prism.py` | The `DX`/`DY` beam-direction columns — patterns impossible on a pixel grid |
 | `tidepool.py` | Closed-form event timing (flares scheduled by a moving crest) |
 | `vespers.py` | OKLab-vector color blending; multi-minute incommensurate orbits |
+| `border_chase.py` | Recovering a graph from the lights themselves; geometry cached by content fingerprint |
+| `pacman.py` | A precomputed simulation played back statelessly; per-epoch rounds; a maze read off the build |
 
 `legacy/` holds pre-2.1 stateful patterns that don't meet this contract;
 `plasma_storm.py` is the worked example of converting one.
