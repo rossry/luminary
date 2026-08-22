@@ -244,7 +244,6 @@ export class GlowRenderer {
     this.params = {
       standoffIn: 1.0, // LED-to-cloth height: sets grazing falloff
       sigmaIn: 0.8, // bead width
-      scatterIn: 0.0, // extra fabric scatter, driven by the cloth slider
       lobeM: 2.0, // forward exponent: LED cosine x grazing incidence
       rangeIn: 38.0, // throw fade-out radius
       spillRangeIn: 15.0, // spill: faint rim just past the pipe, then gone
@@ -341,11 +340,8 @@ export class GlowRenderer {
       this.colorsDirty = false;
     }
     const inch = this.wpi;
-    const sigma = (p.sigmaIn + p.scatterIn) * inch;
-    // Scatter spreads the bead without adding light: hold integrated energy
-    // (~gain * sigma^2) constant as the slider widens sigma.
-    const beadGain =
-      p.beadGain * (p.sigmaIn * p.sigmaIn) / ((p.sigmaIn + p.scatterIn) * (p.sigmaIn + p.scatterIn));
+    const sigma = p.sigmaIn * inch;
+    const beadGain = p.beadGain;
     const range = p.rangeIn * inch;
     // The throw quad reaches 0.4*ext backwards; keep the isotropic spill
     // (radius spillRangeIn) inside it even when tuned past the throw range.

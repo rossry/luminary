@@ -20,9 +20,8 @@ class Client {
   constructor() {
     this.canvas = el("canvas");
     this.ctx = this.canvas.getContext("2d");
-    this.buffer = document.createElement("canvas"); // offscreen scene for cloth blur
+    this.buffer = document.createElement("canvas"); // offscreen scene, composited per paint
     this.bufferCtx = this.buffer.getContext("2d");
-    this.blur = 0; // cloth diffusion radius, CSS px (0 = off)
     this.decoder = null;
     this.layout = null;
     this.ws = null;
@@ -42,11 +41,6 @@ class Client {
     el("play").onclick = () => this.play();
     el("render").onclick = () => this.toggleRender();
     this.canvas.onclick = (e) => this.onCanvasClick(e);
-    el("cloth").oninput = () => {
-      this.blur = +el("cloth").value;
-      el("cloth-label").textContent = this.blur ? `cloth ${this.blur}px` : "cloth off";
-      this.needsPaint = true;
-    };
     el("pause").onclick = () => this.togglePause();
     el("resync").onclick = () => this.send({ type: "resync" });
     el("pattern").onchange = () => {
@@ -135,9 +129,7 @@ class Client {
     const ty = (y) => y * scale + oy;
 
     // Structural seams (pentagon geometries): the piece is inset cloth+PVC+LED
-    // triangles in a metal frame. Stroked dark both pre-blur (they absorb
-    // light, so cloth blur falls off to dark at a cell edge instead of
-    // bleeding into the neighbor panel) and post-blur (crisp structure).
+    // triangles in a metal frame, so the seams read dark over the lit cells.
     const overlays = this.layout.overlays;
     this.seams = null;
     // Clickable structural triangles: toggle a whole PVC subunit off/on to
@@ -177,8 +169,7 @@ class Client {
       this.seams = [
         // PVC pipe (1" schedule 40, 1.315" OD): occludes its LEDs, reads dark.
         { color: "#0d0d11", width: Math.max(1, 1.315 * inch), segs: pvcSegs },
-        // Panel-to-strut deadband: 2" gap each side of a 1.5" strut. Absorbs
-        // light pre-blur so cloth glow stops at the panel edge.
+        // Panel-to-strut deadband: dark between the lit panel and the strut.
         { color: "#08080a", width: Math.max(2, 5.5 * inch), segs: frame },
         // The metal strut itself: gray, so the structure stays visible.
         { color: "#55565e", width: Math.max(1, 1.5 * inch), segs: frame },
@@ -430,22 +421,9 @@ class Client {
     // The scene lives in a persistent offscreen buffer; each paint fills only
     // the lights whose quantized color changed since they were last drawn
     // (frames are budget-capped deltas, so that's typically a small fraction),
-    // then composites the buffer in one drawImage. Cloth diffusion — each
-    // cloth point integrating light from several nearby LEDs — is a Gaussian
-    // blur applied at composite time; its cost is per-pixel, independent of
-    // light count.
+    // then composites the buffer in one drawImage.
     if (this.updateScene() > 0) this.strokeSeams(this.bufferCtx);
-    const ctx = this.ctx;
-    if (this.blur > 0) {
-      ctx.fillStyle = "#101014";
-      ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-      ctx.filter = `blur(${this.blur * devicePixelRatio}px)`;
-      ctx.drawImage(this.buffer, 0, 0);
-      ctx.filter = "none";
-      this.strokeSeams(ctx);
-    } else {
-      ctx.drawImage(this.buffer, 0, 0);
-    }
+    this.ctx.drawImage(this.buffer, 0, 0);
   }
 
   /* Realistic path: linear-light splatting on the GL canvas underneath;
@@ -474,8 +452,6 @@ class Client {
     } else {
       this.glow.setTriangles(null);
     }
-    // cloth slider: extra scatter width in the fabric, 0..3 inches
-    this.glow.params.scatterIn = this.blur / 8;
     this.glow.render();
     const ctx = this.ctx;
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
