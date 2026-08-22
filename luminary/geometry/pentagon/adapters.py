@@ -103,6 +103,26 @@ def capture(
                     basis = beam.get_basis_point()
                     anchor = beam.anchor_point
                     dx, dy = basis.x - anchor.x, basis.y - anchor.y
+                    # ``Beam.forward_vector`` is the counterclockwise
+                    # perpendicular of the baseline and is documented as
+                    # "pointing into facet interior" — true only for
+                    # counterclockwise-wound facets. Most of these nets are
+                    # wound the other way (31 of 33 triangles on 4A-33), so
+                    # on those the basis lands OUTSIDE the panel and the throw
+                    # points away from the cloth it is supposed to light.
+                    #
+                    # The beam polygon is built from the real extents and is
+                    # already authoritative — it is what the flat render has
+                    # always drawn — so use it as the referee: if the throw
+                    # points away from the beam body, mirror the basis back
+                    # through the anchor. This makes ``pos``/``dir`` agree
+                    # with a polygon that was already correct; it does not
+                    # introduce a new claim about the physical build.
+                    cx = sum(v.x for v in beam.vertices) / len(beam.vertices)
+                    cy = sum(v.y for v in beam.vertices) / len(beam.vertices)
+                    if (cx - anchor.x) * dx + (cy - anchor.y) * dy < 0:
+                        dx, dy = -dx, -dy
+                        basis = anchor - (basis - anchor)
                     norm = math.hypot(dx, dy)
                     direction: Optional[List[float]] = None
                     extent: Optional[List[float]] = None

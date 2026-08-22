@@ -140,6 +140,17 @@ under the 33 ms frame budget.
 - **Thin pentagon beams** can end behind their basis point; the pentagon
   capture clamps extents so an occlusion point is never behind the light
   (`pentagon/adapters.py`).
+- **`Beam.forward_vector` is wrong-signed on clockwise-wound facets.** It
+  is documented as "pointing into facet interior" but is a fixed
+  counterclockwise perpendicular of the baseline, and most net triangles
+  are wound clockwise. The pentagon capture referees with the beam
+  polygon (authoritative — it is what the flat render draws) and mirrors
+  the basis back through the anchor when the throw points away from the
+  beam body; `test_beam_throw_points_into_its_own_facet` pins the
+  physical statement. The upstream sign bug is still live for other
+  callers of `forward_vector` / `get_basis_point()` /
+  `generate_samples()` — fix it at source and the mirroring hunk in
+  `pentagon/adapters.py` can delete itself.
 - **`<option>` elements** inside a closed `<select>` are "hidden" to
   Playwright — wait with `state="attached"`.
 - **Interpolation weights** are arc-length based (spec §6.2.3), not index

@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from luminary.geometry.lights import Kind, LightColumns
+from luminary.geometry.lights import MAX_CHANNELS, Kind, LightColumns
 from luminary.geometry.net import Net
 from luminary.geometry.pentagon import capture, to_scaffold
 
@@ -47,6 +47,67 @@ def test_capture_one_light_per_beam_with_display(net):
         d,
     )
     assert np.all(reach > -1e-6)
+
+
+@pytest.mark.parametrize("name", ["3A-33", "4A-33", "4A-37"])
+def test_beam_throw_points_into_its_own_facet(name):
+    """Every LED throws toward the interior of the facet it lights.
+
+    The physical claim: each strip is mounted on a facet's own boundary --
+    a PVC pipe or a frame strut -- and emits across *that* facet, never out
+    through the frame into the gap between panels, and never across a pipe
+    into its neighbour. On a shared interior pipe the two facets carry two
+    rows back to back.
+
+    This is not decoration. ``Beam.forward_vector`` (geometry/beam.py) takes
+    the counterclockwise perpendicular and documents it as "pointing into
+    facet interior", which only holds for counterclockwise-wound facets;
+    most of these nets are wound the other way. Without the correction in
+    ``capture()`` this assertion passes for 6% of 4A-33's lights. The nets
+    are parameterized because they carry different winding mixes (3A-33 is
+    14 clockwise of 22 triangles, 4A-33 is 31 of 33), so a fix that
+    hardcodes one winding still fails here.
+    """
+    net = Net.from_json_file(CONFIG.parent / f"{name}.json")
+    lights = capture(net)
+    a = lights.array
+    row_of = {
+        (
+            int(a[i, LightColumns.CONTROLLER]),
+            int(a[i, LightColumns.CHANNEL]),
+            int(a[i, LightColumns.INDEX]),
+        ): i
+        for i in range(lights.n)
+    }
+
+    # Replay capture()'s identity assignment: from_specs sorts rows into
+    # canonical (controller, channel, index) order, so append order is not
+    # row order and the beams have to be paired back by identity.
+    next_index = {ch: 0 for ch in range(MAX_CHANNELS)}
+    facet_ordinal = 0
+    checked = 0
+    for triangle in net.triangles:
+        for facet in triangle.get_facets():
+            channel = facet_ordinal % MAX_CHANNELS
+            facet_ordinal += 1
+            verts = facet.vertices
+            cx = sum(v.x for v in verts) / len(verts)
+            cy = sum(v.y for v in verts) / len(verts)
+            for edge_beams in facet.get_beams():
+                for _beam in edge_beams:
+                    i = row_of[(0, channel, next_index[channel])]
+                    next_index[channel] += 1
+                    px, py = a[i, LightColumns.X], a[i, LightColumns.Y]
+                    dx, dy = a[i, LightColumns.DX], a[i, LightColumns.DY]
+                    if not (np.isfinite(dx) and np.isfinite(dy)):
+                        continue  # degenerate beam: capture() emits no dir
+                    assert (cx - px) * dx + (cy - py) * dy > 0, (
+                        f"{name} light {i} (channel {channel}, index "
+                        f"{next_index[channel] - 1}) throws away from the "
+                        f"centroid of the facet it lights"
+                    )
+                    checked += 1
+    assert checked == lights.n
 
 
 def test_capture_identity_is_valid_and_dense(net):
