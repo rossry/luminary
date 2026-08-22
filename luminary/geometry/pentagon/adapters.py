@@ -21,26 +21,22 @@ from luminary.geometry.triangle import Triangle
 # triangle is mounted inside the metal frame, so neighbouring lit panels end up
 # 2 x this apart: the single knob for how widely spaced the lit triangles read.
 #
-# 2.75" = a 1.5" strut's 0.75" radius + a 2" panel-to-strut gap.
-#
-# UNVERIFIED — the 2" is an estimate, not a measurement. Its only provenance
-# is `records/2026-08-20-pattern-audit-and-browser-perf.md`, where it appears
-# in a list of renderer constants with a *rendering* rationale ("absorbs
-# pre-blur") and no cited source; every later mention traces back to that one
-# line. Replace it with a tape measure off the real panel when one is taken.
-# By contrast the neighbouring numbers are sound: 1" schedule-40 PVC really is
-# 1.315" OD, and the 50.25–59.375" strut lengths cross-check against 3V
-# Class-I chord factors for a 24 ft sphere.
+# Measured from one build photo, self-scaled so camera geometry cancels:
+# across a panel seam the two LED strips sit 14.7 px apart against a
+# 279.5 px apex-to-apex span of two adjacent all-hexavalent faces
+# (span ≈ 101"), i.e. strips 2.65" each side of the strut centerline.
+# The cloth edge sits one pipe OD inside the strip line: 2.65" − OD ≈ 1.5".
 #
 # Render fidelity only — this moves the per-light ``display`` polygons
 # (spec §6.5.3) and the ``panel`` / ``pvc_panel`` overlays, never a light's
 # position, identity, or anything on the wire.
-PANEL_INSET_INCHES = 2.75
+PANEL_INSET_INCHES = 1.5
 
-# World-units-per-inch calibration, mirroring the clients: the piece's metal
-# struts measure 50.25–59.375" (mean 54.8125"), so a net's mean strut length in
-# world units fixes the scale of that net.
-_MEAN_STRUT_INCHES = 54.8125
+# World-units-per-inch calibration, mirroring the clients: a net's mean strut
+# length in world units fixes the scale of that net. 57.30" is the class-
+# count-weighted mean of the build's strut list (A 50.25"×30, B 58.125"×55,
+# C 59.375"×80 — a 3V geodesic at 24 ft).
+_MEAN_STRUT_INCHES = 57.30
 
 
 def to_scaffold(net: Net) -> Scaffold:

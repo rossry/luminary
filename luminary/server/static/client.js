@@ -161,13 +161,14 @@ class Client {
     this.offTriangles = new Set();
     if (overlays) {
       const toSeg = (seg) => [tx(seg[0][0]), ty(seg[0][1]), tx(seg[1][0]), ty(seg[1][1])];
-      // Physical scale: struts measure 50.25–59.375" (mean 54.8125"); calibrate
+      // Physical scale: mean strut = 57.30" (class-count-weighted; keep in
+      // sync with _MEAN_STRUT_INCHES in pentagon/adapters.py); calibrate
       // world-units-per-inch against the mean world strut length.
       const frameSegs = overlays.frame || [];
       let meanWorld = 0;
       for (const [a, b] of frameSegs) meanWorld += Math.hypot(b[0] - a[0], b[1] - a[1]);
-      meanWorld = frameSegs.length ? meanWorld / frameSegs.length : 54.8125;
-      const inch = (meanWorld / 54.8125) * scale; // device px per physical inch
+      meanWorld = frameSegs.length ? meanWorld / frameSegs.length : 57.3;
+      const inch = (meanWorld / 57.3) * scale; // device px per physical inch
       // Draw the pipes where they physically are — riding the inset panel,
       // not spanning the full structural triangle. overlays.pvc stays in
       // structural space for the anchor ray-cast below.
@@ -292,19 +293,20 @@ class Client {
         edgeCount.set(k, (edgeCount.get(k) || 0) + 1);
       }
     }
-    // world units per physical inch, from the mean strut length (see seams)
+    // world units per physical inch, from the mean strut length (57.30",
+    // class-count-weighted — see seams comment / adapters.py _MEAN_STRUT_INCHES)
     let meanWorld = 0;
     for (const [a, b] of frameSegs) meanWorld += Math.hypot(b[0] - a[0], b[1] - a[1]);
-    meanWorld = frameSegs.length ? meanWorld / frameSegs.length : 54.8125;
-    const wpi = meanWorld / 54.8125;
-    // Strips mount inset from their baseline: the cloth panel edge sits ~2"
-    // inside the metal frame, and PVC pipes carry strips at their surface
-    // (~pipe radius). The bead rows must flank the dark seams, not sit on
-    // them — that's the photo's look.
+    meanWorld = frameSegs.length ? meanWorld / frameSegs.length : 57.3;
+    const wpi = meanWorld / 57.3;
+    // Strip standoffs from their baselines: 1.25" at frame seams (measured
+    // from a build photo: strips 5.31" apart across a seam, panel inset
+    // 1.5", so standoff ≈ one pipe OD), ~pipe radius on interior spokes
+    // (eyeballed).
     for (const [a, b] of (overlays && overlays.pvc) || [])
       segs.push([a[0], a[1], b[0], b[1], 0.8 * wpi, 1]);
     for (const [a, b] of frameSegs)
-      segs.push([a[0], a[1], b[0], b[1], 2.0 * wpi, edgeCount.get(ekey(a, b)) >= 2 ? 1 : 0]);
+      segs.push([a[0], a[1], b[0], b[1], 1.25 * wpi, edgeCount.get(ekey(a, b)) >= 2 ? 1 : 0]);
     const maxBack = 6 * wpi; // anchors sit well under half a beam-width away
     const inst = new Float32Array(this.layout.lights.length * 5);
     this.layout.lights.forEach((light, i) => {

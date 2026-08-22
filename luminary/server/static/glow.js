@@ -252,7 +252,7 @@ export class GlowRenderer {
       throwGain: 5.0,
       spillGain: 0.4,
       exposure: 0.1,
-      bg: [0.0033, 0.0033, 0.0045], // ~#101014 in linear
+      bg: [0.00518, 0.00518, 0.007], // #101014 sRGB-decoded to linear
     };
     this.ok = true;
   }
