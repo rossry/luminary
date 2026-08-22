@@ -12,6 +12,13 @@ anyway. So a corridor is a lane, not a line: a dot lights both of its
 beams at once, and a ghost sharing it is simply on it — no
 across-the-gap special case to keep in sync with the catch rule.
 
+The board is then *thinned*: every interior spoke is dropped except in
+dead-end panels (those stitched to the rest of the net by a single
+seam), which keep all three — the game runs on the border lattice with
+a few dense pockets, 105 junctions and 161 corridors on the star.
+Dropped spokes keep a dim structural glow, so the panel still reads as
+built, but carry no dots and no traffic.
+
 Dots are spaced by arclength rather than counted per corridor. The short
 beams run about half the length of the long ones, and a fixed count per
 corridor crowded them to nearly double the density.
@@ -22,12 +29,12 @@ four ghosts running the arcade's targeting rules translated to a graph
 (Blinky on Pac, Pinky two corridors ahead, Inky flanking away from
 Blinky, Clyde chasing only beyond six hops), scatter/chase alternation
 with the classic reversal, energizers, frightened ghosts, eyes returning
-to the house, fruit, deaths. ~190 ms for a six-minute round on the
-star, paid at the first frame that needs each round — so a round
-boundary stalls one beat; the maze itself (runs, clustering, all-pairs
-distances) is ~120 ms, once per geometry. Playback frames are direct
-indexing into the recorded tables plus bincounts over the accumulated
-contributions: ~0.6 ms steady state at 6,660 lights.
+to the house, fruit, deaths. ~105 ms for a full
+round on the star (201–225 s on the pentagon configs), paid at the first frame that needs each round — so a
+round boundary stalls one beat; the maze itself (runs, clustering,
+thinning, all-pairs distances) is ~110 ms, once per geometry. Playback
+frames are direct indexing into the recorded tables plus bincounts over
+the accumulated contributions: ~0.7 ms steady state at 6,660 lights.
 
 Round length is derived from the maze — a ghost-free dry run of Pac's
 covering walk, times a slack factor — so the board clears with room to
@@ -73,7 +80,7 @@ _RELEASE = (1.6, 4.2, 7.6, 11.0)  # ghost release times after a reset;
 # the one every restart opens on — from losing a life in six seconds.
 _SCATTER_CHASE = (7.0, 20.0, 7.0, 20.0, 5.0, 20.0, 5.0)  # then chase forever
 _CLEAR_FLOURISH = 3.0
-_ROUND_SLACK = 1.7  # dry-run clear time x this, + tail
+_ROUND_SLACK = 1.8  # dry-run clear time x this, + tail
 _ROUND_TAIL = 10.0
 _FADE_OUT = 2.5  # the seam between rounds
 
@@ -204,8 +211,10 @@ class _Maze:
         arc: np.ndarray,
         ptr: np.ndarray,
         unit: float,
+        dim_rows: np.ndarray,
     ):
         self.cu, self.cv = cu, cv  # (nc,) corridor endpoints
+        self.dim_rows = dim_rows  # light rows on thinned-away spokes
         self.clen = clen  # (nc,) corridor length, world units
         self.adj = adj  # adj[v] = [(other vertex, corridor), ...]
         self.dist = dist  # (nv, nv) hop distance
@@ -275,6 +284,46 @@ def _lay_pellets(m: _Maze) -> Tuple[np.ndarray, ...]:
                 kind[int(pptr[c]) + int(counts[c]) // 2] = 1
                 break
     return pc, ps, kind, pptr, counts
+
+
+def _spokes_to_drop(
+    cu: np.ndarray, cv: np.ndarray, vxy: np.ndarray, nv: int
+) -> List[int]:
+    """Interior spokes to remove: all of them, except in dead-end panels.
+
+    Spokes are found geometrically — the pattern only sees lights. An
+    incenter is a degree-3 vertex whose three corridors leave roughly
+    120° apart; at a border midpoint (also degree 3 on the net's outer
+    boundary) the gaps run ~90/90/180, so a 150° cap separates them
+    cleanly: one incenter per structural triangle on 4A-33/35/37, zero
+    on the hex demo. A panel's edge midpoints are degree 4 where it
+    seams onto another panel and degree 3 on the outer boundary, so a
+    dead-end panel — one you enter and must back out of — has at most
+    one degree-4 neighbor around its incenter. Those keep all three
+    spokes; every other panel loses all three, and its unused incenter
+    is compacted out of the graph after thinning. Border corridors are
+    never touched, so the maze stays connected; the reachability guard
+    below would catch a classifier regression loudly.
+    """
+    adj: List[List[Tuple[int, int]]] = [[] for _ in range(nv)]
+    for ci in range(len(cu)):
+        adj[int(cu[ci])].append((int(cv[ci]), ci))
+        adj[int(cv[ci])].append((int(cu[ci]), ci))
+    drops: List[int] = []
+    for v in range(nv):
+        if len(adj[v]) != 3:
+            continue
+        p = vxy[v]
+        ang = sorted(
+            float(np.arctan2(vxy[w][1] - p[1], vxy[w][0] - p[0])) for w, _ in adj[v]
+        )
+        gaps = (ang[1] - ang[0], ang[2] - ang[1], 2.0 * np.pi - (ang[2] - ang[0]))
+        if max(gaps) >= np.radians(150.0):
+            continue  # a border vertex, not an incenter
+        seams = sum(1 for w, _ in adj[v] if len(adj[w]) >= 4)
+        if seams > 1:
+            drops.extend(c for _, c in adj[v])
+    return drops
 
 
 def _build_maze(a: np.ndarray) -> Optional[_Maze]:
@@ -357,8 +406,48 @@ def _build_maze(a: np.ndarray) -> Optional[_Maze]:
         arc[lo:hi] = arc[lo:hi][order]
 
     nv = int(labels.max()) + 1
+    vxy = np.zeros((nv, 2))
+    for e, r in enumerate(runs):
+        for i, end in ((0, 0), (-1, 1)):
+            vxy[labels[2 * e + end]] = (
+                a[r[i], LightColumns.X],
+                a[r[i], LightColumns.Y],
+            )
+
+    # Thin the interior (see _spokes_to_drop). Dropped corridors leave the
+    # game entirely — dots, traffic, junction glow — but their light rows
+    # are kept aside so the render can hold them at a dim structural level
+    # instead of letting a physical strip go black.
+    dim_rows = np.empty(0, np.int64)
+    drops = _spokes_to_drop(cu, cv, vxy, nv)
+    if drops:
+        keep = np.ones(len(cu), bool)
+        keep[drops] = False
+        kept = np.flatnonzero(keep)
+        dim_rows = np.concatenate(
+            [rows[int(ptr[ci]) : int(ptr[ci + 1])] for ci in sorted(drops)]
+        )
+        arc = np.concatenate([arc[int(ptr[ci]) : int(ptr[ci + 1])] for ci in kept])
+        rows = np.concatenate([rows[int(ptr[ci]) : int(ptr[ci + 1])] for ci in kept])
+        ptr = np.concatenate(
+            [[0], np.cumsum([int(ptr[ci + 1] - ptr[ci]) for ci in kept])]
+        ).astype(np.int64)
+        cu, cv, clen = cu[keep], cv[keep], clen[keep]
+        # A rule that strips a vertex of every corridor (deadend does, to
+        # most incenters) must also remove the vertex, or the reachability
+        # guard below would reject the maze for a vertex the game no
+        # longer contains.
+        used = np.zeros(nv, bool)
+        used[cu] = True
+        used[cv] = True
+        if not used.all():
+            remap = (np.cumsum(used) - 1).astype(np.int32)
+            cu, cv = remap[cu], remap[cv]
+            vxy = vxy[used]
+            nv = int(used.sum())
+
     adj: List[List[Tuple[int, int]]] = [[] for _ in range(nv)]
-    for ci in range(len(order_keys)):
+    for ci in range(len(cu)):
         adj[int(cu[ci])].append((int(cv[ci]), ci))
         adj[int(cv[ci])].append((int(cu[ci]), ci))
     for lst in adj:
@@ -376,15 +465,7 @@ def _build_maze(a: np.ndarray) -> Optional[_Maze]:
                     dist[s, w] = dist[s, u] + 1
                     q.append(w)
 
-    vxy = np.zeros((nv, 2))
-    for e, r in enumerate(runs):
-        for i, end in ((0, 0), (-1, 1)):
-            vxy[labels[2 * e + end]] = (
-                a[r[i], LightColumns.X],
-                a[r[i], LightColumns.Y],
-            )
-
-    m = _Maze(cu, cv, clen, adj, dist, vxy, rows, arc, ptr, unit)
+    m = _Maze(cu, cv, clen, adj, dist, vxy, rows, arc, ptr, unit, dim_rows)
     # Reject a maze the ghost house cannot reach in full. ``dist`` is int16
     # with ``far`` as the unreachable sentinel, so this must compare against
     # ``far`` -- np.isfinite() on an integer array is unconditionally True and
@@ -976,6 +1057,16 @@ class PacMan(Pattern):
         mh = _MAZE_HC[0] + 9.0 * np.sin(2.0 * np.pi * tau / 41.0)
         breathe = 0.82 + 0.18 * np.sin(2.0 * np.pi * tau / 23.0 + m.vis_c * 0.9)
         add(m.rows, breathe, _MAZE_L, _MAZE_HC[1], mh)
+        if len(m.dim_rows):
+            # Thinned-away spokes: still part of the physical panel, so
+            # they hold a steady half-glow — structure without gameplay.
+            add(
+                m.dim_rows,
+                np.full(len(m.dim_rows), 0.55),
+                _MAZE_L * 0.5,
+                _MAZE_HC[1] * 0.6,
+                mh,
+            )
         jrow, jw = self._junction_lights(key, m)
         add(jrow, jw, _JUNC_L, _MAZE_HC[1] * 1.2, mh + 16.0)
 
