@@ -97,6 +97,41 @@ ends. Last life slides the whole lattice blue -> red (266 -> 345 hop over 2 s).
 Render steady-state 0.72 ms/frame; determinism bit-identical across
 PYTHONHASHSEED (spec §9.1.3).
 
+## Follow-up: portals, lives, and a tuning null-result (same day)
+
+The Lady iterated on the two visible/balance choices after the first commit.
+
+**Portals: one, at the arm tips.** Four gates read busy and lopsided on the
+star's uneven arms; settled on a single portal joining the two most distant
+tips. Getting "tip" right took three tries, each a real lesson:
+- degree <= 3 alone: a strip split at a seam leaves a degree-2 vertex in the
+  *middle* of a straight run — picked as a gate, looks arbitrary.
+- largest-angular-gap >= 200: excludes straight pass-throughs, but a *sharp
+  bend partway along an arm* also has a big gap, so it still chose non-tips
+  (a vertex at 56% of max radius).
+- what works: a tip is a **local maximum of distance-from-centroid** — farther
+  out than every neighbour, i.e. the actual end of an arm. Kept the degree cap
+  as a floor. `_portal_eligible`.
+
+**Lives, not slower ghosts, tune the win rate.** Lives sweep on 4A-35 (1
+portal, 50 seeds): 5 -> 0.44 clears / 50% game-over / 22s attract; 7 -> 0.64 /
+12% / 2s; 8 -> 0.66 / 2% / 1s. Monotonic and fair-reading, unlike ghost-speed
+(which was weak and non-monotonic: 0.82->0.74 helped, 0.70 hurt). Set to 7:
+wins most rounds, still loses ~1 in 8 so the last-life red and anti-victory
+flash still show, attract tail down to a couple of seconds.
+
+**The brain constants do not move the win rate — proven, not assumed.** Built
+a coordinate-descent tuner (`scratchpad/pac_tune.py`, 24-core multiprocessing;
+Cython declined — parallelism is 24x, Cython ~2x, and the work is embarrassingly
+parallel across sim evaluations). It found a config scoring +0.02 clears on its
+40-seed training set that **reversed to -0.075 on 80 held-out seeds** — pure
+overfitting — and degraded the other boards. Not applied. Defaults are best
+out-of-sample. Pac already plays near-optimally within the brain; clearing 476
+pellets means walking every edge against four ghosts, which is ~0.5 clears/round
+regardless of the knobs. Promoted three hardcoded magics (`_ENER_PENALTY`,
+`_FREE_ENER_TIME`, `_PREY_REACH`) to constants along the way so the tuner could
+reach them; kept at their original values.
+
 ## Sharp edge for the next session
 
 `tests/test_golden.py::test_js_decoder_conformance` needs node >= ~22.12:

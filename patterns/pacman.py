@@ -24,11 +24,14 @@ beams run about half the length of the long ones, and a fixed count per
 corridor crowded them to nearly double the density.
 
 The board's far tips are travel sinks and ghost-camp pockets, so after
-thinning it is *shortcut*: the two most distant junctions are joined by a
-lightless portal corridor, worst pair first, up to four times, until the
-graph is tight. A portal carries no dots and takes real time to cross,
-and hunting ghosts labour through it (the arcade's tunnel rule) — Pac's
-escape valve, and what keeps a corner from being a death trap.
+thinning it is *shortcut*: the two most distant arm tips are joined by a
+lightless portal corridor. Eligible tips are local maxima of
+distance-from-centroid — the actual end of an arm, not a bend partway
+along one — so the gate lands where a shortcut looks deliberate. A portal
+carries no dots and takes real time to cross, and hunting ghosts labour
+through it (the arcade's tunnel rule) — Pac's escape valve, and what
+keeps a corner from being a death trap. (The placement generalizes to
+more gates, worst pair first; the star reads best with one.)
 
 A whole round is simulated once and memoized, then played back. The
 simulation is a pure function of (maze, round index): Pac sweeping the
@@ -101,9 +104,12 @@ _ENERGIZERS = 5
 # Five, not the arcade's three. Clearing the board means walking every
 # corridor — dot density cannot shorten that — so a full round is a long
 # errand, and on the star even a clever Pac needs the extra credits to reach
-# the end of it more often than not. Fewer, and the round spends most of its
-# length on the attract screen with the board already eaten.
-_LIVES = 5
+# the end of it more often than not. Seven clears the board most rounds on the
+# install geometry (4A-35) — game over ~12% of the time, so the last-life red
+# and the anti-victory flash still show now and then — while keeping the
+# attract tail down to a couple of seconds. Lives, not slower ghosts, is the
+# fair way to tune how often he wins.
+_LIVES = 7
 _DEATH_TIME = 1.8  # collapse animation
 _RESPAWN_PAUSE = 0.9  # dark beat before the board resumes
 _CATCH_FRAC = 0.10  # of a corridor length
@@ -126,6 +132,9 @@ _HUNT_NEAR = 3  # a hunter this close makes an energizer worth going for
 _BLOCKED_N = 3  # choices pushed off-target before he changes his approach
 _LURE_TIME = 6.0  # how long he draws the pack away from food they are sitting on
 _LURE_FREE = 4  # ... and how far they have to be for it to have worked
+_ENER_PENALTY = 2  # hops of reluctance added to a corridor holding a live pellet
+_FREE_ENER_TIME = 4.0  # after being blocked, how long he is willing to spend one
+_PREY_REACH = 0.8  # fraction of the fright window he will chase a ghost across
 # --- portals ---------------------------------------------------------
 # The build is a partial shell, so the board is a star: its tips are far
 # from each other in hops, and a corner is where a ghost pins you. Rather
@@ -134,8 +143,12 @@ _LURE_FREE = 4  # ... and how far they have to be for it to have worked
 # shortcut helps most. Portals carry no lights and no dots: they are pure
 # graph edges that agents take time to cross, and the render draws them as
 # a hand-off between their two mouths.
-_MAX_PORTALS = 4
+_MAX_PORTALS = 1  # a single gate joining the two most distant arm tips; more
+# read as busy and lopsided on the star's uneven arms
 _PORTAL_MIN_DIAM = 8  # stop once the graph is this tight (hops)
+_PORTAL_MAX_DEG = 3  # only low-degree vertices (tips, dead-ends) may wear a
+# mouth — a degree-4 panel seam sits in the thick of the board and reads wrong
+# as a gate; the wing tips are where a shortcut belongs and looks deliberate
 _PORTAL_LEN = 1.0  # x unit: transit is real travel, not a teleport
 _PORTAL_GHOST_SLOW = 0.55  # the arcade's tunnel rule — Pac's escape valve
 _ROUND_SLACK = 1.8  # dry-run clear time x this, + tail
@@ -462,6 +475,30 @@ def _hop_distances(adj: List[List[Tuple[int, int]]], nv: int) -> Tuple[np.ndarra
     return dist, far
 
 
+def _portal_eligible(
+    vxy: np.ndarray, adj: List[List[Tuple[int, int]]], nv: int
+) -> np.ndarray:
+    """Which vertices may wear a portal mouth: the arm *tips*, nothing else.
+
+    A tip is the farthest-out point of its arm — a local maximum of
+    distance-from-centroid, lying farther from the middle than every vertex
+    it connects to. That is what rules out the two things a plain degree or
+    angle test lets through: a degree-2 vertex mid-run (a neighbour continues
+    outward, so it is not a maximum), and a sharp bend partway along an arm
+    (again, a farther neighbour exists). Kept to degree <= _PORTAL_MAX_DEG so
+    a busy interior junction can never qualify even if it were a local peak.
+    """
+    ok = np.zeros(nv, bool)
+    cen = vxy.mean(axis=0)
+    r = np.hypot(vxy[:, 0] - cen[0], vxy[:, 1] - cen[1])
+    for v in range(nv):
+        nbrs = adj[v]
+        if not (1 <= len(nbrs) <= _PORTAL_MAX_DEG):
+            continue
+        ok[v] = all(r[v] >= r[w] for w, _c in nbrs)
+    return ok
+
+
 def _add_portals(
     cu: np.ndarray,
     cv: np.ndarray,
@@ -469,6 +506,7 @@ def _add_portals(
     ptr: np.ndarray,
     unit: float,
     nv: int,
+    vxy: np.ndarray,
     adj: List[List[Tuple[int, int]]],
     dist: np.ndarray,
     far: int,
@@ -496,8 +534,15 @@ def _add_portals(
     """
     is_portal = np.zeros(len(cu), bool)
     mouths: List[int] = []
+    # A mouth belongs at a tip or corner, not in the thick of the board and not
+    # mid-run (see _portal_eligible). Eligibility is from the base graph and
+    # never recomputed — a portal only raises the degree of a vertex it lands
+    # on, and those are excluded as used mouths anyway.
+    ineligible = np.flatnonzero(~_portal_eligible(vxy, adj, nv))
     for _ in range(_MAX_PORTALS):
         d = np.where(dist < far, dist, -1).astype(np.int32)
+        d[ineligible, :] = -1
+        d[:, ineligible] = -1
         if mouths:
             gone = np.array(mouths, np.intp)
             d[gone, :] = -1
@@ -682,7 +727,7 @@ def _build_maze(a: np.ndarray) -> Optional[_Maze]:
     adj = _corridor_adj(cu, cv, nv)
     dist, far = _hop_distances(adj, nv)
     cu, cv, clen, ptr, is_portal, adj, dist = _add_portals(
-        cu, cv, clen, ptr, unit, nv, adj, dist, far
+        cu, cv, clen, ptr, unit, nv, vxy, adj, dist, far
     )
 
     m = _Maze(cu, cv, clen, adj, dist, vxy, rows, arc, ptr, unit, dim, is_portal)
@@ -916,7 +961,7 @@ def _sim(m: _Maze, rnd: int, duration: float, ghosts: bool) -> _Round:
                         # Two hops of reluctance: enough to route around a
                         # power pellet while tidying, not enough to make one
                         # unreachable when it is the only way on.
-                        d += 2
+                        d += _ENER_PENALTY
                     return (d, 0 if left[c2] > 0 else 1, _fnv(rnd, 1, pac.nchoice, c2))
 
                 w, c = min(opts, key=_cost)
@@ -1250,7 +1295,7 @@ class _PacBrain:
         #     board and arriving as it turns blue-to-solid is the single
         #     dumbest thing the old Pac did.
         if powered:
-            reach = 0.8 * power_left * _PAC_SPEED * (1.0 - _FRIGHT_SPEED)
+            reach = _PREY_REACH * power_left * _PAC_SPEED * (1.0 - _FRIGHT_SPEED)
             prey = [g for g in gh if g.mode == 1 and int(m.dist[v, g.far(m)]) <= reach]
             if prey:
                 pick = min(prey, key=lambda g: (int(m.dist[v, g.far(m)]), g.c))
@@ -1329,7 +1374,7 @@ class _PacBrain:
         if self.ener.sum() > 0:
             # Either ghosts are in the way or his own detour around the
             # power pellets is. Both are answered by taking one.
-            self.free_ener_until = t + 4.0
+            self.free_ener_until = t + _FREE_ENER_TIME
         else:
             self.contested = tgt
             self.lure_tgt = int(np.argmax(m.dist[tgt]))
