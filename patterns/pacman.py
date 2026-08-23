@@ -23,30 +23,53 @@ Dots are spaced by arclength rather than counted per corridor. The short
 beams run about half the length of the long ones, and a fixed count per
 corridor crowded them to nearly double the density.
 
-A whole round is simulated once and memoized, then played back. The
-simulation is a pure function of (maze, round index): Pac hunting dots,
-four ghosts running the arcade's targeting rules translated to a graph
-(Blinky on Pac, Pinky two corridors ahead, Inky flanking away from
-Blinky, Clyde chasing only beyond six hops), scatter/chase alternation
-with the classic reversal, energizers, frightened ghosts, eyes returning
-to the house, fruit, deaths. ~105 ms for a full
-round on the star (201–225 s on the pentagon configs), paid at the first frame that needs each round — so a
-round boundary stalls one beat; the maze itself (runs, clustering,
-thinning, all-pairs distances) is ~110 ms, once per geometry. Playback
-frames are direct indexing into the recorded tables plus bincounts over
-the accumulated contributions: ~0.7 ms steady state at 6,660 lights.
+The board's far tips are travel sinks and ghost-camp pockets, so after
+thinning it is *shortcut*: the two most distant junctions are joined by a
+lightless portal corridor, worst pair first, up to four times, until the
+graph is tight. A portal carries no dots and takes real time to cross,
+and hunting ghosts labour through it (the arcade's tunnel rule) — Pac's
+escape valve, and what keeps a corner from being a death trap.
 
-Round length is derived from the maze — a ghost-free dry run of Pac's
-covering walk, times a slack factor — so the board clears with room to
-spare, then flourishes and immediately starts a faster level 2 rather
-than sitting empty. Round index is floor(t / round_len): no chaining,
-no state. Same (lights, t) in, same colors out, in any call order
-(spec §9.1.3); the caches are memoization keyed by content.
+A whole round is simulated once and memoized, then played back. The
+simulation is a pure function of (maze, round index): Pac sweeping the
+board a clump of dots at a time — committing to a corridor until it is
+clean rather than leaving crumbs — routing around energizers until they
+are worth taking and turning on them when the pack closes in; four ghosts
+running the arcade's targeting rules translated to a graph (Blinky on
+Pac and growing bolder as the board empties — Cruise Elroy — Pinky two
+corridors ahead, Inky flanking away from Blinky, Clyde chasing only
+beyond six hops), scatter/chase alternation with the classic reversal,
+energizers, frightened ghosts, eyes returning to the house, fruit,
+deaths. The maze (runs, clustering, thinning, portals, all-pairs
+distances) is ~80–90 ms, once per geometry; a full round is ~130 ms on
+the star, paid at the first frame that needs it — so a round boundary
+stalls one beat. Playback frames are direct indexing into the recorded
+tables plus bincounts over the accumulated contributions: ~0.7 ms steady
+state at 6,660 lights.
+
+The round is a fixed-length window, not one game: its length comes from a
+ghost-free dry run of Pac's covering walk times a slack factor, and
+inside it games play out to their natural ends — a cleared board
+flourishes and re-dots a faster level; a Pac who spends all five lives
+triggers a red anti-victory flash and the ghosts tour the empty board
+(the cabinet's attract screen) until the window fades. Fixing the length
+rather than the outcome is what keeps random access O(1): round index is
+floor(t / round_len), and pricing an arbitrary t would otherwise mean
+summing the simulated outcomes of every game before it. Same (lights, t)
+in, same colors out, in any call order (spec §9.1.3); the caches are
+memoization keyed by content.
+
+The living things — Pac, the ghosts, the fruit, an energizer at the top
+of its breath — are driven hard against the wire's luminance ceiling, so
+they read at full brightness over the dim blue lattice and its quiet
+amber dots. Their glow spills around corners onto the thinned-away spokes
+too, and the death ripple washes down them, so the dark strips are part
+of the piece and not merely switched off.
 """
 
 import zlib
 from collections import deque
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, NamedTuple, Optional, Tuple
 
 import numpy as np
 
@@ -65,12 +88,22 @@ _GHOST_SPEED = 0.82  # x Pac
 _FRIGHT_SPEED = 0.55
 _EYES_SPEED = 2.4
 _LEVEL2_GHOST = 1.15  # ghosts speed up on the second level
+# Blinky's Cruise Elroy: (dots-left fraction, speed multiplier). The endgame
+# needs to converge on *something*, and a ghost growing bolder as the board
+# empties is the arcade's own answer — tension the eye can read, where a Pac
+# who simply outruns everyone reads as the game being rigged for him.
+_ELROY = ((0.35, 1.09), (0.15, 1.18))
 _FRIGHT_TIME = 6.5
 _DOT_SPACING = 0.40  # of the median corridor: dots sit this far apart
 _DOT_SIGMA = 0.064  # gaussian half-width; 3 sigma stays under the spacing
 _ENER_SIGMA = 0.16  # energizers: the board's big bright dots
 _ENERGIZERS = 5
-_LIVES = 3
+# Five, not the arcade's three. Clearing the board means walking every
+# corridor — dot density cannot shorten that — so a full round is a long
+# errand, and on the star even a clever Pac needs the extra credits to reach
+# the end of it more often than not. Fewer, and the round spends most of its
+# length on the attract screen with the board already eaten.
+_LIVES = 5
 _DEATH_TIME = 1.8  # collapse animation
 _RESPAWN_PAUSE = 0.9  # dark beat before the board resumes
 _CATCH_FRAC = 0.10  # of a corridor length
@@ -80,6 +113,31 @@ _RELEASE = (1.6, 4.2, 7.6, 11.0)  # ghost release times after a reset;
 # the one every restart opens on — from losing a life in six seconds.
 _SCATTER_CHASE = (7.0, 20.0, 7.0, 20.0, 5.0, 20.0, 5.0)  # then chase forever
 _CLEAR_FLOURISH = 3.0
+_GAMEOVER_FLOURISH = 3.2  # the red anti-victory flash, then attract mode
+# Pac may hurry when he is behind, but only just. At the old 1.2 he reached
+# 2.2x the ghosts and the game stopped being a chase; worse, his per-tick
+# stride (0.22 x unit) outran his own eat diameter (0.20), so he could skip
+# dots mid-corridor — the cheat manufactured the very remains it existed to
+# clean up.
+_LAG_BOOST = 0.25
+# --- Pac's head ------------------------------------------------------
+_SAFE_BAR = 2  # never turn into a corridor a hunter is within this many hops of
+_HUNT_NEAR = 3  # a hunter this close makes an energizer worth going for
+_BLOCKED_N = 3  # choices pushed off-target before he changes his approach
+_LURE_TIME = 6.0  # how long he draws the pack away from food they are sitting on
+_LURE_FREE = 4  # ... and how far they have to be for it to have worked
+# --- portals ---------------------------------------------------------
+# The build is a partial shell, so the board is a star: its tips are far
+# from each other in hops, and a corner is where a ghost pins you. Rather
+# than hope Pac routes around that, join the tips — repeatedly bridge the
+# two most distant junctions, which is exactly the pair a diameter-shrinking
+# shortcut helps most. Portals carry no lights and no dots: they are pure
+# graph edges that agents take time to cross, and the render draws them as
+# a hand-off between their two mouths.
+_MAX_PORTALS = 4
+_PORTAL_MIN_DIAM = 8  # stop once the graph is this tight (hops)
+_PORTAL_LEN = 1.0  # x unit: transit is real travel, not a teleport
+_PORTAL_GHOST_SLOW = 0.55  # the arcade's tunnel rule — Pac's escape valve
 _ROUND_SLACK = 1.8  # dry-run clear time x this, + tail
 _ROUND_TAIL = 10.0
 _FADE_OUT = 2.5  # the seam between rounds
@@ -93,9 +151,19 @@ _MAZE_L = 0.105
 _JUNC_L = 0.075  # extra at the intersections, pulled violet
 _DOT_H, _DOT_C = 78.0, 0.135  # warm amber, to read over the blue
 _PAC_H, _PAC_C = 95.0, 0.185  # yellow
+# The luminance the living things are driven to. The wire maps accumulated
+# energy through 1 - exp(-1.9 L) onto a 0.975 ceiling; at this level the
+# heroes sit hard against it, so Pac, the ghosts, the fruit and a fully
+# swelled energizer all read at full brightness while the walls and the
+# quiet field of dots stay well below — the piece is a glowing structure,
+# and these are the lights that move on it.
+_HERO_L = 2.2
 _GHOST_HC = ((28.0, 0.19), (350.0, 0.14), (200.0, 0.15), (60.0, 0.17))
 _FRIGHT_HC = (272.0, 0.16)
 _EYE_HC = (230.0, 0.05)
+_PORTAL_HC = (185.0, 0.15)  # teal: a colour the maze wears nowhere else, so
+# the two mouths of a portal read as one gate; they breathe in lockstep to
+# say the same thing a second way.
 # cherry, strawberry, orange, apple, grape, galaxian, bell, key
 _FRUITS = (
     (25.0, 0.21),
@@ -107,10 +175,10 @@ _FRUITS = (
     (88.0, 0.20),
     (196.0, 0.17),
 )
-_FRUIT_GATES = (0.12, 0.26, 0.40, 0.54, 0.68, 0.82)
+_FRUIT_GATES = (0.10, 0.21, 0.32, 0.43, 0.54, 0.65, 0.76, 0.86)
 _FRUIT_DWELL = 14.0
 _FLASH_SPEED = 2.1  # death shockwave, corridors per second
-_FLASH_TIME = 1.7
+_FLASH_TIME = 2.6  # the ripple's whole life; it fades to nothing by the end
 
 
 def _build_runs(a: np.ndarray) -> Tuple[List[np.ndarray], float]:
@@ -196,6 +264,30 @@ def _fnv(*vals: int) -> int:
     return h
 
 
+class _Dim(NamedTuple):
+    """The thinned-away spokes. No dots, no traffic, no junction glow — but
+    the render still reaches down them (a turning agent's spill, the death
+    ripple, the board-wide flashes), so they need arclength and a live
+    endpoint to hang from, not merely a list of rows."""
+
+    rows: np.ndarray  # (k,) light rows, grouped by dropped corridor
+    arc: np.ndarray  # (k,) arclength from the corridor's u end
+    ptr: np.ndarray  # (nd+1,) slice bounds into rows/arc
+    clen: np.ndarray  # (nd,) corridor length, world units
+    u: np.ndarray  # (nd,) live vertex at the u end, or -1 if compacted away
+    v: np.ndarray  # (nd,) live vertex at the v end, or -1
+
+
+_NO_DIM = _Dim(
+    np.empty(0, np.int64),
+    np.empty(0, np.float64),
+    np.zeros(1, np.int64),
+    np.empty(0, np.float64),
+    np.empty(0, np.int32),
+    np.empty(0, np.int32),
+)
+
+
 class _Maze:
     """Corridors, the graph over them, and where every light sits."""
 
@@ -211,10 +303,12 @@ class _Maze:
         arc: np.ndarray,
         ptr: np.ndarray,
         unit: float,
-        dim_rows: np.ndarray,
+        dim: _Dim,
+        is_portal: np.ndarray,
     ):
         self.cu, self.cv = cu, cv  # (nc,) corridor endpoints
-        self.dim_rows = dim_rows  # light rows on thinned-away spokes
+        self.dim = dim  # thinned-away spokes: render-only geometry
+        self.is_portal = is_portal  # (nc,) lightless shortcut corridors
         self.clen = clen  # (nc,) corridor length, world units
         self.adj = adj  # adj[v] = [(other vertex, corridor), ...]
         self.dist = dist  # (nv, nv) hop distance
@@ -226,6 +320,15 @@ class _Maze:
         self.dry = 0.0  # ghost-free time to clear the board
         self.nc = len(cu)
         self.nv = len(vxy)
+        # Which thinned-away spokes hang off each live vertex, and whether
+        # their arclength runs from that end — so a glow at a junction can
+        # spill down the dropped spokes as readily as down the live ones.
+        self.dim_adj: List[List[Tuple[int, bool]]] = [[] for _ in range(self.nv)]
+        for di in range(len(dim.clen)):
+            if int(dim.u[di]) >= 0:
+                self.dim_adj[int(dim.u[di])].append((di, True))
+            if int(dim.v[di]) >= 0:
+                self.dim_adj[int(dim.v[di])].append((di, False))
         # Per-visit corridor identity and the distance to each of its ends,
         # so a field measured from any vertex is two gathers.
         self.vis_c = np.repeat(np.arange(self.nc), np.diff(ptr))
@@ -267,9 +370,10 @@ def _lay_pellets(m: _Maze) -> Tuple[np.ndarray, ...]:
     dot on corridors hanging off the far corners."""
     step = _DOT_SPACING * m.unit
     counts = np.maximum(2, np.rint(m.clen / step).astype(np.int64))
+    counts[m.is_portal] = 0  # a portal is a way through, not a place to eat
     pptr = np.concatenate([[0], np.cumsum(counts)]).astype(np.int64)
     pc = np.repeat(np.arange(m.nc), counts)
-    ps = np.concatenate([(np.arange(k) + 0.5) / k for k in counts])
+    ps = np.concatenate([(np.arange(k) + 0.5) / max(k, 1) for k in counts])
     kind = np.zeros(len(pc), np.int8)
     # Spread the energizers: the corners first, then whatever is farthest
     # from every energizer already placed.
@@ -279,7 +383,9 @@ def _lay_pellets(m: _Maze) -> Tuple[np.ndarray, ...]:
     used = set()
     for v in seeds[:_ENERGIZERS]:
         for _, c in sorted(m.adj[v], key=lambda oc: oc[1]):
-            if c not in used:
+            # counts[c] == 0 on a portal, and indexing its empty slice would
+            # brand the *next* corridor's first dot an energizer.
+            if c not in used and counts[c] > 0:
                 used.add(c)
                 kind[int(pptr[c]) + int(counts[c]) // 2] = 1
                 break
@@ -324,6 +430,111 @@ def _spokes_to_drop(
         if seams > 1:
             drops.extend(c for _, c in adj[v])
     return drops
+
+
+def _corridor_adj(
+    cu: np.ndarray, cv: np.ndarray, nv: int
+) -> List[List[Tuple[int, int]]]:
+    """adj[v] = [(other vertex, corridor), ...], ordered by corridor index
+    so every traversal of it is deterministic."""
+    adj: List[List[Tuple[int, int]]] = [[] for _ in range(nv)]
+    for ci in range(len(cu)):
+        adj[int(cu[ci])].append((int(cv[ci]), ci))
+        adj[int(cv[ci])].append((int(cu[ci]), ci))
+    for lst in adj:
+        lst.sort(key=lambda oc: oc[1])
+    return adj
+
+
+def _hop_distances(adj: List[List[Tuple[int, int]]], nv: int) -> Tuple[np.ndarray, int]:
+    """All-pairs hop distance by BFS, with ``far`` marking unreachable."""
+    far = nv + 1
+    dist = np.full((nv, nv), far, np.int16)
+    for s in range(nv):
+        dist[s, s] = 0
+        q = deque([s])
+        while q:
+            u = q.popleft()
+            for w, _ in adj[u]:
+                if dist[s, w] == far:
+                    dist[s, w] = dist[s, u] + 1
+                    q.append(w)
+    return dist, far
+
+
+def _add_portals(
+    cu: np.ndarray,
+    cv: np.ndarray,
+    clen: np.ndarray,
+    ptr: np.ndarray,
+    unit: float,
+    nv: int,
+    adj: List[List[Tuple[int, int]]],
+    dist: np.ndarray,
+    far: int,
+) -> Tuple[
+    np.ndarray,
+    np.ndarray,
+    np.ndarray,
+    np.ndarray,
+    np.ndarray,
+    List[List[Tuple[int, int]]],
+    np.ndarray,
+]:
+    """Bridge the most distant pairs of junctions, worst first.
+
+    Each pass takes the two *reachable* vertices furthest apart in hops and
+    joins them with a lightless corridor, then recomputes distances so the
+    next pass sees a board the previous shortcut already tightened. Vertices
+    already wearing a mouth are excluded from later passes, which spreads the
+    gates around the board instead of stacking them on one stubborn tip.
+
+    Only finite distances are considered. A net with detached panels keeps
+    them detached — the reachability guard downstream still gets to decline
+    the maze, rather than a portal silently stitching a component the build
+    does not physically connect.
+    """
+    is_portal = np.zeros(len(cu), bool)
+    mouths: List[int] = []
+    for _ in range(_MAX_PORTALS):
+        d = np.where(dist < far, dist, -1).astype(np.int32)
+        if mouths:
+            gone = np.array(mouths, np.intp)
+            d[gone, :] = -1
+            d[:, gone] = -1
+        best = int(d.max()) if d.size else -1
+        if best < _PORTAL_MIN_DIAM:
+            break
+        # argwhere is row-major, so the first hit is the lexicographically
+        # smallest (u, v) among the ties: same maze in, same portals out.
+        u, v = (int(x) for x in np.argwhere(d == best)[0])
+        cu = np.append(cu, u).astype(np.int32)
+        cv = np.append(cv, v).astype(np.int32)
+        clen = np.append(clen, _PORTAL_LEN * unit)
+        ptr = np.append(ptr, ptr[-1]).astype(np.int64)  # no lights of its own
+        is_portal = np.append(is_portal, True)
+        mouths.extend((u, v))
+        # Refresh distances without redoing 105 breadth-first searches. One
+        # new edge of length 1 means any route from i to j either ignores it
+        # or crosses it exactly once — twice would leave a vertex and return
+        # to it, a loop you can cut for a shorter path. So three cases, and
+        # the elementwise minimum of them is exact:
+        #   ignore it       dist[i, j]
+        #   cross u -> v    dist[i, u] + 1 + dist[v, j]
+        #   cross v -> u    dist[i, v] + 1 + dist[u, j]
+        # A column plus a row broadcasts to the whole table at once. The far
+        # sentinel needs no clamp: the result always includes the old value,
+        # so it can never climb above it.
+        dist = np.minimum(
+            dist,
+            np.minimum(
+                dist[:, u][:, None] + 1 + dist[v, :][None, :],
+                dist[:, v][:, None] + 1 + dist[u, :][None, :],
+            ),
+        )
+    if mouths:
+        adj = _corridor_adj(cu, cv, nv)
+    return cu, cv, clen, ptr, is_portal, adj, dist
 
 
 def _build_maze(a: np.ndarray) -> Optional[_Maze]:
@@ -418,14 +629,24 @@ def _build_maze(a: np.ndarray) -> Optional[_Maze]:
     # game entirely — dots, traffic, junction glow — but their light rows
     # are kept aside so the render can hold them at a dim structural level
     # instead of letting a physical strip go black.
-    dim_rows = np.empty(0, np.int64)
+    dim = _NO_DIM
     drops = _spokes_to_drop(cu, cv, vxy, nv)
     if drops:
         keep = np.ones(len(cu), bool)
         keep[drops] = False
         kept = np.flatnonzero(keep)
-        dim_rows = np.concatenate(
-            [rows[int(ptr[ci]) : int(ptr[ci + 1])] for ci in sorted(drops)]
+        # Captured here because the kept-filter just below rebuilds
+        # rows/arc/ptr and the dropped slices stop being addressable.
+        dropped = np.array(sorted(drops), np.int64)
+        dim = _Dim(
+            np.concatenate([rows[int(ptr[ci]) : int(ptr[ci + 1])] for ci in dropped]),
+            np.concatenate([arc[int(ptr[ci]) : int(ptr[ci + 1])] for ci in dropped]),
+            np.concatenate(
+                [[0], np.cumsum([int(ptr[ci + 1] - ptr[ci]) for ci in dropped])]
+            ).astype(np.int64),
+            clen[dropped].copy(),
+            cu[dropped].copy(),
+            cv[dropped].copy(),
         )
         arc = np.concatenate([arc[int(ptr[ci]) : int(ptr[ci + 1])] for ci in kept])
         rows = np.concatenate([rows[int(ptr[ci]) : int(ptr[ci + 1])] for ci in kept])
@@ -442,30 +663,29 @@ def _build_maze(a: np.ndarray) -> Optional[_Maze]:
         used[cv] = True
         if not used.all():
             remap = (np.cumsum(used) - 1).astype(np.int32)
+            # A dropped spoke's incenter end goes with it. -1 means "no live
+            # vertex this side", so the render hangs the spoke off its other
+            # end. The mask is load-bearing: remap sends an unused vertex to
+            # its predecessor's index, which would silently graft the spoke
+            # onto a stranger somewhere else on the board.
+            dim = dim._replace(
+                u=np.where(used[dim.u], remap[dim.u], -1).astype(np.int32),
+                v=np.where(used[dim.v], remap[dim.v], -1).astype(np.int32),
+            )
             cu, cv = remap[cu], remap[cv]
             vxy = vxy[used]
             nv = int(used.sum())
+        assert bool(
+            ((dim.u >= 0) | (dim.v >= 0)).all()
+        ), "a thinned spoke lost both of its endpoints"
 
-    adj: List[List[Tuple[int, int]]] = [[] for _ in range(nv)]
-    for ci in range(len(cu)):
-        adj[int(cu[ci])].append((int(cv[ci]), ci))
-        adj[int(cv[ci])].append((int(cu[ci]), ci))
-    for lst in adj:
-        lst.sort(key=lambda oc: oc[1])
+    adj = _corridor_adj(cu, cv, nv)
+    dist, far = _hop_distances(adj, nv)
+    cu, cv, clen, ptr, is_portal, adj, dist = _add_portals(
+        cu, cv, clen, ptr, unit, nv, adj, dist, far
+    )
 
-    far = nv + 1
-    dist = np.full((nv, nv), far, np.int16)
-    for s in range(nv):
-        dist[s, s] = 0
-        q = deque([s])
-        while q:
-            u = q.popleft()
-            for w, _ in adj[u]:
-                if dist[s, w] == far:
-                    dist[s, w] = dist[s, u] + 1
-                    q.append(w)
-
-    m = _Maze(cu, cv, clen, adj, dist, vxy, rows, arc, ptr, unit, dim_rows)
+    m = _Maze(cu, cv, clen, adj, dist, vxy, rows, arc, ptr, unit, dim, is_portal)
     # Reject a maze the ghost house cannot reach in full. ``dist`` is int16
     # with ``far`` as the unreachable sentinel, so this must compare against
     # ``far`` -- np.isfinite() on an integer array is unconditionally True and
@@ -540,6 +760,7 @@ class _Round:
         fruit: List[Tuple[int, float, float, float, int]],
         clears: List[float],
         deaths: List[Tuple[float, int]],
+        gameovers: List[float],
         length: float,
     ):
         self.pos_c = pos_c  # (T, 5) corridor per agent (0 = Pac)
@@ -549,14 +770,17 @@ class _Round:
         self.fruit = fruit  # (junction, t0, t1, t_eaten, kind)
         self.clears = clears  # times the board was cleared
         self.deaths = deaths  # (time, junction the shockwave starts from)
+        self.gameovers = gameovers  # times the last life ran out
         self.length = length
 
-    def board(self, tau: float) -> np.ndarray:
-        """The eaten-times array in force at tau (a cleared board re-dots)."""
-        best = self.levels[0][1]
-        for t0, e in self.levels:
-            if t0 <= tau:
-                best = e
+    def board(self, tau: float) -> Tuple[float, np.ndarray]:
+        """The board in force at tau, as (when it was laid, eaten times) — a
+        cleared board re-dots, and the render blooms it in from that instant
+        rather than snapping every dot on at once."""
+        best = self.levels[0]
+        for lv in self.levels:
+            if lv[0] <= tau:
+                best = lv
         return best
 
 
@@ -572,30 +796,41 @@ def _sim(m: _Maze, rnd: int, duration: float, ghosts: bool) -> _Round:
     fruit: List[Tuple[int, float, float, float, int]] = []
     clears: List[float] = []
     deaths: List[Tuple[float, int]] = []
+    gameovers: List[float] = []
 
     speed = _PAC_SPEED * m.unit
     catch = _CATCH_FRAC * m.unit
     eat_r = 0.10 * m.unit
 
+    def _walkable(v: int) -> List[int]:
+        """Corridors at v that someone can be *seen* standing on: a portal
+        renders as a hand-off between its mouths, so nobody starts inside
+        one. Falls back to any corridor if a vertex somehow has only portals."""
+        opts = [c for _w, c in m.adj[v] if not m.is_portal[c]]
+        return opts or [c for _w, c in m.adj[v]]
+
     def spawn() -> Tuple[_Agent, List[_Agent]]:
         pv = m.start
-        pc = min(m.adj[pv], key=lambda oc: oc[1])[1]
+        pc = min(_walkable(pv))
         pac = _Agent(pc, pv)
         gs = []
+        house_opts = _walkable(m.house)
         for gi in range(4):
-            hc = m.adj[m.house][gi % len(m.adj[m.house])][1]
+            hc = house_opts[gi % len(house_opts)]
             g = _Agent(hc, m.house)
             g.mode, g.timer = 3, _RELEASE[gi]
             gs.append(g)
         return pac, gs
 
     pac, gh = spawn()
+    brain = _PacBrain(m)
     lives = _LIVES
     level = 0
     lvl_t = 0.0  # time since the level (or a death) started
     power_until = -1.0
     pause_until = -1.0
-    pause_kind = 0  # 1 = caught, 2 = board cleared
+    pause_kind = 0  # 1 = caught, 2 = board cleared, 3 = out of lives
+    attract = False  # the cabinet playing to an empty room
     ghost_mult = 1.0
     prev_phase = 0
     last_turn = -9.0
@@ -607,11 +842,14 @@ def _sim(m: _Maze, rnd: int, duration: float, ghosts: bool) -> _Round:
         t = step * _DT
 
         if pause_kind and t >= pause_until:
+            # Out of lives ends the game for good. The window is fixed, so
+            # what follows is not a fresh credit but the attract screen: the
+            # ghosts keep the board moving until the round fades out.
+            if pause_kind == 3:
+                attract = True
             pause_kind = 0
             pac, gh = spawn()
             lvl_t = 0.0
-            if lives <= 0:
-                lives = _LIVES
         dead = pause_kind != 0
 
         # Scatter/chase phases, with the classic reversal on every flip.
@@ -622,7 +860,7 @@ def _sim(m: _Maze, rnd: int, duration: float, ghosts: bool) -> _Round:
             acc += dwell
             phase += 1
         scatter = phase % 2 == 0 and phase < len(_SCATTER_CHASE)
-        if ghosts and not dead and step > 0 and phase != prev_phase:
+        if ghosts and not dead and not attract and step > 0 and phase != prev_phase:
             for g in gh:
                 if g.mode in (0, 1):
                     g.p, g.f = 1.0 - g.p, g.far(m)
@@ -630,7 +868,7 @@ def _sim(m: _Maze, rnd: int, duration: float, ghosts: bool) -> _Round:
         powered = t < power_until
 
         # --- Pac ------------------------------------------------------
-        if not dead:
+        if not dead and not attract:
             # How far behind the schedule that has the board cleared with
             # time to spare. Falling behind makes him quicker and bolder —
             # without the second part he will not go near the ghost house,
@@ -644,15 +882,17 @@ def _sim(m: _Maze, rnd: int, duration: float, ghosts: bool) -> _Round:
                 work = m.dry * share * (1.0 + 2.0 * (1.0 - share))
                 have = max(0.0, 0.92 * fade_at - t)
                 lag = float(np.clip(1.0 - have / max(work, 1e-6), 0.0, 1.0))
-            behind = 1.0 + 1.2 * lag
+            behind = 1.0 + _LAG_BOOST * lag
             pac.p += speed * behind * _DT / m.clen[pac.c]
             while pac.p >= 1.0:
                 v = pac.far(m)
                 carry = pac.p - 1.0
                 opts = _options(m, pac, allow_back=True)
                 pac.nchoice += 1
-                tgt = _pac_target(m, pac, gh, left, fruit, t, powered, v)
-                if ghosts and not powered:
+                tgt, want_power = brain.target(
+                    m, gh, fruit, t, powered, power_until - t, v
+                )
+                if ghosts:
                     safe = [
                         min(
                             (int(m.dist[w, g.far(m)]) for g in gh if g.mode == 0),
@@ -661,20 +901,27 @@ def _sim(m: _Maze, rnd: int, duration: float, ghosts: bool) -> _Round:
                         for w, _ in opts
                     ]
                     # Never walk into a ghost's lap; if every way out is
-                    # bad, take the least bad one — and accept worse odds
-                    # the further behind he is.
-                    want_bar = 2 if lag < 0.15 else 1
-                    bar = min(want_bar, max(safe))
+                    # bad, take the least bad one. This runs while he is
+                    # powered too: only *hunting* ghosts count, so it costs
+                    # nothing during a clean fright, and it is the one thing
+                    # standing between him and a ghost that left the house
+                    # after the pellet went down.
+                    bar = min(_SAFE_BAR, max(safe))
                     opts = [o for o, s in zip(opts, safe) if s >= bar]
-                i = _toward(m, opts, tgt, _fnv(rnd, 1, pac.nchoice))
-                # Prefer an uneaten corridor among equally good choices.
-                best = int(m.dist[opts[i][0], tgt])
-                cand = [o for o in opts if int(m.dist[o[0], tgt]) == best]
-                withdots = [o for o in cand if left[o[1]] > 0]
-                w, c = (withdots or cand)[
-                    _fnv(rnd, 2, pac.nchoice) % len(withdots or cand)
-                ]
+
+                def _cost(oc: Tuple[int, int]) -> Tuple[int, int, int]:
+                    w2, c2 = oc
+                    d = int(m.dist[w2, tgt])
+                    if not want_power and brain.ener[c2] > 0:
+                        # Two hops of reluctance: enough to route around a
+                        # power pellet while tidying, not enough to make one
+                        # unreachable when it is the only way on.
+                        d += 2
+                    return (d, 0 if left[c2] > 0 else 1, _fnv(rnd, 1, pac.nchoice, c2))
+
+                w, c = min(opts, key=_cost)
                 pac.enter(m, v, c, carry)
+                brain.note_progress(m, tgt, w, v, t)
 
             # Eat whatever he passes over.
             a0 = pac.s(m) * m.clen[pac.c]
@@ -684,6 +931,7 @@ def _sim(m: _Maze, rnd: int, duration: float, ghosts: bool) -> _Round:
                     if abs(m.pel_s[k] * m.clen[pac.c] - a0) < eat_r:
                         eaten[k] = t
                         left[pac.c] -= 1
+                        brain.ate(pac.c, bool(m.pel_kind[k] == 1))
                         if m.pel_kind[k] == 1 and ghosts:
                             power_until = t + _FRIGHT_TIME
                             for g in gh:
@@ -705,9 +953,12 @@ def _sim(m: _Maze, rnd: int, duration: float, ghosts: bool) -> _Round:
             # ghosts move, or frightened mode is cancelled the instant it
             # begins.
             powered = t < power_until
-            if ghosts and not powered:
+            if ghosts:
                 for g in gh:
-                    # Judge the threat on the same terms as the catch.
+                    # Judge the threat on the same terms as the catch. Mode 0
+                    # only, so a frightened ghost sharing his corridor is prey
+                    # rather than a reason to turn — but a hunter is a hunter
+                    # whether or not he happens to be powered.
                     if g.mode != 0 or g.c != pac.c:
                         continue
                     if t - last_turn < 0.7:
@@ -726,21 +977,34 @@ def _sim(m: _Maze, rnd: int, duration: float, ghosts: bool) -> _Round:
                 if g.mode == 3:
                     g.timer -= _DT
                     if g.timer <= 0.0:
+                        # Not frightened, even mid-energizer: a ghost that was
+                        # in the house when the pellet went down comes out its
+                        # own colour, as in the arcade. Pac has to watch for
+                        # it — see the safety filter, which is why that filter
+                        # runs while he is powered too.
                         g.mode, g.p, g.f = 0, 0.0, m.house
                     continue
                 if g.mode == 1 and not powered:
                     g.mode = 0
-                # Ghosts tire as Pac falls behind. Invisible from the
-                # ground, and it is what makes the board actually clear.
+                # Blinky alone grows bolder as the board empties, so the
+                # endgame tightens by a ghost getting braver rather than by
+                # Pac quietly being handed the legs to outrun everyone.
+                hunt_sp = _GHOST_SPEED * ghost_mult
+                if gi == 0:
+                    frac_left = left.sum() / max(1.0, n_dots)
+                    for gate, mult in _ELROY:
+                        if frac_left <= gate:
+                            hunt_sp = _GHOST_SPEED * ghost_mult * mult
                 sp = (
                     _EYES_SPEED
                     if g.mode == 2
-                    else (
-                        _FRIGHT_SPEED
-                        if g.mode == 1
-                        else _GHOST_SPEED * ghost_mult * (1.0 - 0.35 * lag)
-                    )
+                    else (_FRIGHT_SPEED if g.mode == 1 else hunt_sp)
                 )
+                # The arcade's tunnel: ghosts labour through a portal while
+                # Pac does not. This is what makes a shortcut an escape and
+                # not merely a shorter way to be cornered.
+                if g.mode in (0, 1) and m.is_portal[g.c]:
+                    sp *= _PORTAL_GHOST_SLOW
                 g.p += sp * speed * _DT / m.clen[g.c]
                 while g.p >= 1.0:
                     v = g.far(m)
@@ -753,18 +1017,22 @@ def _sim(m: _Maze, rnd: int, duration: float, ghosts: bool) -> _Round:
                     if g.mode == 1:
                         i = _fnv(rnd, 3, gi, g.nchoice) % len(opts)
                     else:
-                        tgt = _ghost_target(m, gi, g, gh, pac, scatter)
+                        # With no Pac to hunt, the pack tours the corners on
+                        # a slow rotation — the cabinet's attract screen.
+                        tgt = (
+                            m.corners[(gi + int(t / 7.0)) % len(m.corners)]
+                            if attract
+                            else _ghost_target(m, gi, g, gh, pac, scatter)
+                        )
                         i = _toward(m, opts, tgt, _fnv(rnd, 4, gi, g.nchoice))
                     g.enter(m, v, opts[i][1], carry)
 
-                if g.mode in (0, 1) and g.c == pac.c:
+                if g.mode in (0, 1) and g.c == pac.c and not attract:
                     d = abs(g.s(m) - pac.s(m)) * m.clen[g.c]
                     if d < catch:
                         if g.mode == 1:
                             g.mode = 2
                         else:
-                            pause_until = t + _DEATH_TIME + _RESPAWN_PAUSE
-                            pause_kind = 1
                             ps = pac.s(m) * m.clen[pac.c]
                             deaths.append(
                                 (
@@ -778,10 +1046,20 @@ def _sim(m: _Maze, rnd: int, duration: float, ghosts: bool) -> _Round:
                             )
                             lives -= 1
                             power_until = -1.0
+                            if lives <= 0:
+                                # The red flash starts as the ripple finishes,
+                                # so the board is never running two of its own
+                                # full-width effects at once.
+                                pause_kind = 3
+                                pause_until = t + _FLASH_TIME + _GAMEOVER_FLOURISH
+                                gameovers.append(t + _FLASH_TIME)
+                            else:
+                                pause_kind = 1
+                                pause_until = t + _DEATH_TIME + _RESPAWN_PAUSE
                             break
 
-        # Fruit: four a level, sitting on a junction, each a different one.
-        if ghosts and not dead:
+        # Fruit: eight a level, sitting on a junction, each a different one.
+        if ghosts and not dead and not attract:
             frac = 1.0 - left.sum() / max(1.0, n_dots)
             for idx, gate in enumerate(_FRUIT_GATES):
                 key = level * len(_FRUIT_GATES) + idx
@@ -792,7 +1070,7 @@ def _sim(m: _Maze, rnd: int, duration: float, ghosts: bool) -> _Round:
 
         # Board cleared: flourish, then re-dot and speed the ghosts up, so
         # a finished board never leaves the sculpture sitting empty.
-        if left.sum() == 0 and not dead:
+        if left.sum() == 0 and not dead and not attract:
             clears.append(t)
             if not ghosts:
                 return _Round(
@@ -803,6 +1081,7 @@ def _sim(m: _Maze, rnd: int, duration: float, ghosts: bool) -> _Round:
                     fruit,
                     clears,
                     deaths,
+                    gameovers,
                     t,
                 )
             pause_until = t + _CLEAR_FLOURISH
@@ -810,6 +1089,7 @@ def _sim(m: _Maze, rnd: int, duration: float, ghosts: bool) -> _Round:
             eaten = np.full(npel, np.inf, np.float32)
             levels.append((t + _CLEAR_FLOURISH, eaten))
             left[:] = m.pel_n
+            brain.reset(m)
             level += 1
             ghost_mult = _LEVEL2_GHOST**level
 
@@ -817,43 +1097,243 @@ def _sim(m: _Maze, rnd: int, duration: float, ghosts: bool) -> _Round:
             pos_c[step, ai] = ag.c
             pos_s[step, ai] = ag.s(m)
             if ai == 0:
-                pos_m[step, 0] = (
-                    (2 if pause_kind == 1 else 3) if dead else (1 if powered else 0)
-                )
+                if attract:
+                    pos_m[step, 0] = 3  # gone; the ghosts have the board
+                elif dead:
+                    # A game-over pause collapses him too — the last life
+                    # ends the same way the others did.
+                    pos_m[step, 0] = 2 if pause_kind in (1, 3) else 3
+                else:
+                    pos_m[step, 0] = 1 if powered else 0
             else:
                 pos_m[step, ai] = 4 if dead else ag.mode
         lvl_t += _DT
 
-    return _Round(pos_c, pos_s, pos_m, levels, fruit, clears, deaths, duration)
+    return _Round(
+        pos_c, pos_s, pos_m, levels, fruit, clears, deaths, gameovers, duration
+    )
 
 
-def _pac_target(
-    m: _Maze,
-    pac: _Agent,
-    gh: List[_Agent],
-    left: np.ndarray,
-    fruit: List[Tuple[int, float, float, float, int]],
-    t: float,
-    powered: bool,
-    v: int,
-) -> int:
-    """Where Pac wants to be: a frightened ghost, then fruit within
-    reach, then the nearest corridor that still has dots."""
-    if powered:
-        prey = [g for g in gh if g.mode == 1]
-        if prey:
-            return min(prey, key=lambda g: (int(m.dist[v, g.far(m)]), g.c)).far(m)
-    for fv, f0, f1, fe, _k in fruit:
-        if f0 <= t < f1 and fe == np.inf and m.dist[v, fv] <= 5:
-            return fv
-    dotted = np.flatnonzero(left > 0)
-    if len(dotted) == 0:
-        return v
-    du = m.dist[v][m.cu[dotted]]
-    dv = m.dist[v][m.cv[dotted]]
-    near = np.minimum(du, dv)
-    k = int(np.argmin(near))
-    return int(m.cu[dotted[k]] if du[k] <= dv[k] else m.cv[dotted[k]])
+class _PacBrain:
+    """What Pac is trying to do, and why he stops changing his mind.
+
+    Everything here is *simulation* state. The pattern stays a pure function
+    of (lights, t) because a round is simulated once from a fixed seed and
+    memoized; what has to hold inside is determinism, so this works in
+    arrays and sorted lists, breaks ties with _fnv, and never lets set or
+    dict ordering reach a decision.
+
+    Three habits, against three ways the old greedy Pac looked stupid:
+    he sweeps the clump of dots he is standing in before starting another,
+    instead of leaving crumbs to walk back for; he routes *around* power
+    pellets until they are worth something; and when the pack has simply
+    parked on the last of the food he pulls them off it rather than
+    twitching toward the dots and away again.
+    """
+
+    __slots__ = (
+        "cadj",
+        "plain",
+        "ener",
+        "comp",
+        "cur_rep",
+        "goal_c",
+        "goal_power",
+        "dirty",
+        "blocked",
+        "lure_until",
+        "lure_tgt",
+        "contested",
+        "free_ener_until",
+    )
+
+    def __init__(self, m: _Maze):
+        # Corridors meeting at a junction, precomputed: the clump sweep is
+        # then a walk over a static graph rather than a re-derivation.
+        self.cadj: List[List[int]] = [[] for _ in range(m.nc)]
+        for v in range(m.nv):
+            cs = [c for _w, c in m.adj[v]]
+            for i, c in enumerate(cs):
+                for c2 in cs[i + 1 :]:
+                    self.cadj[c].append(c2)
+                    self.cadj[c2].append(c)
+        for lst in self.cadj:
+            lst.sort()
+        self.comp = np.full(m.nc, -1, np.int32)
+        self.reset(m)
+
+    def reset(self, m: _Maze) -> None:
+        """A fresh board: every dot back, no clump chosen yet."""
+        self.plain = np.zeros(m.nc, np.int32)
+        self.ener = np.zeros(m.nc, np.int32)
+        for k in range(len(m.pel_c)):
+            c = int(m.pel_c[k])
+            if m.pel_kind[k] == 1:
+                self.ener[c] += 1
+            else:
+                self.plain[c] += 1
+        self.cur_rep = -1
+        self.goal_c = -1
+        self.goal_power = False
+        self.dirty = True
+        self.blocked = 0
+        self.lure_until = -1.0
+        self.lure_tgt = -1
+        self.contested = -1
+        self.free_ener_until = -1.0
+
+    def ate(self, c: int, energizer: bool) -> None:
+        if energizer:
+            self.ener[c] -= 1
+        else:
+            self.plain[c] -= 1
+        if self.plain[c] + self.ener[c] <= 0:
+            self.dirty = True  # a corridor emptying can split a clump
+
+    def _label(self, m: _Maze) -> None:
+        """Connected clumps of still-dotted corridors. Portals conduct but
+        never hold dots, so two tips joined by one count as a single clump."""
+        self.comp[:] = -1
+        live = (self.plain + self.ener) > 0
+        pass_through = live | m.is_portal
+        n = 0
+        for c0 in range(m.nc):
+            if self.comp[c0] >= 0 or not pass_through[c0]:
+                continue
+            self.comp[c0] = n
+            q = deque([c0])
+            while q:
+                c = q.popleft()
+                for c2 in self.cadj[c]:
+                    if self.comp[c2] < 0 and pass_through[c2]:
+                        self.comp[c2] = n
+                        q.append(c2)
+            n += 1
+        self.dirty = False
+
+    @staticmethod
+    def _closest(m: _Maze, v: int, mask: np.ndarray) -> Tuple[int, int]:
+        """The corridor in ``mask`` nearest to v, and the end of it to aim
+        for. (-1, v) when the mask is empty.
+
+        Aim at the *far* end. Aiming at the near one means that the moment he
+        arrives at the corridor's mouth he has reached his target, every way
+        on looks equally good, and the tiebreak walks him off down whichever
+        one it likes — the corridor he came for still full of dots. Targeting
+        the far end makes "arrived" and "swept it" the same event.
+        """
+        cs = np.flatnonzero(mask)
+        if not len(cs):
+            return -1, v
+        du = m.dist[v][m.cu[cs]]
+        dv = m.dist[v][m.cv[cs]]
+        k = int(np.argmin(np.minimum(du, dv)))
+        far_end = m.cv[cs[k]] if du[k] <= dv[k] else m.cu[cs[k]]
+        return int(cs[k]), int(far_end)
+
+    def target(
+        self,
+        m: _Maze,
+        gh: List[_Agent],
+        fruit: List[Tuple[int, float, float, float, int]],
+        t: float,
+        powered: bool,
+        power_left: float,
+        v: int,
+    ) -> Tuple[int, bool]:
+        """Where he wants to be, and whether he currently wants a power
+        pellet (which switches off the penalty that keeps him off them)."""
+        hunters = [g for g in gh if g.mode == 0]
+
+        # (a) Run down a frightened ghost — but only one he can actually
+        #     catch before the fright wears off. Chasing a ghost across the
+        #     board and arriving as it turns blue-to-solid is the single
+        #     dumbest thing the old Pac did.
+        if powered:
+            reach = 0.8 * power_left * _PAC_SPEED * (1.0 - _FRIGHT_SPEED)
+            prey = [g for g in gh if g.mode == 1 and int(m.dist[v, g.far(m)]) <= reach]
+            if prey:
+                pick = min(prey, key=lambda g: (int(m.dist[v, g.far(m)]), g.c))
+                return pick.far(m), False
+
+        if self.dirty:
+            self._label(m)
+        live = (self.plain + self.ener) > 0
+        near_hunter = min((int(m.dist[v, g.far(m)]) for g in hunters), default=99)
+
+        # (b) Cornered with a power pellet still on the board: turn around
+        #     and go take it. This is the whole point of saving them.
+        if self.ener.sum() > 0 and near_hunter <= _HUNT_NEAR:
+            return self._closest(m, v, self.ener > 0)[1], True
+
+        # (c) Fruit, if it is close enough to be on the way.
+        for fv, f0, f1, fe, _k in fruit:
+            if f0 <= t < f1 and fe == np.inf and m.dist[v, fv] <= 5:
+                return fv, False
+
+        # (d) Pulling the pack off food they have parked on.
+        if t < self.lure_until:
+            if self.contested >= 0 and all(
+                int(m.dist[g.far(m), self.contested]) >= _LURE_FREE for g in hunters
+            ):
+                self.lure_until = -1.0  # it worked; go back for the food
+            elif self.lure_tgt >= 0:
+                return self.lure_tgt, False
+
+        # (e) Otherwise: sweep the clump he is in, one corridor at a time.
+        #     He commits to a corridor and holds it until it is empty. This
+        #     is the part that stops the flinching — re-deciding at every
+        #     junction let two corridors swap places as "nearest" and he
+        #     rocked between them indefinitely, eating nothing. Worse, the
+        #     blocked counter could not see it: each flip looked like
+        #     progress toward a freshly chosen target.
+        want_ener = t < self.free_ener_until
+        if self.goal_c >= 0 and not live[self.goal_c]:
+            self.goal_c = -1  # swept it; pick the next
+        if self.goal_c < 0:
+            if self.cur_rep < 0 or not live[self.cur_rep]:
+                self.cur_rep = self._closest(m, v, live)[0]
+            if self.cur_rep < 0:
+                return v, False
+            mine = self.comp == self.comp[self.cur_rep]
+            # Corridors carrying a power pellet are left for later, so he
+            # never commits to one he is also routing around.
+            plain_only = (self.plain > 0) & (self.ener == 0)
+            for mask, forced in (
+                (plain_only & mine, False),  # this clump first
+                (plain_only, False),  # then the nearest other clump
+                (self.plain > 0, True),  # only pellet corridors left
+                (self.ener > 0, True),  # and finally the pellets themselves
+            ):
+                c0 = self._closest(m, v, mask)[0]
+                if c0 >= 0:
+                    self.goal_c, self.goal_power = c0, forced
+                    break
+        if self.goal_c < 0:
+            return v, False
+        du = int(m.dist[v, int(m.cu[self.goal_c])])
+        dv = int(m.dist[v, int(m.cv[self.goal_c])])
+        end = int(m.cv[self.goal_c]) if du <= dv else int(m.cu[self.goal_c])
+        return end, (self.goal_power or want_ener)
+
+    def note_progress(self, m: _Maze, tgt: int, went: int, v: int, t: float) -> None:
+        """A choice that does not close on the target is a choice he was
+        pushed into. A few in a row means standing there is not working."""
+        if int(m.dist[went, tgt]) < int(m.dist[v, tgt]):
+            self.blocked = 0
+            return
+        self.blocked += 1
+        if self.blocked < _BLOCKED_N:
+            return
+        self.blocked = 0
+        if self.ener.sum() > 0:
+            # Either ghosts are in the way or his own detour around the
+            # power pellets is. Both are answered by taking one.
+            self.free_ener_until = t + 4.0
+        else:
+            self.contested = tgt
+            self.lure_tgt = int(np.argmax(m.dist[tgt]))
+            self.lure_until = t + _LURE_TIME
 
 
 def _ghost_target(
@@ -927,7 +1407,60 @@ def _blob(
             if keep2.any():
                 rows.append(m.rows[lo2:hi2][keep2])
                 ws.append(np.exp(inv * d2[keep2] ** 2))
+        # ... and on around the corner onto any thinned-away spoke, so a
+        # turning agent's glow washes over the dark strips too, not only the
+        # live lattice.
+        for di, from_u in m.dim_adj[v]:
+            lo2, hi2 = int(m.dim.ptr[di]), int(m.dim.ptr[di + 1])
+            arc = m.dim.arc[lo2:hi2]
+            dv = arc if from_u else (float(m.dim.clen[di]) - arc)
+            d2 = dv + back
+            keep2 = d2 < cut
+            if keep2.any():
+                rows.append(m.dim.rows[lo2:hi2][keep2])
+                ws.append(np.exp(inv * d2[keep2] ** 2))
     return rows, ws
+
+
+def _portal_transit(
+    m: _Maze, c: int, s: float, sigma: float
+) -> Tuple[List[np.ndarray], List[np.ndarray]]:
+    """An agent crossing a portal, drawn as a hand-off between its two
+    mouths: it fades out of the near mouth and into the far one as it goes,
+    so the jump between distant junctions reads as travel rather than a
+    blink. A portal corridor holds no lights of its own, so without this an
+    agent would simply vanish for the crossing."""
+    rows: List[np.ndarray] = []
+    ws: List[np.ndarray] = []
+    for v, weight in ((int(m.cu[c]), 1.0 - s), (int(m.cv[c]), s)):
+        if weight <= 1e-3:
+            continue
+        for r, w in zip(*_vertex_blob(m, v, sigma)):
+            rows.append(r)
+            ws.append(w * weight)
+    return rows, ws
+
+
+def _dim_field(m: _Maze, hop: np.ndarray) -> np.ndarray:
+    """A per-vertex world-distance field (e.g. the death ripple's ``hop``),
+    carried onto every dim-spoke light row. A spoke hangs off one live end
+    (occasionally two); the distance to a row is the field at that end plus
+    the row's arclength from it, and the nearer end wins when there are two."""
+    d = m.dim
+    out = np.full(len(d.rows), np.inf)
+    for di in range(len(d.clen)):
+        lo, hi = int(d.ptr[di]), int(d.ptr[di + 1])
+        if hi == lo:
+            continue
+        arc = d.arc[lo:hi]
+        u, v = int(d.u[di]), int(d.v[di])
+        best = np.full(hi - lo, np.inf)
+        if u >= 0:
+            best = np.minimum(best, hop[u] + arc)
+        if v >= 0:
+            best = np.minimum(best, hop[v] + (float(d.clen[di]) - arc))
+        out[lo:hi] = best
+    return out
 
 
 def _vertex_blob(
@@ -959,6 +1492,9 @@ class PacMan(Pattern):
         self._round_cache: Dict[Tuple[int, int, int], _Round] = {}
         self._pel_cache: Dict[Tuple[int, int], Tuple[np.ndarray, ...]] = {}
         self._junc_cache: Dict[Tuple[int, int], Tuple[np.ndarray, np.ndarray]] = {}
+        self._portal_cache: Dict[
+            Tuple[int, int], Tuple[np.ndarray, np.ndarray, np.ndarray]
+        ] = {}
 
     def _maze(self, lights: np.ndarray) -> Tuple[Tuple[int, int], Optional[_Maze]]:
         # Content fingerprint over a strided sample of identity + position:
@@ -1001,6 +1537,36 @@ class PacMan(Pattern):
                 ws.extend(w)
             self._junc_cache[key] = (np.concatenate(rows), np.concatenate(ws))
         return self._junc_cache[key]
+
+    def _portal_lights(
+        self, key: Tuple[int, int], m: _Maze
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Rows, gaussian weights, and a fixed per-portal breath phase for a
+        glow at every portal mouth, so a portal's two ends pulse together.
+        All three arrays empty when the board has no portals."""
+        if key not in self._portal_cache:
+            rows, ws, phase = [], [], []
+            for pc in np.flatnonzero(m.is_portal):
+                ph = _fnv(int(pc)) % 1000 / 1000.0  # a fixed phase per portal
+                for v in (int(m.cu[pc]), int(m.cv[pc])):
+                    for r, w in zip(*_vertex_blob(m, v, 0.10 * m.unit)):
+                        rows.append(r)
+                        ws.append(w)
+                        phase.append(np.full(len(r), ph))
+            if rows:
+                self._portal_cache[key] = (
+                    np.concatenate(rows),
+                    np.concatenate(ws),
+                    np.concatenate(phase),
+                )
+            else:
+                z = np.empty(0, np.int64)
+                self._portal_cache[key] = (
+                    z,
+                    z.astype(np.float64),
+                    z.astype(np.float64),
+                )
+        return self._portal_cache[key]
 
     def _pellet_lights(self, key: Tuple[int, int], m: _Maze) -> Tuple[np.ndarray, ...]:
         """Flat (row, weight, pellet) table — the board's dots are static
@@ -1054,15 +1620,36 @@ class PacMan(Pattern):
         # --- the maze itself ------------------------------------------
         # Blue walls, the one thing the arcade board never lost. Without
         # them an eaten corridor goes black and the piece loses its shape.
-        mh = _MAZE_HC[0] + 9.0 * np.sin(2.0 * np.pi * tau / 41.0)
+        #
+        # On the last life the whole lattice slides from blue toward red —
+        # the danger the arcade put in a shrinking row of little Pacs, put
+        # here where there is no HUD, only the piece. Lives fall by one at
+        # each death (never refilled), so counting deaths up to now gives
+        # the count directly; the shift ramps in over two seconds from the
+        # death that spent the penultimate life.
+        danger = 0.0
+        n_dead = sum(1 for td, _ in rd.deaths if td <= tau)
+        if n_dead >= _LIVES - 1:  # on the last life, or the game is ending
+            t_last = rd.deaths[_LIVES - 2][0]  # the death that spent life two
+            danger = float(np.clip((tau - t_last) / 2.0, 0.0, 1.0))
+            # Once the last life is gone, the red does not snap off — it drains
+            # away over the game-over flourish, in step with the flash fading,
+            # so the walls are blue again exactly as attract mode opens.
+            if rd.gameovers:
+                g = rd.gameovers[0]
+                if tau >= g:
+                    danger = float(
+                        np.clip(1.0 - (tau - g) / _GAMEOVER_FLOURISH, 0.0, 1.0)
+                    )
+        mh = _MAZE_HC[0] + 79.0 * danger + 9.0 * np.sin(2.0 * np.pi * tau / 41.0)
         breathe = 0.82 + 0.18 * np.sin(2.0 * np.pi * tau / 23.0 + m.vis_c * 0.9)
         add(m.rows, breathe, _MAZE_L, _MAZE_HC[1], mh)
-        if len(m.dim_rows):
+        if len(m.dim.rows):
             # Thinned-away spokes: still part of the physical panel, so
             # they hold a steady half-glow — structure without gameplay.
             add(
-                m.dim_rows,
-                np.full(len(m.dim_rows), 0.55),
+                m.dim.rows,
+                np.full(len(m.dim.rows), 0.55),
                 _MAZE_L * 0.5,
                 _MAZE_HC[1] * 0.6,
                 mh,
@@ -1070,9 +1657,18 @@ class PacMan(Pattern):
         jrow, jw = self._junction_lights(key, m)
         add(jrow, jw, _JUNC_L, _MAZE_HC[1] * 1.2, mh + 16.0)
 
+        # --- portal mouths --------------------------------------------
+        # A teal glow at each gate, the two ends of a portal breathing in
+        # lockstep so they read as one thing across the board.
+        prow_p, pw_p, pph = self._portal_lights(key, m)
+        if len(prow_p):
+            breath = 0.6 + 0.4 * np.sin(2.0 * np.pi * (tau / 3.1 + pph))
+            add(prow_p, pw_p * breath, 0.5, _PORTAL_HC[1], _PORTAL_HC[0])
+
         # --- the board ------------------------------------------------
         prow, pw, pid = self._pellet_lights(key, m)
-        age = tau - rd.board(tau)
+        laid, eaten_at = rd.board(tau)
+        age = tau - eaten_at
         # Eaten dots pop once and go out; energizers breathe while they last.
         alive = np.where(
             age < 0.0,
@@ -1084,8 +1680,14 @@ class PacMan(Pattern):
             np.clip(1.0 - age / 0.30, 0.0, 1.0) * 2.2,
         )
         alive = np.where(np.isfinite(age) & (age > 0.30), 0.0, alive)
-        big = np.where(m.pel_kind == 1, 2.6, 1.0)
-        gate = (alive * big)[pid]
+        # Energizers are the board's other hero: at the top of their breath
+        # they blow up to full brightness, the swell doing the work the
+        # arcade's blink did. Plain dots stay the quiet amber field.
+        big = np.where(m.pel_kind == 1, 9.0, 1.0)
+        # A freshly laid board blooms in over its first beat instead of every
+        # dot snapping on at once — the seam after a clear, softened.
+        bloom = float(np.clip((tau - laid) / 0.9, 0.0, 1.0))
+        gate = (alive * big)[pid] * bloom
         hot = gate > 1e-3
         if hot.any():
             add(prow[hot], pw[hot] * gate[hot], 0.24, _DOT_C, _DOT_H)
@@ -1105,11 +1707,20 @@ class PacMan(Pattern):
                 k = np.clip(1.0 - (tau - fe) / 0.5, 0.0, 1.0) ** 0.6 * 3.4
             fh, fc_ = _FRUITS[fk % len(_FRUITS)]
             for r, w in zip(*_vertex_blob(m, fv, 0.135 * m.unit)):
-                add(r, w * k, 0.62, fc_, fh)
+                add(r, w * k, _HERO_L, fc_, fh)
 
         # --- agents ---------------------------------------------------
         step = min(len(rd.pos_c) - 2, max(0, int(tau / _DT)))
         frac = np.clip(tau / _DT - step, 0.0, 1.0)
+
+        def blob(
+            c: int, s: float, sigma: float
+        ) -> Tuple[List[np.ndarray], List[np.ndarray]]:
+            """An agent's glow, transparently handling a portal crossing."""
+            if m.is_portal[c]:
+                return _portal_transit(m, c, s, sigma)
+            return _blob(m, c, s, sigma)
+
         for ai in range(5):
             c = int(rd.pos_c[step, ai])
             s = float(rd.pos_s[step, ai])
@@ -1124,20 +1735,23 @@ class PacMan(Pattern):
                     k = _death_phase(rd, step, tau)
                     if k is None:
                         continue
-                    for r, w in zip(*_blob(m, c, s, sig * (1.0 + 2.4 * k))):
+                    for r, w in zip(*blob(c, s, sig * (1.0 + 2.4 * k))):
                         add(r, w, 0.95 * (1.0 - k) ** 2, _PAC_C, _PAC_H - 70.0 * k)
                     continue
-                # A gentle chomp — amplitude, never a strobe.
-                chomp = 0.84 + 0.16 * np.sin(2.0 * np.pi * 3.6 * tau)
+                # Driven hard into the top of the range — he is the piece's
+                # brightest thing. The chomp rides as a size pulse rather
+                # than a brightness one: a mouth that opens and shuts, kept
+                # off the luminance where a max-bright blob would swallow it.
+                chomp = 1.0 + 0.16 * np.sin(2.0 * np.pi * 3.6 * tau)
                 boost = 1.12 if mode == 1 else 1.0
-                for r, w in zip(*_blob(m, c, s, sig)):
-                    add(r, w, 0.95 * chomp * boost, _PAC_C, _PAC_H)
+                for r, w in zip(*blob(c, s, sig * chomp)):
+                    add(r, w, _HERO_L * boost, _PAC_C, _PAC_H)
                 continue
             if mode in (3, 4):  # housed, or hidden during a death
                 continue
             gi = ai - 1
             if mode == 2:  # eyes
-                for r, w in zip(*_blob(m, c, s, 0.115 * m.unit)):
+                for r, w in zip(*blob(c, s, 0.115 * m.unit)):
                     add(r, w, 0.45, _EYE_HC[1], _EYE_HC[0])
                 continue
             if mode == 1:
@@ -1145,18 +1759,21 @@ class PacMan(Pattern):
                 blink = 0.0 if left > 2.0 else 0.5 + 0.5 * np.sin(2.0 * np.pi * tau)
                 h = _FRIGHT_HC[0]
                 ch = _FRIGHT_HC[1] * (1.0 - 0.75 * blink)
-                lv = 0.55 + 0.30 * blink
+                lv = _HERO_L * (0.72 + 0.28 * blink)
             else:
                 h, ch = _GHOST_HC[gi]
-                lv = 0.80
-            for r, w in zip(*_blob(m, c, s, sig)):
+                lv = _HERO_L
+            for r, w in zip(*blob(c, s, sig)):
                 add(r, w, lv, ch, h)
-            # A short skirt trailing the way it came.
+            # A short skirt trailing the way it came — kept well under the
+            # head so the direction still reads once the head is at ceiling.
+            # Skipped mid-portal, where head and skirt would land on the same
+            # pair of mouths and only muddy the hand-off.
             ahead = int(rd.pos_c[step + 1, ai]) == c and rd.pos_s[step + 1, ai] >= s
             back = s - 0.21 if ahead else s + 0.21
-            if 0.0 <= back <= 1.0:
+            if not m.is_portal[c] and 0.0 <= back <= 1.0:
                 for r, w in zip(*_blob(m, c, back, 0.125 * m.unit)):
-                    add(r, w * 0.45, lv, ch, h)
+                    add(r, w * 0.25, lv, ch, h)
 
         # --- death: a shockwave out through the maze -------------------
         for td, dv in rd.deaths:
@@ -1167,12 +1784,17 @@ class PacMan(Pattern):
             # racing outward along the corridors and reddening as it goes.
             hop = m.dist[dv].astype(np.float64) * m.unit
             d = np.minimum(hop[m.vis_u] + m.vis_du, hop[m.vis_v] + m.vis_dv)
-            ring = np.exp(-(((d - _FLASH_SPEED * m.unit * k) / (0.62 * m.unit)) ** 2))
+            # The ring broadens as it travels — a sharp shock softening into
+            # a swell — and a closing envelope drains it to true zero by
+            # _FLASH_TIME instead of the old hard cut at ~6% amplitude.
+            sigma = (0.62 + 0.62 * k) * m.unit
+            ring = np.exp(-(((d - _FLASH_SPEED * m.unit * k) / sigma) ** 2))
             amp = np.exp(-k / 0.62)
+            close = min(1.0, (_FLASH_TIME - k) / 0.6)
             # Slow enough that the wire's per-frame slew cap (~0.24 L)
             # can actually reach it before it decays.
             blow = np.exp(-k / 0.30) * min(1.0, k / 0.12)
-            w = ring * amp * 1.35 + blow * 0.75
+            w = (ring * amp * 1.35 + blow * 0.75) * close
             hot = w > 2e-3
             if hot.any():
                 add(
@@ -1182,13 +1804,62 @@ class PacMan(Pattern):
                     0.02 + 0.19 * min(1.0, k / 0.45),
                     30.0,
                 )
+            # The same wave washing down the thinned-away spokes, so the ring
+            # does not stop dead at the border lattice.
+            if len(m.dim.rows):
+                dd = _dim_field(m, hop)
+                dring = np.exp(-(((dd - _FLASH_SPEED * m.unit * k) / sigma) ** 2))
+                dw = dring * amp * 1.35 * close
+                dhot = dw > 2e-3
+                if dhot.any():
+                    add(
+                        m.dim.rows[dhot],
+                        dw[dhot],
+                        0.9,
+                        0.02 + 0.19 * min(1.0, k / 0.45),
+                        30.0,
+                    )
 
         # --- board-cleared flourish -----------------------------------
         for tc in rd.clears:
             k = tau - tc
             if 0.0 <= k < _CLEAR_FLOURISH:
+                # A yellow pulse over the whole piece, dim spokes included,
+                # closed to zero at the end so it dissolves into the fresh
+                # board rather than cutting off.
                 pulse = np.exp(-k / 1.1) * (0.5 + 0.5 * np.cos(2.0 * np.pi * k / 0.75))
+                pulse *= min(1.0, (_CLEAR_FLOURISH - k) / 0.7)
                 add(m.rows, np.full(len(m.rows), pulse), 0.75, _PAC_C, _PAC_H)
+                if len(m.dim.rows):
+                    add(
+                        m.dim.rows,
+                        np.full(len(m.dim.rows), pulse * 0.55),
+                        0.75,
+                        _PAC_C,
+                        _PAC_H,
+                    )
+
+        # --- game over: the anti-victory ------------------------------
+        # A red wash over the whole board once the last life is gone,
+        # starting as the final death ripple reaches zero and fading out
+        # over the flourish, before the ghosts take the empty board.
+        for tg in rd.gameovers:
+            k = tau - tg
+            if 0.0 <= k < _GAMEOVER_FLOURISH:
+                pulse = (
+                    (0.35 + 0.65 * np.exp(-k / 1.3))
+                    * min(1.0, k / 0.4)
+                    * min(1.0, (_GAMEOVER_FLOURISH - k) / 0.7)
+                )
+                add(m.rows, np.full(len(m.rows), pulse), 0.7, 0.24, 18.0)
+                if len(m.dim.rows):
+                    add(
+                        m.dim.rows,
+                        np.full(len(m.dim.rows), pulse * 0.55),
+                        0.7,
+                        0.24,
+                        18.0,
+                    )
 
         if not rws:
             return out
