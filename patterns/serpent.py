@@ -223,10 +223,10 @@ _BLIP_REACH_K = 0.75  # radial symmetry: an orb's reach down any arm is capped a
 # --- background -----------------------------------------------------------
 _BG_L, _BG_C = 0.045, 0.020
 _BG_H_PERIOD = 53.0
-_GLITTER_FRAC = 0.055  # raised 0.010 -> 0.030 -> 0.055 across live feedback
-# rounds, landing on constellations' own twinkle fraction: with fewer stars,
-# too few sit near peak at any instant and the sky read empty next to it.
-# Still subordinate to the serpents; the field just visibly sparkles.
+_GLITTER_FRAC = 0.275  # raised 0.010 -> 0.030 -> 0.055 -> 0.275 across live feedback
+# rounds (the last a direct "5x more density"): now roughly every fourth
+# light twinkles and, with the faint tier below, ~78% of the field glows --
+# a full starfield under the serpents rather than scattered sparks.
 # Round 5: matched to constellations' twinkle-tier peak-L distribution
 # (p50 0.159 / p90 0.369 / max 0.476, wide per-star variety) rather than one
 # uniform amplitude. Each star's peak L is a piecewise-linear quantile
@@ -239,7 +239,7 @@ _GLITTER_PEAK_HI = 0.46  # brightest stars' peak L -- well above the old
 # uniform 0.245, giving "brighter sparkles" at the top of the distribution
 # while the median comes down to match constellations' twinkle tier
 _GLITTER_BRIGHT_SPLIT = 0.8  # fraction of stars in the common (dimmer) tier
-_GLITTER_BG_FRAC = 0.10  # second, fainter tier: matching per-star peaks
+_GLITTER_BG_FRAC = 0.50  # second, fainter tier: matching per-star peaks
 # still left the sky reading emptier than constellations, whose density
 # comes from its 10% faint background-star tier on top of the twinkle
 # tier. Same remedy here: one light in ten glows faintly, disjoint from
