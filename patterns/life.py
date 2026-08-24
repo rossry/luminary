@@ -1,8 +1,9 @@
 """Conway-like cellular automaton on the sculpture's own straight runs.
 
-Cells are recovered from the lights array exactly like `border_chase.py`:
-each (controller, channel) strip is split into straight runs at sharp
-turns and long jumps, and run endpoints are clustered into vertices. A
+Cells are recovered from the lights array by the run-extraction idiom
+shared with `pacman.py`: each (controller, channel) strip is split into
+straight runs at sharp turns and long jumps, and run endpoints are
+clustered into vertices. A
 cell is one run; two cells are neighbors iff their runs share a vertex.
 Unlike `pacman.py` this graph is left un-thinned and un-merged (every
 run is its own cell), which on the star yields far higher degree than a
@@ -139,7 +140,7 @@ from luminary.geometry.lights import LightColumns
 from luminary.patterns.base import Pattern
 from luminary.patterns.util import seeded_random
 
-# --- graph extraction (copied from border_chase.py; patterns are
+# --- graph extraction (idiom shared with pacman.py; patterns are
 # single-file by contract) -----------------------------------------
 _TURN_DEG = 28.0  # split a strip where it bends more than this
 _GAP_FACTOR = 4.0  # ... or jumps more than this multiple of its spacing
