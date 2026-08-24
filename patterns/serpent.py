@@ -223,8 +223,10 @@ _BLIP_REACH_K = 0.75  # radial symmetry: an orb's reach down any arm is capped a
 # --- background -----------------------------------------------------------
 _BG_L, _BG_C = 0.045, 0.020
 _BG_H_PERIOD = 53.0
-_GLITTER_FRAC = 0.030  # raised 3x from 0.010 -- the Lady: "a lot more background
-# glitter". Still subordinate to the serpents; the field just visibly sparkles.
+_GLITTER_FRAC = 0.055  # raised 0.010 -> 0.030 -> 0.055 across live feedback
+# rounds, landing on constellations' own twinkle fraction: with fewer stars,
+# too few sit near peak at any instant and the sky read empty next to it.
+# Still subordinate to the serpents; the field just visibly sparkles.
 # Round 5: matched to constellations' twinkle-tier peak-L distribution
 # (p50 0.159 / p90 0.369 / max 0.476, wide per-star variety) rather than one
 # uniform amplitude. Each star's peak L is a piecewise-linear quantile
@@ -245,6 +247,15 @@ _GLITTER_BG_FRAC = 0.10  # second, fainter tier: matching per-star peaks
 _GLITTER_BG_LO = 0.065  # faint tier per-light steady L floor...
 _GLITTER_BG_HI = 0.12  # ...to ceiling (hashed per light)
 _GLITTER_BG_TW = 0.02  # plus this much slow twinkle on top
+# Stars must be COLORED to read on the cloth: the visual check kept
+# failing while grey glitter matched constellations' L numbers exactly --
+# its sky reads populated because the ticks carry chroma (measured C p90
+# 0.074, hues spread ~208-256) on top of a similar L distribution. Grey
+# dim light on dark cloth is invisible.
+_GLITTER_C_PEAK = 0.10  # twinkle-tier chroma at full twinkle (scales tw^2)
+_GLITTER_BG_C = 0.045  # faint tier steady chroma
+_GLITTER_HUE_LO = 190.0  # hashed per-star hue range: cool cyans through
+_GLITTER_HUE_HI = 310.0  # blues and violets into occasional pink
 
 
 def _smoothstep(v: np.ndarray, lo: float, hi: float) -> np.ndarray:
@@ -1244,9 +1255,24 @@ class Serpent(Pattern):
             0.0,
         )
         out[:, 0] = np.clip(out[:, 0] + glitter + faint, 0.0, 1.0)
+        # Sky color is applied AFTER the hero compositor, gated to lights
+        # carrying no hero energy (see below). Writing it as base chroma
+        # here doubled the over-cap hue-crossover rate (1744 -> 3283
+        # light-frames/60s): heroes sweeping over a chromatic base cross
+        # the OKLab null at C high enough to read, where over the neutral
+        # base the same flips stay sub-visible.
+        star_hue = _GLITTER_HUE_LO + phase * (_GLITTER_HUE_HI - _GLITTER_HUE_LO)
+        sky_mask = is_star | is_faint
+        sky_c = np.where(
+            is_star,
+            _BG_C + _GLITTER_C_PEAK * tw * tw,
+            np.where(is_faint, _BG_C + _GLITTER_BG_C, out[:, 1]),
+        )
 
         key, g = self._graph(lights)
         if g is None:
+            out[:, 1] = np.where(sky_mask, sky_c, out[:, 1])
+            out[:, 2] = np.where(sky_mask, star_hue, out[:, 2])
             return nan_to_black(out)
 
         idx = int(t // g.round_len)
@@ -1459,5 +1485,18 @@ class Serpent(Pattern):
             out[:, 1] = np.clip(out[:, 1] + add_c, 0.0, 0.4)
             hue_field = np.degrees(np.arctan2(b_acc, a_acc)) % 360.0
             out[:, 2] = np.where(lum_acc > 1e-6, hue_field, out[:, 2])
+            quiet = lum_acc <= 1e-6
+        else:
+            quiet = np.ones(n, dtype=bool)
+
+        # Sky color, hero-gated (see the glitter block): stars are tinted
+        # only where no snake/blip/gulp energy is present this frame. At
+        # the gate boundary the hero's slew-fit tail has already brought
+        # its energy (and with it add_c) to ~0, so the hue handoff between
+        # star color and hero color happens at near-neutral chroma --
+        # sub-visible, identical to the pre-color baseline.
+        paint = sky_mask & quiet
+        out[:, 1] = np.where(paint, sky_c, out[:, 1])
+        out[:, 2] = np.where(paint, star_hue, out[:, 2])
 
         return nan_to_black(out)
