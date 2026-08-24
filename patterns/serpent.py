@@ -2,7 +2,7 @@
 swallowed color chases back through the body that ate it as it travels.
 
 The corridor graph is recovered from the lights array exactly as in
-`pacman.py` and `border_chase.py` (runs split at turns/gaps, endpoints
+`pacman.py` (runs split at turns/gaps, endpoints
 clustered into vertices, parallel beams either side of a seam merged into
 one corridor) but kept much simpler: no thinning and no portals, just a
 connected graph with per-corridor row/arc tables sorted by arclength.
@@ -31,9 +31,8 @@ actually has to decide (a junction, an eaten blip), so its whole trip is a
 sequence of closed-form segments. Concatenating each segment's per-corridor
 row/arc table (offset by the trip's running arclength) and sorting once by
 that arclength gives a single `(row, s)` table per snake for the entire round
--- the same idiom `border_chase.py` uses for its closed cycle, just for a
-round-length, blip-aware, self-avoiding, tron-aware walk instead of a fixed
-loop. Render loops over the snakes (each with its own palette) and paints the
+-- a round-length, blip-aware, self-avoiding, tron-aware walk compiled to one
+lookup table. Render loops over the snakes (each with its own palette) and paints the
 shared blips once.
 
 The signature mechanic falls out of that table almost for free. The body at
@@ -77,7 +76,7 @@ from luminary.geometry.lights import LightColumns
 from luminary.patterns.base import Pattern
 from luminary.patterns.util import nan_to_black, seeded_random
 
-# --- graph extraction (idiom shared with border_chase.py / pacman.py) ----
+# --- graph extraction (idiom shared with pacman.py) ----------------------
 _TURN_DEG = 28.0  # split a strip where it bends more than this
 _GAP_FACTOR = 4.0  # ... or jumps more than this multiple of its spacing
 _MIN_RUN = 4  # runs shorter than this merge into a neighbor or drop
@@ -579,7 +578,7 @@ def _build_graph(a: np.ndarray) -> Optional[_Graph]:
         return None
 
     # One corridor per vertex pair -- the beams either side of a panel seam
-    # merge into a single lane, as in pacman.py / border_chase.py.
+    # merge into a single lane, as in pacman.py.
     by_pair: Dict[Tuple[int, int], List[int]] = {}
     for e, g in enumerate(groups_of):
         if g is not None:

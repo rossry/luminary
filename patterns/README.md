@@ -193,8 +193,8 @@ Every file here is a worked example. By what it teaches:
 | `prism.py` | The `DX`/`DY` beam-direction columns — patterns impossible on a pixel grid |
 | `tidepool.py` | Closed-form event timing (flares scheduled by a moving crest) |
 | `vespers.py` | OKLab-vector color blending; multi-minute incommensurate orbits |
-| `border_chase.py` | Recovering a graph from the lights themselves; geometry cached by content fingerprint |
-| `pacman.py` | A precomputed simulation played back statelessly; per-epoch rounds; a maze read off the build |
+| `pacman.py` | A precomputed simulation played back statelessly; per-epoch rounds; a graph recovered from the lights themselves, cached by content fingerprint |
+| `serpent.py` | Multiple agents co-simulated on one event timeline; a body as a sliding arclength window over a per-round `(row, s)` table |
 
 `legacy/` holds pre-2.1 stateful patterns that don't meet this contract;
 `plasma_storm.py` is the worked example of converting one.
