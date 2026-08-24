@@ -129,7 +129,14 @@ _MAX_BODY_FRAC = 0.12  # cap each snake's body at this fraction of total corrido
 # routine (44/round) instead of occasional. Capping keeps survival the norm;
 # eating past the cap still consumes the blip and paints its band, just adds no
 # length. Floored so a small graph (the hex) still gets a few units of growth.
-_RETRACT_TIME = 0.65  # seconds to retract after a self-swallow (>= 0.5)
+_RETRACT_TIME = 0.65  # MINIMUM seconds to retract after a crash (>= 0.5)
+_CRASH_TAIL_RATE = 2.5  # max tail-sweep speed during a crash collapse, in
+# corridor units (g.unit) per second. A fixed retract time lets a long body's
+# tail sweep arbitrarily fast -- a 158-unit collapse at 0.65s measured 0.67
+# L/frame single-light steps, ~3x the wire's 0.24 cap, which the codec would
+# smear blue across the whole dying body. Scaling duration with collapse
+# distance keeps each light's fade-out inside the slew envelope; the gulp
+# flash still marks the crash instant, the body then drains tron-style.
 _TAIL_FADE_FRAC = 0.30  # fraction of body length that fades in at the tail
 _HUE_RATE = 46.0  # degrees per corridor unit of arclength (s/g.unit): the base
 # rainbow cycle -- normalized by the corridor unit, not raw world arclength,
@@ -309,9 +316,93 @@ def _build_runs(a: np.ndarray) -> Tuple[List[np.ndarray], float]:
                     merged[-1] = np.concatenate([prev, p])
                     continue
             merged.append(p)
-        runs.extend(m for m in merged if len(m) >= _MIN_RUN)
+        # Forward pass: a short piece with no mergeable predecessor -- on
+        # this build every strip's FIRST light sits at a hub center and
+        # bends away from its strut, so the backward-only merge dropped it
+        # and the hub center stayed permanently dark. Attach such pieces to
+        # the following piece when spatially contiguous.
+        fwd: List[np.ndarray] = []
+        pend: Optional[np.ndarray] = None
+        for p in merged:
+            if pend is not None:
+                gap = float(
+                    np.hypot(
+                        a[p[0], LightColumns.X] - a[pend[-1], LightColumns.X],
+                        a[p[0], LightColumns.Y] - a[pend[-1], LightColumns.Y],
+                    )
+                )
+                if gap < _GAP_FACTOR * med:
+                    p = np.concatenate([pend, p])
+                pend = None
+            if len(p) < _MIN_RUN:
+                pend = p
+                continue
+            fwd.append(p)
+        runs.extend(fwd)
     med_all = float(np.median(np.concatenate(spacings))) if spacings else 1.0
     return runs, med_all
+
+
+_SPLIT_EPS = 0.25  # x unit: a run interior passing this close to a hub is a
+# through-run. Measured on the star: the 22 genuine straight-through passes
+# sit at 0.03-0.08 units from their hub centroid, the nearest false
+# candidate (an inset inner-beam corner alongside a strut) at 0.635 -- 0.25
+# has ~3x margin to both. Raw endpoint distance is NOT a usable criterion
+# (inner-beam corners sit within cluster-tol of strut interiors everywhere;
+# a first attempt with it shredded 422 runs into 1098 pieces).
+
+
+def _split_runs_at_junctions(
+    a: np.ndarray, runs: List[np.ndarray], tol: float, unit: float
+) -> List[np.ndarray]:
+    """Split any run whose interior passes within ``_SPLIT_EPS * unit`` of a
+    clustered hub (vertex centroid of a provisional endpoint clustering).
+    The bend test alone reads two near-collinear struts as ONE run, so the
+    hub between them gets a vertex (other struts terminate there) but no
+    incidence for the straight-through run -- a blip sitting on that hub
+    then lights every arm except the straight-through pair (the one-sided
+    spokes the Lady saw). Splitting at the closest interior light makes
+    both halves incident: their new endpoints sit essentially on the hub,
+    so the caller's re-clustering folds them into the hub's vertex."""
+    labels = _cluster_endpoints(a, runs, tol)
+    nv = int(labels.max()) + 1
+    pts = np.array(
+        [
+            [a[r[i], LightColumns.X], a[r[i], LightColumns.Y]]
+            for r in runs
+            for i in (0, -1)
+        ]
+    )
+    cent = np.zeros((nv, 2))
+    cnt = np.zeros(nv)
+    for j, lab in enumerate(labels):
+        cent[lab] += pts[j]
+        cnt[lab] += 1
+    cent /= np.maximum(cnt, 1)[:, None]
+
+    eps = _SPLIT_EPS * unit
+    xcols = np.array([LightColumns.X, LightColumns.Y], np.intp)
+    out: List[np.ndarray] = []
+    for e, r in enumerate(runs):
+        own = {int(labels[2 * e]), int(labels[2 * e + 1])}
+        foreign = np.array([v for v in range(nv) if v not in own], np.intp)
+        stack = [r]
+        while stack:
+            rr = stack.pop()
+            if len(foreign) and len(rr) >= 2 * _MIN_RUN:
+                xy = a[np.ix_(rr, xcols)]
+                d = np.hypot(
+                    xy[:, None, 0] - cent[None, foreign, 0],
+                    xy[:, None, 1] - cent[None, foreign, 1],
+                ).min(axis=1)
+                inner = d[_MIN_RUN : len(rr) - _MIN_RUN]
+                if len(inner) and inner.min() < eps:
+                    k = _MIN_RUN + int(inner.argmin())
+                    stack.append(rr[: k + 1])
+                    stack.append(rr[k + 1 :])
+                    continue
+            out.append(rr)
+    return out
 
 
 def _cluster_endpoints(a: np.ndarray, runs: List[np.ndarray], tol: float) -> np.ndarray:
@@ -438,7 +529,9 @@ def _build_graph(a: np.ndarray) -> Optional[_Graph]:
         for r in runs
     ]
     unit = float(np.median(chords))
-    labels = _cluster_endpoints(a, runs, max(3.0 * spacing, 0.3 * unit))
+    tol = max(3.0 * spacing, 0.3 * unit)
+    runs = _split_runs_at_junctions(a, runs, tol, unit)
+    labels = _cluster_endpoints(a, runs, tol)
 
     groups_of: List[Optional[Tuple[int, int]]] = []
     flip_of: List[bool] = []
@@ -957,7 +1050,14 @@ def _sim_all(g: _Graph, idx: int) -> _RoundSet:
             sn.bp_t.append(entry_t)
             sn.bp_from.append(true_l)
             sn.bp_to.append(baby_l)
-            sn.bp_dur.append(_RETRACT_TIME)
+            # Slew-fit: smoothstep easing peaks at 1.5x the mean rate, so
+            # budget for the peak when bounding the tail-sweep speed.
+            sn.bp_dur.append(
+                max(
+                    _RETRACT_TIME,
+                    1.5 * (true_l - baby_l) / (_CRASH_TAIL_RATE * g.unit),
+                )
+            )
             sn.l_state = baby_l
             if self_hit:
                 sn.n_self += 1
