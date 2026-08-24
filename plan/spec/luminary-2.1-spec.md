@@ -1097,7 +1097,14 @@ firmware; `static/color.js` then does OKLCH→OKLab→sRGB8 (the §8.4 math).
 14.3.1 Live playback renders to a **Canvas 2D** (not per-element SVG): the
 client first fetches the **layout** for its lights geometry over REST
 (`GET /api/lights/{id}/layout` — positions, kinds, weights, display shapes
-(§6.5.3), viewBox) and builds a per-light draw list once; the WebSocket then
+(§6.5.3), per-light emission direction (`dir`, the in-plane beam forward of
+§7.3.1, null when unknown), structural overlays (frame / PVC / triangle
+polygons emitted as capture metadata, null when the constructor has none;
+the pentagon constructor adds `panel`, the per-triangle affine
+`[cx, cy, scale]` that shrinks a structural triangle onto its illuminated
+panel, `pvc_panel`, the PVC segments pushed through that affine, and
+`panel_inset_in`, the inset in physical inches),
+viewBox) and builds a per-light draw list once; the WebSocket then
 carries *only* wire bytes, identical to serial. Each frame: decode bytes →
 colors → repaint. Lights with a display shape are drawn as that polygon (beams,
 per review §19.5); others as dots. Canvas is required for thousands of lights
@@ -1107,6 +1114,17 @@ dropped for playback.
 14.3.2 The client connects to `/api/play?lights=<id>&pattern=<name>` (§15.4),
 which sends binary wire frames. The client may send resync (e.g. on tab
 re-focus) over the same socket.
+
+14.3.3 When WebGL2 is available the client defaults to a **realistic cloth
+render** (`static/glow.js`): each LED is splatted with its physical light
+distribution (near-field bead + forward grazing throw + short spill, all in
+physical inches derived from the mean strut length), accumulated additively
+in linear light (RGBA16F), clipped to a cloth-coverage mask rasterized from
+the overlay triangles, then tone-mapped hue-preservingly and sRGB-encoded.
+The `dir`/overlays layout fields (§14.3.1) exist to feed this renderer; the
+flat per-light cell fill remains as a toggle and as the no-WebGL2 fallback.
+This is display-only: it consumes decoded OKLCH exactly like the flat path
+and never touches the decoder or the wire.
 
 ### 14.4 Shared projection (`render/projection.py` + mirror constants)
 
@@ -1161,7 +1179,7 @@ slug); patterns are uploaded Python files registered by `name` (§15.5).
 | `GET /api/lights` | List available lights geometries |
 | `GET /api/lights/{id}` | Fetch lights JSON |
 | `GET /api/lights/{id}/view` | HTML page rendering the lights geometry |
-| `GET /api/lights/{id}/layout` | Client draw layout: positions, kinds, weights, display shapes, viewBox (§14.3.1) |
+| `GET /api/lights/{id}/layout` | Client draw layout: positions, kinds, weights, display shapes, dir, overlays, viewBox (§14.3.1) |
 | `POST /api/lights/from-scaffold` | Produce a lights geometry from `{scaffold_id, params}` using default capture (§7.2) → `{id}` |
 | `POST /api/patterns` | Upload a pattern file; hot-reload registry (§9.3) → `{name}` |
 | `GET /api/patterns` | List available patterns (name, description, load status) |

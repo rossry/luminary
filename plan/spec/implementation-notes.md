@@ -30,7 +30,7 @@
 | `luminary/render/projection.py` | §14.4 | Shared world→2D layout for SVG **and** canvas (one projection rule) |
 | `luminary/render/svg.py` | §14.5 | Static SVG of scaffolds / lights (rendered once, never per frame) |
 | `luminary/server/app.py`, `store.py` | §15 | FastAPI adapter (all exit-condition endpoints) over a content-addressed file store |
-| `luminary/server/static/decoder.js`, `color.js`, `client.js` | §14.2–§14.3 | Browser decoder (conformance sibling), color math, canvas client |
+| `luminary/server/static/decoder.js`, `color.js`, `client.js`, `glow.js` | §14.2–§14.3 | Browser decoder (conformance sibling), color math, canvas client, WebGL2 realistic cloth render (§14.3.3) |
 | `luminary/cli.py` | §16 | `serve` / `play` / `capture` / `render` — every verb an adapter over the one engine |
 | `firmware/scorpio/lib/lumicodec/` | §13 | Plain-C++17 decoder core + Q14 fixed-point color; host-compilable, no Arduino deps |
 | `firmware/scorpio/src/main.cpp` | §13 | Arduino sketch: serial in → NeoPXL8 out (not compilable without the Arduino toolchain) |
@@ -140,6 +140,17 @@ under the 33 ms frame budget.
 - **Thin pentagon beams** can end behind their basis point; the pentagon
   capture clamps extents so an occlusion point is never behind the light
   (`pentagon/adapters.py`).
+- **`Beam.forward_vector` is wrong-signed on clockwise-wound facets.** It
+  is documented as "pointing into facet interior" but is a fixed
+  counterclockwise perpendicular of the baseline, and most net triangles
+  are wound clockwise. The pentagon capture referees with the beam
+  polygon (authoritative — it is what the flat render draws) and mirrors
+  the basis back through the anchor when the throw points away from the
+  beam body; `test_beam_throw_points_into_its_own_facet` pins the
+  physical statement. The upstream sign bug is still live for other
+  callers of `forward_vector` / `get_basis_point()` /
+  `generate_samples()` — fix it at source and the mirroring hunk in
+  `pentagon/adapters.py` can delete itself.
 - **`<option>` elements** inside a closed `<select>` are "hidden" to
   Playwright — wait with `state="attached"`.
 - **Interpolation weights** are arc-length based (spec §6.2.3), not index
