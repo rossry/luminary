@@ -237,6 +237,14 @@ _GLITTER_PEAK_HI = 0.46  # brightest stars' peak L -- well above the old
 # uniform 0.245, giving "brighter sparkles" at the top of the distribution
 # while the median comes down to match constellations' twinkle tier
 _GLITTER_BRIGHT_SPLIT = 0.8  # fraction of stars in the common (dimmer) tier
+_GLITTER_BG_FRAC = 0.10  # second, fainter tier: matching per-star peaks
+# still left the sky reading emptier than constellations, whose density
+# comes from its 10% faint background-star tier on top of the twinkle
+# tier. Same remedy here: one light in ten glows faintly, disjoint from
+# the twinkle stars (adjacent slice of the same hashed pick).
+_GLITTER_BG_LO = 0.065  # faint tier per-light steady L floor...
+_GLITTER_BG_HI = 0.12  # ...to ceiling (hashed per light)
+_GLITTER_BG_TW = 0.02  # plus this much slow twinkle on top
 
 
 def _smoothstep(v: np.ndarray, lo: float, hi: float) -> np.ndarray:
@@ -1225,7 +1233,17 @@ class Serpent(Pattern):
         )
         glitter_amp = np.clip(peak_l - _BG_L, 0.0, None)
         glitter = np.where(is_star, glitter_amp * tw * tw, 0.0)
-        out[:, 0] = np.clip(out[:, 0] + glitter, 0.0, 1.0)
+        # Faint background tier: steady hashed glow + a whisper of the same
+        # slow twinkle. The density, not the brightness, is what makes the
+        # sky read populated.
+        is_faint = (~is_star) & (pick < _GLITTER_FRAC + _GLITTER_BG_FRAC)
+        faint_l = _GLITTER_BG_LO + amp_u * (_GLITTER_BG_HI - _GLITTER_BG_LO)
+        faint = np.where(
+            is_faint,
+            np.clip(faint_l - _BG_L, 0.0, None) + _GLITTER_BG_TW * tw * tw,
+            0.0,
+        )
+        out[:, 0] = np.clip(out[:, 0] + glitter + faint, 0.0, 1.0)
 
         key, g = self._graph(lights)
         if g is None:
