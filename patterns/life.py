@@ -84,10 +84,11 @@ Three things happen at birth/death, not just an in-place fade:
 
   Each cell's own sweep still fills its own window edge to edge, but
   windows are no longer globally synchronized: a fixed per-cell hashed
-  offset in [0, 0.35 * _GEN_DT) shifts when a cell's window opens, and
-  the window's duration shrinks to match (`_GEN_DT - offset`) so it
-  still always resolves to exactly 0/1 right at the boundary, whatever
-  the offset. Un-staggered, linear-in-time fronts still produced a
+  offset in [0, _GEN_DT) shifts when a cell's window opens; the window
+  keeps its full duration and simply straddles the shared boundary (each
+  light resolves whether it is finishing the previous generation's
+  transition or has begun the current one -- never both, always exactly
+  one). Un-staggered, linear-in-time fronts still produced a
   ~92% board-wide motion dip every generation -- every cell's identical
   "quiet start" (a light exactly at the leading edge of a smoothstep has
   near-zero velocity there by construction) landed on the same instant
@@ -100,9 +101,9 @@ Three things happen at birth/death, not just an in-place fade:
   that dies one generation and is reborn the next (or vice versa) hands
   off with no flash or dip, offset or not.
 
-- EMPTY-ZONE INJECTION. Every few generations (a hashed gap of 6-10, not
+- EMPTY-ZONE INJECTION. Every few generations (a hashed gap of 3-5, not
   a fixed period), if any cell's whole neighborhood out to 2 hops is
-  entirely dead, one or two such cells get force-started alive --
+  entirely dead, two or three such cells get force-started alive --
   paired with one hashed live neighbor each -- in the state the CA rule
   continues evolving from. Skipped outright if no empty zone exists when
   the schedule calls for one. An injected cell has no living parent by
@@ -191,8 +192,9 @@ _BIRTH_FLASH_L = 0.10  # extra L at the instant of birth, decaying with age
 _BIRTH_FLASH_TAU = 2.5  # seconds for the birth flash to settle out
 
 # --- empty-zone injection: a spontaneous 2-cell spark in a dark region --
-_INJECT_GAP_LO, _INJECT_GAP_HI = 6, 10  # generations between injection
-# attempts, hashed within this range (not a fixed period)
+_INJECT_GAP_LO, _INJECT_GAP_HI = 3, 5  # generations between injection
+# attempts, hashed within this range (not a fixed period); tightened from
+# [6,10] at the Lady's request for more little segments in the dark spaces
 _INJECT_BALL_HOPS = 2  # a cell qualifies as an injection site only if its
 # whole neighborhood out to this many hops is entirely dead
 
@@ -439,7 +441,7 @@ def _injection_schedule(seed_key: str) -> Dict[int, int]:
 
     Gaps between attempts are hashed within [_INJECT_GAP_LO, _INJECT_GAP_HI]
     rather than fixed, so injections land at irregular, deterministic
-    intervals -- "roughly every 6-10 generations", not a metronome."""
+    intervals -- "roughly every 3-5 generations", not a metronome."""
     sched: Dict[int, int] = {}
     g_cursor = 0
     i = 0
@@ -450,8 +452,8 @@ def _injection_schedule(seed_key: str) -> Dict[int, int]:
         )
         g_cursor += gap
         if g_cursor < _EPOCH_GENS:
-            n_inject = 1 + int(seeded_random(f"{seed_key}-inject-count-{i}", 1)[0] * 2)
-            sched[g_cursor] = min(n_inject, 2)
+            n_inject = 2 + int(seeded_random(f"{seed_key}-inject-count-{i}", 1)[0] * 2)
+            sched[g_cursor] = min(n_inject, 3)
         i += 1
     return sched
 
