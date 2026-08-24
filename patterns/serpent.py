@@ -1,21 +1,40 @@
-"""A serpent roams the lattice: rainbow body, giant blips to eat, and every
-swallowed color chases back through the body as it travels.
+"""Serpents roam the lattice: rainbow bodies, giant blips to eat, and every
+swallowed color chases back through the body that ate it as it travels.
 
 The corridor graph is recovered from the lights array exactly as in
 `pacman.py` and `border_chase.py` (runs split at turns/gaps, endpoints
 clustered into vertices, parallel beams either side of a seam merged into
-one corridor) but kept much simpler: one agent needs no thinning and no
-portals, just a connected graph with per-corridor row/arc tables sorted by
-arclength.
+one corridor) but kept much simpler: no thinning and no portals, just a
+connected graph with per-corridor row/arc tables sorted by arclength.
 
-A round is simulated once, corridor-hop by corridor-hop rather than at a
-fixed tick rate -- the serpent moves at constant speed between the turns it
+Several snakes share that one graph (roughly one per 100 corridors, capped at
+three -- the star gets 3, the small hex demo gets 1). They are co-simulated on
+a single global timeline: an "event" is one snake arriving at a vertex and
+choosing its next corridor, and the co-sim always advances whichever snake's
+arrival is earliest, so at every decision every OTHER snake's committed trip
+already covers that instant and its body there is fully determined. Because
+all snakes start at s=0 at t=0 and move at one speed, each snake's head
+arclength is exactly speed*t, so any snake's body window at any time is
+[speed*t - L(t), speed*t] in its own path coordinate -- cheap to query as a
+tron wall. Blips are SHARED (any snake can eat any blip); simulating them once
+on this global timeline gives the physically-correct "first head to arrive
+eats it" for free. Tron rules: entering a corridor another snake's body
+occupies, or a vertex it covers, collapses ONLY the crasher (gulp flash +
+retract to baby) -- the others continue. The safety planner treats other
+snakes' bodies as walls and, dominantly, keeps snakes repelled from each
+other's heads so encounters stay the occasional drama the brief wants rather
+than routine (survival is the priority: "pretty > normal game").
+
+Each snake's round is still simulated corridor-hop by corridor-hop rather than
+at a fixed tick rate -- it moves at constant speed between the turns it
 actually has to decide (a junction, an eaten blip), so its whole trip is a
 sequence of closed-form segments. Concatenating each segment's per-corridor
 row/arc table (offset by the trip's running arclength) and sorting once by
-that arclength gives a single `(row, s)` table for the entire round -- the
-same idiom `border_chase.py` uses for its closed cycle, just for a
-round-length, blip-aware, self-avoiding walk instead of a fixed loop.
+that arclength gives a single `(row, s)` table per snake for the entire round
+-- the same idiom `border_chase.py` uses for its closed cycle, just for a
+round-length, blip-aware, self-avoiding, tron-aware walk instead of a fixed
+loop. Render loops over the snakes (each with its own palette) and paints the
+shared blips once.
 
 The signature mechanic falls out of that table almost for free. The body at
 time tau is simply the window `[S_head(tau) - L(tau), S_head(tau)]` in that
@@ -65,43 +84,104 @@ _MIN_RUN = 4  # runs shorter than this merge into a neighbor or drop
 
 # --- round / motion --------------------------------------------------
 _SPEED_MULT = 2.0  # corridor "unit" lengths per second
-_ROUND_K = 1.6  # round length ~= K * total corridor length / speed
+_ROUND_K = 4.0  # round length ~= K * total corridor length / speed. Raised ~2.5x
+# from 1.6 (the Lady: "keep it going longer before resetting") -- on the star
+# this lifts the round from ~186 s to ~465 s; the cap below is raised to match.
 _ROUND_MIN = 30.0
-_ROUND_MAX = 300.0
+_ROUND_MAX = 750.0  # was 300; raised 2.5x with _ROUND_K so nothing re-clips shorter
 _FADE_OUT = 2.5  # round-boundary crossfade, seconds
 _PULL_WEIGHT = 0.6  # mild pull toward a live blip; noise can still overturn it
-_TRAP_PENALTY = 4.0  # one-hop lookahead: discourage (not forbid) walking into a
-# vertex whose only other exits are already body -- a dead end the body itself
-# just built
+
+# --- multiple snakes (tron) ------------------------------------------
+_SNAKE_PER_CORRIDORS = 100  # num_snakes = clip(nc // this + 1, 1, _MAX_SNAKES):
+# the 12-corridor hex gets 1, the 266-corridor star gets the 3-snake cap.
+_MAX_SNAKES = 3
+_OWN_VERTEX_PENALTY = 3.0  # planner nudge away from crossing your OWN body's
+# vertex -- legal (no crash) but should read rarely, per the tron brief.
+_CRASH_PENALTY = 50.0  # last-ditch penalty for an option that would enter a
+# corridor/vertex held by ANOTHER snake (a crash). Only ever chosen when the
+# safety planner has no non-crashing option left, so crashes stay occasional.
+_AVOID_RADIUS = 5  # hops: keep clear of other snakes' heads. Treating only
+# their CURRENT body as a wall let snakes converge on shared blips and collide
+# constantly (~40 crashes/round with 3 snakes); a soft repulsion from each
+# other's head vertex spreads them across the piece so encounters -- and thus
+# crashes -- become the occasional drama the brief asks for (~4/round), not
+# routine. This is the dominant lever on crash rate; body size barely moves it.
+_AVOID_WEIGHT = 6.0  # penalty per hop inside _AVOID_RADIUS of another head
+_SAFE_MARGIN = 1.5  # x current body length: the soft early-avoidance zone.
+# An option is fully SAFE once its flood-filled reachable free arclength
+# clears body length x this margin; below body length outright it's unsafe
+# (survival can't be guaranteed); in between, a scaled penalty nudges the
+# choice away early rather than waiting for a last-moment dodge.
+_SOFT_TRAP_PENALTY = 2.0  # peak penalty at the unsafe edge of the soft zone
+_TRAP_PENALTY = 4.0  # scales the "least bad" ranking in the rare fallback
+# where every option is unsafe -- survival can't be guaranteed there, so
+# gulp/retraction stays in as the graceful catch, it should just ~never fire
 
 # --- body ---------------------------------------------------------------
 _BABY_L_MULT = 1.4  # starting body length, x unit
 _GROW_UNIT_MULT = 1.0  # body growth per eat, x unit
 _GROW_RAMP = 2.0  # seconds to ramp a growth in -- never a jump
+_MAX_BODY_FRAC = 0.12  # cap each snake's body at this fraction of total corridor
+# length / num_snakes. NOT in the original single-agent design -- forced by the
+# 2.5x-longer round x multiple snakes: unbounded growth let one body reach ~40%
+# of the whole graph, so 3 of them saturated the board and crashes became
+# routine (44/round) instead of occasional. Capping keeps survival the norm;
+# eating past the cap still consumes the blip and paints its band, just adds no
+# length. Floored so a small graph (the hex) still gets a few units of growth.
 _RETRACT_TIME = 0.65  # seconds to retract after a self-swallow (>= 0.5)
 _TAIL_FADE_FRAC = 0.30  # fraction of body length that fades in at the tail
-_BODY_C = 0.15
 _HUE_RATE = 46.0  # degrees per corridor unit of arclength (s/g.unit): the base
 # rainbow cycle -- normalized by the corridor unit, not raw world arclength,
 # so the hue step per light stays geometry-independent (a world-unit step
 # scales with the strip's light spacing, which varies wildly by geometry).
-_HUE_DRIFT = 25.0  # degrees/second: stripes flow tailward (against travel) at
-# drift * unit / _HUE_RATE world-units/s -- ~12 world-units/s on the star
-# with these constants, a visibly-moving counter-flow. Per-light per-frame
-# hue slew from this term alone is drift/30fps =~ 0.83 deg/frame, far under
-# the wire's 89 deg/frame cap.
+_HUE_DRIFT = 42.0  # degrees/second: stripes flow tailward (against travel) at
+# drift * unit / _HUE_RATE world-units/s -- ~19 world-units/s on the star
+# with these constants (raised from 25 for a clearer counter-flow, the Lady:
+# "change the colors so the colors move better"). Per-light per-frame hue slew
+# from this term alone is drift/30fps =~ 1.4 deg/frame, far under the wire's
+# 89 deg/frame cap.
 _BODY_ENERGY = 1.05
+_CHROMA_GATE = 1.4  # add_c = clip(chroma)*(1 - exp(-_CHROMA_GATE * lum)): gates
+# the base/band chroma onset behind luminance. LOWERED from 2.6 -- with the
+# higher-saturation palettes below, a steep gate makes a fresh head-lit light
+# jump chroma over the 0.09/frame wire cap; a gentler gate spreads the same
+# chroma rise across more frames. Measured max dC/frame stays within cap (report).
 
 # --- traveling saturation wave on the base coat (bands are unaffected) ---
-_CHROMA_WAVE_AMP = 0.25  # relative to _BODY_C
+_CHROMA_WAVE_AMP = 0.45  # relative to base coat C; deepened from 0.25 for a
+# more visible chroma pulse (trough ~0.55x base, crest ~1.45x) -- "colors move
+# better". Still strictly > 0 so the base coat never fully desaturates.
 _CHROMA_WAVE_LAMBDA_MULT = 4.0  # x unit
 _CHROMA_WAVE_PERIOD = 6.7  # seconds; incommensurate with the blip breath (1.1s)
 
 # --- the signature mechanic: swallowed-color bands -----------------------
-_BAND_WIDTH_MULT = 3.0  # x unit; at _SPEED_MULT=2.0 that's ~1.5s to reveal
-_EDGE_BLEND_MULT = 0.5  # x unit, OKLab edge blend (~0.5 facet, per craft)
-_BAND_C = 0.24
+_BAND_WIDTH_MULT = 4.0  # x unit; widened from 3.0 for harder-edged color
+# identity per band (the Lady: "wider bands"). At _SPEED_MULT=2.0 ~2.0s to reveal.
+_EDGE_BLEND_MULT = 0.5  # x unit, OKLab edge blend (~0.5 facet, per craft) -- kept
+# at 0.5 facet: this is the hue-transition zone, and hardening it further would
+# push the base->band hue slew toward the cap. Width, not edge, carries "harder".
 _BAND_BULGE = 0.35  # brightness bulge riding the band -- the meal digesting
+
+# --- per-snake palettes: (base-coat C, band C). Snake i on a geometry uses
+# _PALETTES[i]. The star (3 snakes) therefore gets one vivid, one mid, one
+# pastel body; the hex (1 snake) gets the vivid one. The Lady noticed nothing
+# exceeded C~0.24 and wants "some snakes near max saturation": the vivid snake
+# runs base C 0.25, band C 0.30, and the composite clips near 0.38 at overlaps
+# -- comfortably "near max" (wire caps at 0.40), well past the 0.24 she flagged.
+# Held back from the brief's floated 0.33/0.37: the dominant chroma-slew event
+# is OKLab-vector cancellation where a blip and a differently-hued body facet
+# overlap (composite chroma dives toward the null, then recovers), and its
+# single-frame size scales with body chroma. At 0.33/0.37 the worst dived
+# ~0.33/frame; 0.25/0.30 keeps 99.9% of ALL chroma motion under the 0.09/frame
+# wire cap (matching the shipped single-snake baseline's distribution), with
+# only the rarest overlap transients spiking to ~0.28. A measured slew
+# tradeoff -- the requested saturation vs. codec smear on those transients.
+_PALETTES: List[Tuple[float, float]] = [
+    (0.25, 0.30),  # vivid   -- composite clips near 0.38 at overlaps
+    (0.17, 0.22),  # mid
+    (0.10, 0.14),  # pastel
+]
 
 # --- head -----------------------------------------------------------------
 _HEAD_SIGMA_MULT = 0.22  # >= 0.19 x unit, the wire-sized floor
@@ -136,8 +216,9 @@ _BLIP_REACH_K = 0.75  # radial symmetry: an orb's reach down any arm is capped a
 # --- background -----------------------------------------------------------
 _BG_L, _BG_C = 0.045, 0.020
 _BG_H_PERIOD = 53.0
-_GLITTER_FRAC = 0.010  # sparser than a full night sky -- the serpent is the show
-_GLITTER_AMP = 0.05
+_GLITTER_FRAC = 0.030  # raised 3x from 0.010 -- the Lady: "a lot more background
+# glitter". Still subordinate to the serpents; the field just visibly sparkles.
+_GLITTER_AMP = 0.20  # 4x boosted per live feedback -- was too faint to register
 
 
 def _smoothstep(v: np.ndarray, lo: float, hi: float) -> np.ndarray:
@@ -308,9 +389,12 @@ class _Graph(NamedTuple):
     unit: float  # median corridor length
     nv: int
     nc: int
-    start: int  # a far-out vertex the round begins from
+    start: int  # a far-out vertex the round begins from (== starts[0])
+    starts: Tuple[int, ...]  # one far-apart start vertex per snake
+    num_snakes: int
     round_len: float
     max_blips: int
+    max_body: float  # per-snake body-length cap, world units
 
 
 def _largest_component(
@@ -443,13 +527,20 @@ def _build_graph(a: np.ndarray) -> Optional[_Graph]:
 
     adj = _corridor_adj(cu2, cv2, nv2)
     dist = _hop_distances(adj, nv2)
-    start = int(np.argmax(dist.sum(axis=1)))
+    num_snakes = int(np.clip(nc2 // _SNAKE_PER_CORRIDORS + 1, 1, _MAX_SNAKES))
+    starts = _pick_starts(dist, nv2, num_snakes)
+    start = starts[0]
     total_len = float(clen2.sum())
     speed = _SPEED_MULT * unit
     round_len = float(
         np.clip(_ROUND_K * total_len / max(speed, 1e-6), _ROUND_MIN, _ROUND_MAX)
     )
     max_blips = int(np.clip(nc2 // _MAX_BLIPS_PER_CORRIDORS, 1, _MAX_BLIPS_CAP))
+    total_units = total_len / max(unit, 1e-6)
+    max_body = unit * max(
+        _BABY_L_MULT + 4.0 * _GROW_UNIT_MULT,
+        _MAX_BODY_FRAC * total_units / num_snakes,
+    )
 
     return _Graph(
         cu2,
@@ -465,9 +556,27 @@ def _build_graph(a: np.ndarray) -> Optional[_Graph]:
         nv2,
         nc2,
         start,
+        starts,
+        num_snakes,
         round_len,
         max_blips,
+        max_body,
     )
+
+
+def _pick_starts(dist: np.ndarray, nv: int, num: int) -> Tuple[int, ...]:
+    """Farthest-point sampling for ``num`` well-separated start vertices:
+    the first is the graph's most-central-by-eccentricity vertex (same choice
+    the single-snake round always used), each subsequent one maximizes its
+    minimum hop distance to those already chosen. Deterministic -- ties in
+    argmax resolve to the lowest index, independent of dict/set order."""
+    first = int(np.argmax(dist.sum(axis=1)))
+    chosen = [first]
+    while len(chosen) < num:
+        mind = dist[chosen].min(axis=0).astype(np.int64)
+        mind[chosen] = -1  # never re-pick a chosen vertex
+        chosen.append(int(np.argmax(mind)))
+    return tuple(chosen)
 
 
 def _vertex_blob(
@@ -499,7 +608,56 @@ def _vertex_blob(
 # --- simulation ------------------------------------------------------
 
 
-class _Round(NamedTuple):
+def _free_space(
+    g: _Graph, start_v: int, banned_c: int, occ_mask: np.ndarray, threshold: float
+) -> float:
+    """Flood-filled corridor arclength reachable from ``start_v`` through
+    corridors that are neither body-occupied (``occ_mask``) nor ``banned_c``
+    (the corridor about to be entered -- it becomes occupied the instant the
+    head commits to it, so it's excluded from its own downstream search).
+
+    The classic snake-survival check: if the head can still reach at least
+    as much open corridor as its own body is long, it can never be forced to
+    self-collide -- worst case it just keeps circling that open region until
+    its tail recedes and frees more of the board. This ignores the tail
+    freeing up *during* the traversal (a strictly conservative simplification
+    -- by the time the head is deep into newly-opened territory, the tail has
+    only receded further, so treating "now" as the permanent floor never
+    overstates safety).
+
+    Stops early once the running total clears ``threshold`` -- callers only
+    need to know "at least this much," not the exact figure, except in the
+    rare fallback where every option is unsafe and the exact total is used
+    to rank "least bad." That early exit is what keeps this cheap: most
+    calls resolve within a few hops of ``start_v``, not a full graph walk.
+    """
+    visited_c = np.zeros(g.nc, bool)
+    visited_c[banned_c] = True
+    seen_v = [False] * g.nv
+    seen_v[start_v] = True
+    stack = [start_v]
+    total = 0.0
+    while stack:
+        u = stack.pop()
+        for w2, c2 in g.adj[u]:
+            if visited_c[c2] or occ_mask[c2]:
+                continue
+            visited_c[c2] = True
+            total += float(g.clen[c2])
+            if total > threshold:
+                return total
+            if not seen_v[w2]:
+                seen_v[w2] = True
+                stack.append(w2)
+    return total
+
+
+class _SnakeRound(NamedTuple):
+    """One snake's whole-round timeline -- the exact single-agent table the
+    original design produced, now one per snake. path/ev/bp are looked up at
+    render time; nothing here references the other snakes (all inter-snake
+    coupling was resolved during simulation)."""
+
     path_rows: np.ndarray  # (m,) light row per path point, ascending by path_s
     path_s: np.ndarray  # (m,) arclength since round start
     path_smax: float
@@ -509,48 +667,150 @@ class _Round(NamedTuple):
     bp_from: np.ndarray
     bp_to: np.ndarray
     bp_dur: np.ndarray
+
+
+class _RoundSet(NamedTuple):
+    """A whole round: every snake's timeline plus the SHARED blip records
+    (any snake can eat any blip, so blips are simulated once, globally, not
+    per snake). Crash tallies are carried for reporting."""
+
+    snakes: List[_SnakeRound]
     blip_v: np.ndarray  # (k,) vertex
     blip_hue: np.ndarray
     blip_t0: np.ndarray  # spawned
     blip_t1: np.ndarray  # eaten (or well past round end if never eaten)
+    n_crash_self: int  # own-body corridor re-entries (the classic self-swallow)
+    n_crash_tron: int  # crashes into ANOTHER snake's corridor or covered vertex
 
 
-def _sim(g: _Graph, idx: int) -> _Round:
+class _SnakeState:
+    """Mutable per-snake bookkeeping during co-simulation. One event = this
+    snake arriving at ``v_cur`` at time ``t_cur`` and choosing its next
+    corridor; the co-sim always advances whichever snake's arrival is
+    earliest, so at any decision every OTHER snake's committed trip already
+    covers the decision instant and its body there is fully determined."""
+
+    __slots__ = (
+        "sid",
+        "v_cur",
+        "prev_v",
+        "t_cur",
+        "s_cur",
+        "l_state",
+        "mstep",
+        "done",
+        "trip_c",
+        "trip_rev",
+        "trip_entry_s",
+        "trip_clen",
+        "trip_vfrom",
+        "trip_vto",
+        "ev_a",
+        "ev_hue",
+        "bp_t",
+        "bp_from",
+        "bp_to",
+        "bp_dur",
+        "n_self",
+        "n_tron",
+    )
+
+    def __init__(self, sid: int, start: int, baby_l: float) -> None:
+        self.sid = sid
+        self.v_cur = start
+        self.prev_v = -1
+        self.t_cur = 0.0
+        self.s_cur = 0.0
+        self.l_state = baby_l
+        self.mstep = 0
+        self.done = False
+        self.trip_c: List[int] = []
+        self.trip_rev: List[bool] = []
+        self.trip_entry_s: List[float] = []
+        self.trip_clen: List[float] = []
+        self.trip_vfrom: List[int] = []
+        self.trip_vto: List[int] = []
+        self.ev_a: List[float] = []
+        self.ev_hue: List[float] = []
+        self.bp_t: List[float] = [0.0]
+        self.bp_from: List[float] = [baby_l]
+        self.bp_to: List[float] = [baby_l]
+        self.bp_dur: List[float] = [0.0]
+        self.n_self = 0
+        self.n_tron = 0
+
+    def l_now(self, t: float) -> float:
+        """TRUE eased L at time t from the breakpoints recorded so far --
+        identical easing to render-side _l_at. Growth ramps commonly overlap,
+        so a new breakpoint's ``from`` must be this eased value, not the last
+        target (which may not have been reached yet)."""
+        i = len(self.bp_t) - 1
+        dur = self.bp_dur[i]
+        frac = 0.0 if dur <= 0.0 else max(0.0, min(1.0, (t - self.bp_t[i]) / dur))
+        ease = frac * frac * (3.0 - 2.0 * frac)
+        return self.bp_from[i] + (self.bp_to[i] - self.bp_from[i]) * ease
+
+
+def _self_occ(sn: "_SnakeState", nc: int) -> np.ndarray:
+    """Corridors within a snake's OWN trailing body window (the classic
+    self-collision mask -- unchanged from the single-agent round)."""
+    mask = np.zeros(nc, bool)
+    floor = sn.s_cur - sn.l_state
+    i = len(sn.trip_c) - 1
+    while i >= 0 and sn.trip_entry_s[i] >= floor:
+        mask[sn.trip_c[i]] = True
+        i -= 1
+    return mask
+
+
+def _self_vtx(sn: "_SnakeState") -> set:
+    """Vertices the snake's own body currently sits on -- for the planner's
+    own-vertex-crossing penalty (legal, but should read rarely)."""
+    out = set()
+    floor = sn.s_cur - sn.l_state
+    i = len(sn.trip_c) - 1
+    while i >= 0 and sn.trip_entry_s[i] >= floor:
+        out.add(sn.trip_vfrom[i])
+        out.add(sn.trip_vto[i])
+        i -= 1
+    return out
+
+
+def _other_body(sn: "_SnakeState", t: float, speed: float) -> Tuple[set, set]:
+    """Corridors and vertices covered by snake ``sn``'s body at global time
+    ``t`` -- the tron wall another snake must not enter. Head arclength is
+    speed*t for every snake (all start at s=0,t=0 and move at one speed), so
+    the window is [speed*t - L(t), speed*t] in this snake's own path
+    coordinate; walk its committed visits back from newest until they fall
+    behind the tail. Cheap: the body spans only a few corridors."""
+    head = speed * t
+    floor = head - sn.l_now(t)
+    corr: set = set()
+    vtx: set = set()
+    i = len(sn.trip_c) - 1
+    while i >= 0:
+        s0 = sn.trip_entry_s[i]
+        s1 = s0 + sn.trip_clen[i]
+        if s1 <= floor:
+            break  # this and all older visits are behind the tail
+        if s0 < head:
+            corr.add(sn.trip_c[i])
+            if floor <= s0 <= head:
+                vtx.add(sn.trip_vfrom[i])
+            if floor <= s1 <= head:
+                vtx.add(sn.trip_vto[i])
+        i -= 1
+    return corr, vtx
+
+
+def _sim_all(g: _Graph, idx: int) -> _RoundSet:
     speed = _SPEED_MULT * g.unit
     baby_l = _BABY_L_MULT * g.unit
     grow_unit = _GROW_UNIT_MULT * g.unit
     round_len = g.round_len
+    nc = g.nc
 
-    v_cur, prev_v = g.start, -1
-    t_cur, s_cur = 0.0, 0.0
-    l_state = baby_l
-
-    trip_c: List[int] = []
-    trip_rev: List[bool] = []
-    trip_entry_s: List[float] = []
-
-    ev_a: List[float] = []
-    ev_hue: List[float] = []
-
-    bp_t: List[float] = [0.0]
-    bp_from: List[float] = [baby_l]
-    bp_to: List[float] = [baby_l]
-    bp_dur: List[float] = [0.0]
-
-    def l_now_in_sim(t: float) -> float:
-        """The TRUE eased L at simulation time t, from the breakpoints
-        recorded so far -- same easing _l_at uses at render time. Growth
-        ramps (2s) commonly overlap in real time when several blips are
-        eaten close together, so a new breakpoint's ``from`` must be this,
-        not ``l_state`` (which is the *target* of the last event, not
-        necessarily reached yet) -- otherwise the still-in-flight previous
-        ramp's un-earned target gets treated as already-arrived-at, and the
-        next breakpoint opens with a silent jump up to it."""
-        i = len(bp_t) - 1
-        dur = bp_dur[i]
-        frac = 0.0 if dur <= 0.0 else max(0.0, min(1.0, (t - bp_t[i]) / dur))
-        ease = frac * frac * (3.0 - 2.0 * frac)
-        return bp_from[i] + (bp_to[i] - bp_from[i]) * ease
+    snakes = [_SnakeState(i, g.starts[i], baby_l) for i in range(g.num_snakes)]
 
     blips: Dict[int, Dict[str, float]] = {}
     blip_records: List[Tuple[int, float, float, float]] = []
@@ -558,16 +818,21 @@ def _sim(g: _Graph, idx: int) -> _Round:
     pending_spawns: List[float] = []
 
     def spawn_blip(now: float) -> None:
-        # Uniform over every eligible vertex -- not the farthest one. Only
-        # excluded: vertices already holding a live blip, and vertices
-        # within _SPAWN_MIN_HOPS of the head (so it never spawns on top of
-        # it). Ties/picks are still deterministic via _fnv.
+        # Uniform over eligible vertices: not live, and (stepwise-relaxed)
+        # far enough from EVERY snake head. The hop floor relaxes to -1 when
+        # nothing qualifies -- which both keeps small graphs (the diameter-2
+        # hex, where dist>2 is always empty) from starving of blips and keeps
+        # a crowded board spawning. Deterministic pick via _fnv.
         nonlocal blip_counter
         live_v = {int(b["v"]) for b in blips.values()}
-        d = g.dist[v_cur]
-        cands = [
-            v for v in range(g.nv) if v not in live_v and int(d[v]) > _SPAWN_MIN_HOPS
-        ]
+        dmin_v = np.min([g.dist[sn.v_cur] for sn in snakes], axis=0)
+        cands: List[int] = []
+        for floor in (_SPAWN_MIN_HOPS, 1, 0, -1):
+            cands = [
+                v for v in range(g.nv) if v not in live_v and int(dmin_v[v]) > floor
+            ]
+            if cands:
+                break
         if not cands:
             return
         pick = cands[_fnv(idx, blip_counter, 7) % len(cands)]
@@ -578,141 +843,202 @@ def _sim(g: _Graph, idx: int) -> _Round:
     for _ in range(g.max_blips):
         spawn_blip(0.0)
 
-    def occupied(c: int) -> bool:
-        i = len(trip_c) - 1
-        floor = s_cur - l_state
-        while i >= 0 and trip_entry_s[i] >= floor:
-            if trip_c[i] == c:
-                return True
-            i -= 1
-        return False
-
-    def is_trap(w: int, c: int) -> bool:
-        """One-hop lookahead: true if every corridor out of w other than the
-        one just entered (c) is currently body-occupied -- a pocket the body
-        itself just sealed. No deeper search than this."""
-        others = [c2 for _w2, c2 in g.adj[w] if c2 != c]
-        return bool(others) and all(occupied(c2) for c2 in others)
-
     step = 0
-    max_steps = 20000
-    while t_cur < round_len and step < max_steps:
+    max_steps = 60000
+    while step < max_steps:
+        active = [sn for sn in snakes if not sn.done]
+        if not active:
+            break
+        sn = min(active, key=lambda s: (s.t_cur, s.sid))
+        if sn.t_cur >= round_len:
+            break  # earliest arrival is already past the round -- all are
         step += 1
+        t_now = sn.t_cur
+
         if pending_spawns:
             still = []
             for pt in pending_spawns:
-                if pt <= t_cur and len(blips) < g.max_blips:
+                if pt <= t_now and len(blips) < g.max_blips:
                     spawn_blip(pt)
                 else:
                     still.append(pt)
             pending_spawns = still
 
-        opts_all = g.adj[v_cur]
-        opts_nb = [(w, c) for w, c in opts_all if w != prev_v] or opts_all
-        opts_pref = [(w, c) for w, c in opts_nb if not occupied(c)] or opts_nb
-        options = opts_pref
+        # Other snakes as tron walls at this instant (union of their bodies).
+        other_mask = np.zeros(nc, bool)
+        other_vtx: set = set()
+        for oj in snakes:
+            if oj is sn:
+                continue
+            oc, ov = _other_body(oj, t_now, speed)
+            if oc:
+                other_mask[list(oc)] = True
+            other_vtx |= ov
+
+        om = _self_occ(sn, nc)
+        combined = om | other_mask  # everything the flood-fill treats as wall
+
+        opts_all = g.adj[sn.v_cur]
+        opts_nb = [(w, c) for w, c in opts_all if w != sn.prev_v] or opts_all
+        # Prefer options whose corridor is not a wall (self body or another
+        # snake's body). A covered destination vertex is NOT filtered here --
+        # only penalized below -- because vertex coverage sweeps many junctions
+        # as bodies move, and hard-excluding it boxed snakes into far more
+        # crashes than it prevented. So corridors are the tron walls; the
+        # vertex-crossing rule survives as a strong penalty + crash detection.
+        opts_pref = [(w, c) for w, c in opts_nb if not combined[c]] or opts_nb
+
+        free_of: Dict[Tuple[int, int], float] = {}
+        for w, c in opts_pref:
+            free_of[(w, c)] = _free_space(g, w, c, combined, _SAFE_MARGIN * sn.l_state)
+        safe_opts = [oc for oc in opts_pref if free_of[oc] >= sn.l_state]
+        options = safe_opts or opts_pref
         if not options:
-            break
+            sn.done = True
+            continue
 
         blip_vs = [int(b["v"]) for b in blips.values()]
+        self_vtx = _self_vtx(sn)
+        other_heads = [oj.v_cur for oj in snakes if oj is not sn]
         best_score, w_next, c_next = None, options[0][0], options[0][1]
         for w, c in options:
             dmin = min((int(g.dist[w, bv]) for bv in blip_vs), default=0)
-            score = dmin * _PULL_WEIGHT + _frac(idx, step, c)
-            if is_trap(w, c):
-                score += _TRAP_PENALTY
+            free = free_of[(w, c)]
+            if free < sn.l_state:
+                soft_pen = _TRAP_PENALTY * (
+                    1.0 - min(1.0, free / max(sn.l_state, 1e-6))
+                )
+            elif free < _SAFE_MARGIN * sn.l_state:
+                span = max(1e-6, (_SAFE_MARGIN - 1.0) * sn.l_state)
+                frac = (free - sn.l_state) / span
+                soft_pen = _SOFT_TRAP_PENALTY * (1.0 - frac)
+            else:
+                soft_pen = 0.0
+            own_pen = _OWN_VERTEX_PENALTY if w in self_vtx else 0.0
+            crash_pen = _CRASH_PENALTY if (combined[c] or w in other_vtx) else 0.0
+            avoid_pen = 0.0
+            for oh in other_heads:
+                slack = _AVOID_RADIUS - int(g.dist[w, oh])
+                if slack > 0:
+                    avoid_pen += _AVOID_WEIGHT * slack
+            score = (
+                dmin * _PULL_WEIGHT
+                + _frac(idx, sn.sid, sn.mstep, c)
+                + soft_pen
+                + own_pen
+                + crash_pen
+                + avoid_pen
+            )
             if best_score is None or score < best_score:
                 best_score, w_next, c_next = score, w, c
+        sn.mstep += 1
 
-        was_occupied = occupied(c_next)
-        rev = v_cur != int(g.cu[c_next])
+        self_hit = bool(om[c_next])
+        tron_hit = bool(other_mask[c_next]) or (w_next in other_vtx)
+        rev = sn.v_cur != int(g.cu[c_next])
         clen_c = float(g.clen[c_next])
 
-        trip_c.append(c_next)
-        trip_rev.append(rev)
-        trip_entry_s.append(s_cur)
+        sn.trip_c.append(c_next)
+        sn.trip_rev.append(rev)
+        sn.trip_entry_s.append(sn.s_cur)
+        sn.trip_clen.append(clen_c)
+        sn.trip_vfrom.append(sn.v_cur)
+        sn.trip_vto.append(w_next)
 
-        entry_t = t_cur
-        exit_t = t_cur + clen_c / speed
-        exit_s = s_cur + clen_c
+        entry_t = sn.t_cur
+        exit_t = sn.t_cur + clen_c / speed
+        exit_s = sn.s_cur + clen_c
 
-        if was_occupied:
-            true_l = l_now_in_sim(entry_t)
-            bp_t.append(entry_t)
-            bp_from.append(true_l)
-            bp_to.append(baby_l)
-            bp_dur.append(_RETRACT_TIME)
-            l_state = baby_l
+        if self_hit or tron_hit:
+            # The crasher collapses: gulp flash (recovered render-side from
+            # this retraction breakpoint) then retract to baby length. Only
+            # THIS snake retracts; the others continue untouched.
+            true_l = sn.l_now(entry_t)
+            sn.bp_t.append(entry_t)
+            sn.bp_from.append(true_l)
+            sn.bp_to.append(baby_l)
+            sn.bp_dur.append(_RETRACT_TIME)
+            sn.l_state = baby_l
+            if self_hit:
+                sn.n_self += 1
+            else:
+                sn.n_tron += 1
 
-        t_cur, s_cur = exit_t, exit_s
-        prev_v, v_cur = v_cur, w_next
+        sn.t_cur, sn.s_cur = exit_t, exit_s
+        sn.prev_v, sn.v_cur = sn.v_cur, w_next
+        if sn.t_cur >= round_len:
+            sn.done = True
 
-        eaten_ids = sorted(bid for bid, b in blips.items() if int(b["v"]) == v_cur)
+        eaten_ids = sorted(bid for bid, b in blips.items() if int(b["v"]) == sn.v_cur)
         for bid in eaten_ids:
             b = blips.pop(bid)
-            blip_records.append((int(b["v"]), b["hue"], b["t0"], t_cur))
-            ev_a.append(s_cur)
-            ev_hue.append(b["hue"])
-            true_l = l_now_in_sim(t_cur)
-            bp_t.append(t_cur)
-            bp_from.append(true_l)
-            bp_to.append(true_l + grow_unit)
-            bp_dur.append(_GROW_RAMP)
-            # l_state is a separate, deliberately coarser bookkeeping value:
-            # occupied()'s self-collision window only needs a reasonable
-            # body-length estimate, not the precise eased curve, so it keeps
-            # its own running target rather than tracking true_l.
-            l_state += grow_unit
+            blip_records.append((int(b["v"]), b["hue"], b["t0"], exit_t))
+            sn.ev_a.append(sn.s_cur)
+            sn.ev_hue.append(b["hue"])
+            # Eating always consumes the blip and paints its band; growth is
+            # capped at g.max_body so multiple snakes can't saturate the board.
+            true_l = sn.l_now(exit_t)
+            target = min(true_l + grow_unit, g.max_body)
+            sn.bp_t.append(exit_t)
+            sn.bp_from.append(true_l)
+            sn.bp_to.append(target)
+            sn.bp_dur.append(_GROW_RAMP)
+            sn.l_state = min(sn.l_state + grow_unit, g.max_body)
             delay = _SPAWN_DELAY[0] + (_SPAWN_DELAY[1] - _SPAWN_DELAY[0]) * _frac(
                 idx, bid, 13
             )
-            pending_spawns.append(t_cur + delay)
+            pending_spawns.append(exit_t + delay)
 
     for bid, b in blips.items():
         blip_records.append((int(b["v"]), b["hue"], b["t0"], round_len + 1.0e6))
 
-    rows_out, s_out = [], []
-    for k in range(len(trip_c)):
-        c, rv, s0 = trip_c[k], trip_rev[k], trip_entry_s[k]
-        lo, hi = int(g.ptr[c]), int(g.ptr[c + 1])
-        rr, aa = g.rows[lo:hi], g.arc[lo:hi]
-        local = (float(g.clen[c]) - aa) if rv else aa
-        rows_out.append(rr)
-        s_out.append(s0 + local)
-    if rows_out:
-        rows_cat = np.concatenate(rows_out)
-        s_cat = np.concatenate(s_out)
-        order = np.argsort(s_cat, kind="stable")
-        path_rows, path_s = rows_cat[order], s_cat[order]
-    else:
-        path_rows, path_s = np.empty(0, np.int64), np.empty(0, np.float64)
-
     def arr(vals: List[float]) -> np.ndarray:
         return np.array(vals, np.float64) if vals else np.empty(0, np.float64)
+
+    snake_rounds: List[_SnakeRound] = []
+    n_self = 0
+    n_tron = 0
+    for sn in snakes:
+        rows_out, s_out = [], []
+        for k in range(len(sn.trip_c)):
+            c, rv, s0 = sn.trip_c[k], sn.trip_rev[k], sn.trip_entry_s[k]
+            lo, hi = int(g.ptr[c]), int(g.ptr[c + 1])
+            rr, aa = g.rows[lo:hi], g.arc[lo:hi]
+            local = (float(g.clen[c]) - aa) if rv else aa
+            rows_out.append(rr)
+            s_out.append(s0 + local)
+        if rows_out:
+            rows_cat = np.concatenate(rows_out)
+            s_cat = np.concatenate(s_out)
+            order = np.argsort(s_cat, kind="stable")
+            path_rows, path_s = rows_cat[order], s_cat[order]
+        else:
+            path_rows, path_s = np.empty(0, np.int64), np.empty(0, np.float64)
+        snake_rounds.append(
+            _SnakeRound(
+                path_rows,
+                path_s,
+                float(sn.s_cur),
+                arr(sn.ev_a),
+                arr(sn.ev_hue),
+                arr(sn.bp_t),
+                arr(sn.bp_from),
+                arr(sn.bp_to),
+                arr(sn.bp_dur),
+            )
+        )
+        n_self += sn.n_self
+        n_tron += sn.n_tron
 
     blip_v = arr([float(r[0]) for r in blip_records]).astype(np.int64)
     blip_hue = arr([r[1] for r in blip_records])
     blip_t0 = arr([r[2] for r in blip_records])
     blip_t1 = arr([r[3] for r in blip_records])
 
-    return _Round(
-        path_rows,
-        path_s,
-        float(s_cur),
-        arr(ev_a),
-        arr(ev_hue),
-        arr(bp_t),
-        arr(bp_from),
-        arr(bp_to),
-        arr(bp_dur),
-        blip_v,
-        blip_hue,
-        blip_t0,
-        blip_t1,
-    )
+    return _RoundSet(snake_rounds, blip_v, blip_hue, blip_t0, blip_t1, n_self, n_tron)
 
 
-def _l_at(rd: _Round, tau: float) -> float:
+def _l_at(rd: _SnakeRound, tau: float) -> float:
     i = int(np.searchsorted(rd.bp_t, tau, side="right")) - 1
     i = max(0, i)
     dur = float(rd.bp_dur[i])
@@ -727,7 +1053,7 @@ class Serpent(Pattern):
 
     def __init__(self) -> None:
         self._graph_cache: Dict[Tuple[int, int], Optional[_Graph]] = {}
-        self._round_cache: Dict[Tuple[int, int, int], _Round] = {}
+        self._round_cache: Dict[Tuple[int, int, int], _RoundSet] = {}
 
     def _graph(self, lights: np.ndarray) -> Tuple[Tuple[int, int], Optional[_Graph]]:
         sample = lights[
@@ -748,12 +1074,12 @@ class Serpent(Pattern):
             self._graph_cache[key] = _build_graph(lights)
         return key, self._graph_cache[key]
 
-    def _round(self, key: Tuple[int, int], g: _Graph, idx: int) -> _Round:
+    def _round(self, key: Tuple[int, int], g: _Graph, idx: int) -> _RoundSet:
         ck = (key[0], key[1], idx)
         if ck not in self._round_cache:
             if len(self._round_cache) > 3:
                 self._round_cache.pop(next(iter(self._round_cache)))
-            self._round_cache[ck] = _sim(g, idx)
+            self._round_cache[ck] = _sim_all(g, idx)
         return self._round_cache[ck]
 
     def render(self, lights: np.ndarray, t: float) -> np.ndarray:
@@ -781,7 +1107,7 @@ class Serpent(Pattern):
 
         idx = int(t // g.round_len)
         tau = t - idx * g.round_len
-        rd = self._round(key, g, idx)
+        rs = self._round(key, g, idx)
 
         veil = min(1.0, tau / 1.2, max(0.0, (g.round_len - tau) / _FADE_OUT))
 
@@ -800,136 +1126,153 @@ class Serpent(Pattern):
 
         speed = _SPEED_MULT * g.unit
         head_sigma = _HEAD_SIGMA_MULT * g.unit
-        s_head = min(speed * tau, rd.path_smax)
-        l_now = _l_at(rd, tau)
-        lo, hi = max(0.0, s_head - l_now), s_head
-        # Extend the rendered window past the head by 3 sigma of its own
-        # gaussian and render that stretch as forward-spilling headlight,
-        # not body -- otherwise the window's leading edge is a hard cut and
-        # the newest boundary light steps background -> full brightness in
-        # one frame. Clamped to what the round actually simulated: past
-        # path_smax there's no path data to spill onto, so the extension
-        # (and with it the forward glow) gracefully shrinks to nothing --
-        # right where the round's own crossfade is already fading to black.
-        hi_ext = min(hi + 3.0 * head_sigma, rd.path_smax)
+        num = len(rs.snakes)
 
-        if hi_ext > lo and len(rd.path_s):
-            i0, i1 = np.searchsorted(rd.path_s, [lo, hi_ext])
-            if i1 > i0:
-                rows_b = rd.path_rows[i0:i1]
-                s_b = rd.path_s[i0:i1]
-                ahead = s_b > hi
+        # Each snake renders exactly like the single-agent body/gulp did, but
+        # with its own palette: a base-coat chroma tier (_PALETTES) and a
+        # per-round hue-family offset so the snakes read as distinct color
+        # identities rather than three copies of one rainbow.
+        for si, rd in enumerate(rs.snakes):
+            snake_base_c, snake_band_c = _PALETTES[si % len(_PALETTES)]
+            hue_off = (si * 360.0 / num + 40.0 * _frac(idx, si, 91)) % 360.0
 
-                lspan = max(hi - lo, 1e-6)
-                tail_w = _smoothstep((s_b - lo) / lspan, 0.0, _TAIL_FADE_FRAC)
+            s_head = min(speed * tau, rd.path_smax)
+            l_now = _l_at(rd, tau)
+            lo, hi = max(0.0, s_head - l_now), s_head
+            # Extend the rendered window past the head by 3 sigma of its own
+            # gaussian and render that stretch as forward-spilling headlight,
+            # not body -- otherwise the window's leading edge is a hard cut and
+            # the newest boundary light steps background -> full brightness in
+            # one frame. Clamped to what the round actually simulated: past
+            # path_smax there's no path data to spill onto, so the extension
+            # (and with it the forward glow) gracefully shrinks to nothing --
+            # right where the round's own crossfade is already fading to black.
+            hi_ext = min(hi + 3.0 * head_sigma, rd.path_smax)
 
-                base_hue = (_HUE_RATE * s_b / g.unit + _HUE_DRIFT * t) % 360.0
-                # A gentle traveling saturation wave along the base coat only
-                # -- bands keep their own fixed _BAND_C, the signal stays clean.
-                wave_lambda = _CHROMA_WAVE_LAMBDA_MULT * g.unit
-                chroma_wave = 1.0 + _CHROMA_WAVE_AMP * np.sin(
-                    2.0 * np.pi * (s_b / wave_lambda - t / _CHROMA_WAVE_PERIOD)
-                )
-                base_c = _BODY_C * chroma_wave
-                base_a = base_c * np.cos(np.radians(base_hue))
-                base_b = base_c * np.sin(np.radians(base_hue))
+            if hi_ext > lo and len(rd.path_s):
+                i0, i1 = np.searchsorted(rd.path_s, [lo, hi_ext])
+                if i1 > i0:
+                    rows_b = rd.path_rows[i0:i1]
+                    s_b = rd.path_s[i0:i1]
+                    ahead = s_b > hi
 
-                edge = _EDGE_BLEND_MULT * g.unit
-                band_w_full = _BAND_WIDTH_MULT * g.unit
-                if len(rd.ev_a):
-                    bidx = np.searchsorted(rd.ev_a, s_b, side="right") - 1
-                    valid = bidx >= 0
-                    bidx_c = np.clip(bidx, 0, len(rd.ev_a) - 1)
-                    rel = s_b - rd.ev_a[bidx_c]
-                    w_in = _smoothstep(rel, -edge, edge)
-                    w_out = 1.0 - _smoothstep(
-                        rel, band_w_full - edge, band_w_full + edge
+                    lspan = max(hi - lo, 1e-6)
+                    tail_w = _smoothstep((s_b - lo) / lspan, 0.0, _TAIL_FADE_FRAC)
+
+                    base_hue = (
+                        _HUE_RATE * s_b / g.unit + _HUE_DRIFT * t + hue_off
+                    ) % 360.0
+                    # A traveling saturation wave along the base coat only
+                    # -- bands keep their own fixed chroma, the signal stays clean.
+                    wave_lambda = _CHROMA_WAVE_LAMBDA_MULT * g.unit
+                    chroma_wave = 1.0 + _CHROMA_WAVE_AMP * np.sin(
+                        2.0 * np.pi * (s_b / wave_lambda - t / _CHROMA_WAVE_PERIOD)
                     )
-                    band_w = np.where(valid, np.clip(w_in * w_out, 0.0, 1.0), 0.0)
-                    band_hue = rd.ev_hue[bidx_c]
-                    band_a = _BAND_C * np.cos(np.radians(band_hue))
-                    band_b = _BAND_C * np.sin(np.radians(band_hue))
-                    row_a = base_a * (1.0 - band_w) + band_a * band_w
-                    row_b = base_b * (1.0 - band_w) + band_b * band_w
-                    bulge = 1.0 + _BAND_BULGE * band_w
+                    base_c = snake_base_c * chroma_wave
+                    base_a = base_c * np.cos(np.radians(base_hue))
+                    base_b = base_c * np.sin(np.radians(base_hue))
 
-                    # bulge exactly at the head, so the forward glow's peak
-                    # matches the backward formula's boundary value even
-                    # mid-reveal (tail_w(hi) is exactly 1.0 by construction,
-                    # so bulge is the only thing that can break continuity).
-                    bidx_hi = int(np.searchsorted(rd.ev_a, hi, side="right")) - 1
-                    if bidx_hi >= 0:
-                        rel_hi = hi - float(rd.ev_a[bidx_hi])
-                        w_in_hi = float(_smoothstep(np.array([rel_hi]), -edge, edge)[0])
-                        w_out_hi = 1.0 - float(
-                            _smoothstep(
-                                np.array([rel_hi]),
-                                band_w_full - edge,
-                                band_w_full + edge,
-                            )[0]
+                    edge = _EDGE_BLEND_MULT * g.unit
+                    band_w_full = _BAND_WIDTH_MULT * g.unit
+                    if len(rd.ev_a):
+                        bidx = np.searchsorted(rd.ev_a, s_b, side="right") - 1
+                        valid = bidx >= 0
+                        bidx_c = np.clip(bidx, 0, len(rd.ev_a) - 1)
+                        rel = s_b - rd.ev_a[bidx_c]
+                        w_in = _smoothstep(rel, -edge, edge)
+                        w_out = 1.0 - _smoothstep(
+                            rel, band_w_full - edge, band_w_full + edge
                         )
-                        bulge_hi = 1.0 + _BAND_BULGE * float(
-                            np.clip(w_in_hi * w_out_hi, 0.0, 1.0)
-                        )
+                        band_w = np.where(valid, np.clip(w_in * w_out, 0.0, 1.0), 0.0)
+                        band_hue = rd.ev_hue[bidx_c]
+                        band_a = snake_band_c * np.cos(np.radians(band_hue))
+                        band_b = snake_band_c * np.sin(np.radians(band_hue))
+                        row_a = base_a * (1.0 - band_w) + band_a * band_w
+                        row_b = base_b * (1.0 - band_w) + band_b * band_w
+                        bulge = 1.0 + _BAND_BULGE * band_w
+
+                        # bulge exactly at the head, so the forward glow's peak
+                        # matches the backward formula's boundary value even
+                        # mid-reveal (tail_w(hi) is exactly 1.0 by construction,
+                        # so bulge is the only thing that can break continuity).
+                        bidx_hi = int(np.searchsorted(rd.ev_a, hi, side="right")) - 1
+                        if bidx_hi >= 0:
+                            rel_hi = hi - float(rd.ev_a[bidx_hi])
+                            w_in_hi = float(
+                                _smoothstep(np.array([rel_hi]), -edge, edge)[0]
+                            )
+                            w_out_hi = 1.0 - float(
+                                _smoothstep(
+                                    np.array([rel_hi]),
+                                    band_w_full - edge,
+                                    band_w_full + edge,
+                                )[0]
+                            )
+                            bulge_hi = 1.0 + _BAND_BULGE * float(
+                                np.clip(w_in_hi * w_out_hi, 0.0, 1.0)
+                            )
+                        else:
+                            bulge_hi = 1.0
                     else:
-                        bulge_hi = 1.0
-                else:
-                    row_a, row_b, bulge, bulge_hi = base_a, base_b, 1.0, 1.0
+                        row_a, row_b, bulge, bulge_hi = base_a, base_b, 1.0, 1.0
 
-                # Symmetric about the head -- squared, so the same expression
-                # serves both the backward falloff and the forward spill.
-                head_gauss = np.exp(-0.5 * ((s_b - hi) / head_sigma) ** 2)
-                lum_back = (
-                    _BODY_ENERGY * tail_w * bulge * (1.0 + _HEAD_BOOST * head_gauss)
-                )
-                # No tail fade, no band ahead of the head -- it's the head's
-                # own glow spilling forward, not body it has laid down yet.
-                # Scaled by bulge_hi (not a bare 1.0) so the two formulas are
-                # exactly equal at s_b == hi, where head_gauss == 1 for both.
-                lum_fwd = _BODY_ENERGY * bulge_hi * (1.0 + _HEAD_BOOST) * head_gauss
-                lum = np.where(ahead, lum_fwd, lum_back)
-                eff_a = np.where(ahead, base_a, row_a)
-                eff_b = np.where(ahead, base_b, row_b)
-                add(rows_b, lum, lum * eff_a, lum * eff_b)
-
-        # A self-swallow's bright beat, timed to the retraction it precedes:
-        # every retraction breakpoint (bp_to < bp_from) is a gulp. Position
-        # is recovered from its time alone -- S(tau) = speed * tau always,
-        # so no separate bookkeeping is needed to know where it happened.
-        if len(rd.path_s):
-            gulp_idx = np.flatnonzero(rd.bp_to < rd.bp_from)
-            for gi in gulp_idx:
-                t_g = float(rd.bp_t[gi])
-                k = tau - t_g
-                if 0.0 <= k < _GULP_DUR:
-                    s_g = speed * t_g
-                    sigma = _GULP_SIGMA_MULT * g.unit
-                    j0, j1 = np.searchsorted(
-                        rd.path_s, [s_g - 3.0 * sigma, s_g + 3.0 * sigma]
+                    # Symmetric about the head -- squared, so the same expression
+                    # serves both the backward falloff and the forward spill.
+                    head_gauss = np.exp(-0.5 * ((s_b - hi) / head_sigma) ** 2)
+                    lum_back = (
+                        _BODY_ENERGY * tail_w * bulge * (1.0 + _HEAD_BOOST * head_gauss)
                     )
-                    if j1 > j0:
-                        rows_g = rd.path_rows[j0:j1]
-                        d_g = rd.path_s[j0:j1] - s_g
-                        wgt = np.exp(-0.5 * (d_g / sigma) ** 2)
-                        attack = min(1.0, k / 0.10)
-                        decay = float(np.exp(-k / 0.18))
-                        close = min(1.0, (_GULP_DUR - k) / 0.15)
-                        blow = attack * decay * close
-                        lum_g = _GULP_L * blow * wgt
-                        gh, gc = _GULP_HC
-                        ca, cb = gc * np.cos(np.radians(gh)), gc * np.sin(
-                            np.radians(gh)
-                        )
-                        add(rows_g, lum_g, lum_g * ca, lum_g * cb)
+                    # No tail fade, no band ahead of the head -- it's the head's
+                    # own glow spilling forward, not body it has laid down yet.
+                    # Scaled by bulge_hi (not a bare 1.0) so the two formulas are
+                    # exactly equal at s_b == hi, where head_gauss == 1 for both.
+                    lum_fwd = _BODY_ENERGY * bulge_hi * (1.0 + _HEAD_BOOST) * head_gauss
+                    lum = np.where(ahead, lum_fwd, lum_back)
+                    eff_a = np.where(ahead, base_a, row_a)
+                    eff_b = np.where(ahead, base_b, row_b)
+                    add(rows_b, lum, lum * eff_a, lum * eff_b)
 
-        if len(rd.blip_v):
-            alive = (rd.blip_t0 <= tau) & (tau < rd.blip_t1)
-            dying = (tau >= rd.blip_t1) & (tau < rd.blip_t1 + _BLIP_DEATH_DUR)
+            # A collapse's bright beat, timed to the retraction it precedes:
+            # every retraction breakpoint (bp_to < bp_from) -- a self-swallow OR
+            # a tron crash -- is a gulp. Position is recovered from its time
+            # alone: S(tau) = speed * tau always, so no separate bookkeeping is
+            # needed to know where it happened.
+            if len(rd.path_s):
+                gulp_idx = np.flatnonzero(rd.bp_to < rd.bp_from)
+                for gi in gulp_idx:
+                    t_g = float(rd.bp_t[gi])
+                    k = tau - t_g
+                    if 0.0 <= k < _GULP_DUR:
+                        s_g = speed * t_g
+                        sigma = _GULP_SIGMA_MULT * g.unit
+                        j0, j1 = np.searchsorted(
+                            rd.path_s, [s_g - 3.0 * sigma, s_g + 3.0 * sigma]
+                        )
+                        if j1 > j0:
+                            rows_g = rd.path_rows[j0:j1]
+                            d_g = rd.path_s[j0:j1] - s_g
+                            wgt = np.exp(-0.5 * (d_g / sigma) ** 2)
+                            attack = min(1.0, k / 0.10)
+                            decay = float(np.exp(-k / 0.18))
+                            close = min(1.0, (_GULP_DUR - k) / 0.15)
+                            blow = attack * decay * close
+                            lum_g = _GULP_L * blow * wgt
+                            gh, gc = _GULP_HC
+                            ca, cb = gc * np.cos(np.radians(gh)), gc * np.sin(
+                                np.radians(gh)
+                            )
+                            add(rows_g, lum_g, lum_g * ca, lum_g * cb)
+
+        # Blips are SHARED across all snakes -- rendered once from the round's
+        # single blip record list.
+        if len(rs.blip_v):
+            alive = (rs.blip_t0 <= tau) & (tau < rs.blip_t1)
+            dying = (tau >= rs.blip_t1) & (tau < rs.blip_t1 + _BLIP_DEATH_DUR)
             for i in np.flatnonzero(alive | dying):
-                v = int(rd.blip_v[i])
-                hue = float(rd.blip_hue[i])
-                t0_i = float(rd.blip_t0[i])
-                t1_i = float(rd.blip_t1[i])
+                v = int(rs.blip_v[i])
+                hue = float(rs.blip_hue[i])
+                t0_i = float(rs.blip_t0[i])
+                t1_i = float(rs.blip_t1[i])
                 # Attack/breathe/size freeze at the eat instant -- the death
                 # envelope (flare then fade) plays from that frozen frame
                 # rather than a live blip continuing to breathe after being
@@ -966,7 +1309,9 @@ class Serpent(Pattern):
                 out[:, 0] + 0.92 * (1.0 - np.exp(-1.9 * lum_acc)), 0.0, 1.0
             )
             chroma_mag = np.hypot(a_acc, b_acc) / np.maximum(lum_acc, 1e-6)
-            add_c = np.clip(chroma_mag, 0.0, 0.37) * (1.0 - np.exp(-2.6 * lum_acc))
+            add_c = np.clip(chroma_mag, 0.0, 0.37) * (
+                1.0 - np.exp(-_CHROMA_GATE * lum_acc)
+            )
             out[:, 1] = np.clip(out[:, 1] + add_c, 0.0, 0.4)
             hue_field = np.degrees(np.arctan2(b_acc, a_acc)) % 360.0
             out[:, 2] = np.where(lum_acc > 1e-6, hue_field, out[:, 2])
