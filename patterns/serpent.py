@@ -225,7 +225,18 @@ _BG_L, _BG_C = 0.045, 0.020
 _BG_H_PERIOD = 53.0
 _GLITTER_FRAC = 0.030  # raised 3x from 0.010 -- the Lady: "a lot more background
 # glitter". Still subordinate to the serpents; the field just visibly sparkles.
-_GLITTER_AMP = 0.20  # 4x boosted per live feedback -- was too faint to register
+# Round 5: matched to constellations' twinkle-tier peak-L distribution
+# (p50 0.159 / p90 0.369 / max 0.476, wide per-star variety) rather than one
+# uniform amplitude. Each star's peak L is a piecewise-linear quantile
+# function of a per-light hashed uniform: 80% of stars ("common") span
+# [_GLITTER_PEAK_LO, _GLITTER_PEAK_MID], the brighter fifth span
+# [_GLITTER_PEAK_MID, _GLITTER_PEAK_HI] -- continuous at the split, no gap.
+_GLITTER_PEAK_LO = 0.09  # dimmest stars' peak L
+_GLITTER_PEAK_MID = 0.20  # split point between common/bright tiers
+_GLITTER_PEAK_HI = 0.46  # brightest stars' peak L -- well above the old
+# uniform 0.245, giving "brighter sparkles" at the top of the distribution
+# while the median comes down to match constellations' twinkle tier
+_GLITTER_BRIGHT_SPLIT = 0.8  # fraction of stars in the common (dimmer) tier
 
 
 def _smoothstep(v: np.ndarray, lo: float, hi: float) -> np.ndarray:
@@ -1192,13 +1203,28 @@ class Serpent(Pattern):
         out[:, 2] = bg_h
 
         # Faint hashed glitter -- dimmer and sparser than a full night sky,
-        # since the serpent is the show.
+        # since the serpent is the show. Each star's own peak brightness is
+        # hashed too (a piecewise-linear quantile function of a per-light
+        # uniform: most stars stay modest, a brighter fifth reach further),
+        # instead of every star topping out at the same L -- matching
+        # constellations' twinkle-tier variety rather than one flat plateau.
         pick = seeded_random("serpent-glitter-pick", n)
         phase = seeded_random("serpent-glitter-phase", n)
+        amp_u = seeded_random("serpent-glitter-amp", n)
         is_star = pick < _GLITTER_FRAC
         period = 3.4 + 3.1 * phase
         tw = 0.5 + 0.5 * np.sin(2.0 * np.pi * (t / period + phase * 6.2831853))
-        glitter = np.where(is_star, _GLITTER_AMP * tw * tw, 0.0)
+        common = amp_u < _GLITTER_BRIGHT_SPLIT
+        peak_l = np.where(
+            common,
+            _GLITTER_PEAK_LO
+            + (amp_u / _GLITTER_BRIGHT_SPLIT) * (_GLITTER_PEAK_MID - _GLITTER_PEAK_LO),
+            _GLITTER_PEAK_MID
+            + ((amp_u - _GLITTER_BRIGHT_SPLIT) / (1.0 - _GLITTER_BRIGHT_SPLIT))
+            * (_GLITTER_PEAK_HI - _GLITTER_PEAK_MID),
+        )
+        glitter_amp = np.clip(peak_l - _BG_L, 0.0, None)
+        glitter = np.where(is_star, glitter_amp * tw * tw, 0.0)
         out[:, 0] = np.clip(out[:, 0] + glitter, 0.0, 1.0)
 
         key, g = self._graph(lights)
