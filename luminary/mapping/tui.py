@@ -119,25 +119,18 @@ def run_tui(core: SessionCore, store: MappingStore, fps: float) -> None:
         sys.stdout.write("\r\x1b[2K" + status_line(core))
         sys.stdout.flush()
 
-    def resync(_state: MappingState) -> None:
-        # Hooks run after the rebuild, so these are the new engines'.
-        frames = core.session_frames()
-        for window_sink in core.window_sinks:
-            window_sink(frames["window"])
-        for wire_sink in core.wire_sinks:
-            wire_sink(frames["wire"])
-
     def persist(state: MappingState) -> None:
         store.save_state(state, core.plan)
 
+    # Adapter-local hooks only — the core itself re-sends SESSION to
+    # every sink on rebuild (SessionCore.resync_sinks).
     core.on_state_change.append(persist)
-    core.on_state_change.append(resync)
     core.on_state_change.append(lambda _state: redraw())
 
     tty.setcbreak(fd)
     try:
         store.save_state(core.state, core.plan)  # refresh port hints on resume
-        resync(core.state)
+        core.resync_sinks()  # initial SESSION for sinks attached pre-loop
         redraw()
         interval = 1.0 / fps
         start = time.monotonic()

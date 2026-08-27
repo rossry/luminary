@@ -3,7 +3,7 @@
 A shared server so anyone on the team can open a browser, pick a geometry,
 and test patterns — without running anything locally. The server is pure
 Python (numpy wheels, no system deps, no database); state is one directory
-(`store/`).
+(`var/`).
 
 ## Security model — read this first
 
@@ -42,7 +42,7 @@ sudo -u luminary /opt/luminary/venv/bin/pip install -r requirements.txt
 
 # one-time: demo geometries so the UI isn't empty (idempotent)
 sudo -u luminary /opt/luminary/venv/bin/python -m luminary.cli seed \
-    --store /opt/luminary/store
+    --store /opt/luminary/var
 ```
 
 `/etc/systemd/system/luminary.service`:
@@ -56,7 +56,7 @@ After=network.target
 User=luminary
 WorkingDirectory=/opt/luminary/app
 ExecStart=/opt/luminary/venv/bin/python -m luminary.cli \
-    --store /opt/luminary/store serve --host 127.0.0.1 --port 8080 \
+    --store /opt/luminary/var serve --host 127.0.0.1 --port 8080 \
     --disable-pattern-upload
 Restart=on-failure
 
@@ -97,14 +97,14 @@ your own VPS, prefer Path 1.
 ```bash
 docker build -t luminary .
 docker run -d --name luminary -p 127.0.0.1:8080:8080 \
-    -v luminary-store:/data/store luminary
+    -v luminary-var:/data/var luminary
 ```
 
 The image seeds the demo geometries on start (idempotent) and serves on
 `0.0.0.0:8080` **inside the container** — the `-p 127.0.0.1:...` binding
 keeps it loopback-only on the host; put the proxy/tailnet in front exactly
 as in Path 1. On Fly.io: `fly launch` accepts the Dockerfile as-is; add a
-volume for `/data/store` and put the app behind Fly's built-in
+volume for `/data/var` and put the app behind Fly's built-in
 authentication or a tailnet, not on a bare public URL.
 
 ## Smoke test (either path)
@@ -119,16 +119,26 @@ B/light·frame readout confirms the wire codec is doing its job.
 
 ## Operational notes
 
-- **State** is only `store/` — back it up or volume-mount it; everything
-  else is stateless and rebuilt from the repo.
+- **State** is only `var/` — the geometry store, pattern uploads, and
+  the mapping YAMLs (`var/mapping/`, and the tutorial's
+  `var/mapping-demo/`). The directory ships in the repo
+  (`var/.gitkeep`); its contents are gitignored. Back it up or
+  volume-mount it; everything else is stateless and rebuilt from the
+  repo. (A pre-rename `store/` tree is dead: nothing reads it — delete
+  it, and rerun `luminary.cli seed` if you want the demo geometries
+  back. The only irreplaceable content is hand-saved geometries and,
+  once mapping has run, the mapping YAMLs.)
 - **CPU:** render+encode measures ~0.8 ms/frame for 2,048 lights
   (implementation-notes §7); each connected viewer runs its own engine, so
   budget roughly one core per handful of simultaneous viewers at 30 fps.
 - **Patterns** on a locked-down server come from the repo: `git pull` then
   restart the service picks up new/changed files in `patterns/`. (With
-  upload enabled instead, uploads land in `store/patterns-uploads/` and
+  upload enabled instead, uploads land in `var/patterns-uploads/` and
   hot-reload without a restart.)
 - **`/demo/mapping`** is the hardware-free deployment-mapping tutorial,
   mounted by `serve` by default (`--no-mapping-demo` to skip). Its frame
   ticker idles whenever no one is connected, so it costs nothing to leave
-  on; every viewer shares the one simulated session.
+  on; every viewer shares the one simulated session, whose mapping
+  records persist exactly like production's — `var/mapping-demo/`, same
+  store code — and survive restarts until someone presses the page's
+  ↺ restart.

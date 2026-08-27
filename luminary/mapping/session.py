@@ -26,13 +26,14 @@ everything else uses the canonical hypothesis (channel j ↔ planned
 panel j, 360 LEDs, ccw).
 
 Adapters register frame sinks (serial writers, WebSocket broadcasters)
-and feed key events in; the core owns state transitions and engine
-rebuilds. A rebuild constructs fresh Engine instances, whose first tick
-emits a keyframe; **re-sending SESSION frames after a rebuild is the
-adapter's job** (both the TUI and the web app do this from their state
-hooks — a topology-changing rebuild without a fresh SESSION would
-mis-size firmware strips). Late joiners and hypothesis changes are then
-the same case.
+and feed key events in; the core owns state transitions, engine
+rebuilds, and the SESSION resync that must follow every rebuild
+(``resync_sinks`` — sent to every registered sink by the core itself,
+so no adapter can forget it or implement it differently). Adapters'
+state hooks are left with genuinely adapter-local work: persistence,
+HUD pushes, redraws. A late joiner gets its SESSION from its own
+connection handler; a rebuild and a late join are then the same clean
+resync.
 
 Strip model: the physical serpentine (plan/mapping/DESCRIPTION.md).
 From the six-red start corner the strip runs half-way down the first
@@ -48,8 +49,9 @@ the reference is tight.
 from __future__ import annotations
 
 import json
+from collections import Counter
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Tuple, Union
+from typing import Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -66,6 +68,14 @@ _CONFIGS = Path(__file__).resolve().parents[2] / "configs"
 _HYPO_DENSITY = 360  # hypothesis LEDs where a strip's density is unknown
 _PREVIEW_LEDS = 30  # unmapped strips on the active board: first-LED preview
 _QUARTER = 0.25  # active strip: wheel on first+last quarter, OFF between
+
+# Scene name -> constant role, for every non-"active" scene.
+_CONSTANT_ROLE = {
+    "beads": R.BEADS,
+    "breathe": R.BREATHE,
+    "solid": R.SOLID,
+    "ring": R.RING,
+}
 
 FrameSink = Callable[[List[bytes]], None]
 
@@ -110,23 +120,26 @@ class SessionCore:
         self._net_phi = net_lights.array[:, LightColumns.PHI_S]
         hues = R.board_hues(len(plan.units))
         self._unit_hue = {u: float(hues[i]) for i, u in enumerate(plan.units)}
-        # The wheel anchors at each panel's BOARD vertex (net position
-        # of the unit), so aux and consolidated panels continue their
-        # board's wheel instead of starting their own about their
-        # physical corner. The strip path still starts at the corner.
-        point_vertex = self._net_geometry["fold"]["point_vertex"]
-        pts = self._net_geometry["points"]
-        unit_xy = {}
-        for point, vertex in enumerate(point_vertex):
-            if vertex in plan.units:
-                unit_xy[vertex] = (pts[point][0], pts[point][1])
-        assert set(unit_xy) == set(plan.units), "unit vertex missing from net"
+        # The wheel anchors at each board's HOME vertex: the corner its
+        # panels meet at (the most common six-red corner among them) —
+        # a consolidated board's panels all share their corner (unit
+        # 45's three meet at vertex 34), and a hexagon board's corner
+        # is its own vertex. Panels whose corner differs (the data-aux
+        # door faces) continue their board's wheel rather than starting
+        # their own. The strip path still starts at each panel's corner.
+        anchor_xy: Dict[int, Tuple[float, float]] = {}
+        for unit, plist in plan.panels.items():
+            counts = Counter(p.corner_vertex for p in plist)
+            home = min(counts, key=lambda v: (-counts[v], v))
+            anchor_xy[unit] = next(
+                p.corner_xy for p in plist if p.corner_vertex == home
+            )
         nb = xy.shape[0]
         self._net_anchor = np.zeros((nb, 2))
         self._net_hue = np.zeros(nb)
         for p in (p for plist in plan.panels.values() for p in plist):
             m = self._net_tri == p.tri_index
-            self._net_anchor[m] = unit_xy[p.unit_vertex]
+            self._net_anchor[m] = anchor_xy[p.unit_vertex]
             self._net_hue[m] = self._unit_hue[p.unit_vertex]
         self._path_cache: Dict[int, Tuple[np.ndarray, np.ndarray]] = {}
         self._frac_cache: Dict[int, Tuple[np.ndarray, np.ndarray]] = {}
@@ -144,11 +157,30 @@ class SessionCore:
     def apply(self, event: Event) -> MappingState:
         new = step(self.state, self.plan, event)
         if new is not self.state:
-            self.state = new
-            self.rebuild()
-            for hook in self.on_state_change:
-                hook(new)
+            self.reset_state(new)
         return new
+
+    def reset_state(self, state: MappingState) -> None:
+        """Adopt a whole new state — the demo's start-over, or any other
+        wholesale replacement — with the same rebuild, SESSION resync,
+        and change hooks a stepped transition gets."""
+        self.state = state
+        self.rebuild()
+        self.resync_sinks()
+        for hook in self.on_state_change:
+            hook(state)
+
+    def resync_sinks(self) -> None:
+        """Fresh SESSION frames to every registered sink — the rebuild
+        resync contract, owned by the core so no adapter can forget it
+        or implement it differently. (A topology-changing rebuild
+        without a fresh SESSION would mis-size firmware strips; the
+        rebuilt engines keyframe on their next tick.)"""
+        frames = self.session_frames()
+        for sink in list(self.window_sinks):
+            sink(frames["window"])
+        for sink in list(self.wire_sinks):
+            sink(frames["wire"])
 
     # ------------------------------------------------ shared assignment
 
@@ -174,7 +206,10 @@ class SessionCore:
                 elif i == st.board_cursor:
                     out[unit] = "active"
                 else:
-                    out[unit] = "solid"
+                    # Stage-A identity colors did their job; boards
+                    # waiting their stage-B turn return to the beads
+                    # backdrop (still scrambled strip/density-wise).
+                    out[unit] = "beads"
         return out
 
     # ------------------------------------------- the serpentine path
@@ -264,6 +299,39 @@ class SessionCore:
         self._frac_cache[panel.tri_index] = result
         return result
 
+    # -------------------------------------------------- the one role rule
+
+    def _strip_roles(
+        self,
+        scene: str,
+        panel: PanelPlan,
+        is_cursor: bool,
+        frac: np.ndarray,
+    ) -> np.ndarray:
+        """THE per-light role rule, in terms of each light's fraction
+        along the panel's strip path. The window calls it with its
+        capture lights' path fractions, the wire with strip index
+        fractions ((i + 0.5) / n): the decision logic exists exactly
+        once — surfaces differ only in where their lights sit.
+
+        Cursor strip: wheel on the first and last quarters of the path,
+        deliberately dark between (a density mismatch reads as only one
+        half of the strip lit). Recorded panel: the dim wheel. Waiting
+        panel: the first-30-LED preview sliver, dimmed like recorded.
+        Every other scene is one constant role.
+        """
+        n = frac.shape[0]
+        if scene != "active":
+            return np.full(n, _CONSTANT_ROLE[scene], dtype=np.int64)
+        if is_cursor:
+            ends = (frac <= _QUARTER) | (frac >= 1.0 - _QUARTER)
+            return np.asarray(np.where(ends, R.WHEEL_FULL, R.OFF))
+        board = self.state.boards[panel.unit_vertex]
+        if any(rec.face == panel.face for rec in board.channels.values()):
+            return np.full(n, R.WHEEL_DIM, dtype=np.int64)
+        sliver = frac <= _PREVIEW_LEDS / _HYPO_DENSITY
+        return np.asarray(np.where(sliver, R.WHEEL_DIM, R.BEADS))
+
     # ----------------------------------------------------------- window
 
     def _window_roles(self) -> np.ndarray:
@@ -271,37 +339,12 @@ class SessionCore:
         roles = np.full(n, R.BEADS, dtype=np.int64)
         st, plan = self.state, self.plan
         unit_roles = self._unit_roles()
-        constant = {
-            "beads": R.BEADS,
-            "breathe": R.BREATHE,
-            "solid": R.SOLID,
-            "ring": R.RING,
-        }
-
-        for i, unit in enumerate(plan.units):
-            board = st.boards[unit]
+        for unit in plan.units:
+            scene = unit_roles[unit]
             for j, p in enumerate(plan.panels[unit]):
-                m = self._net_tri == p.tri_index
-                role = unit_roles[unit]
-                if role != "active":
-                    roles[m] = constant[role]
-                    continue
-                recorded = any(rec.face == p.face for rec in board.channels.values())
                 idx, frac = self._panel_path_frac(p)
-                if j == st.panel_cursor:
-                    # The strip under test: wheel on the first and last
-                    # quarters of the strip path, deliberately dark
-                    # between — a density mismatch reads as only one
-                    # half of the strip lit.
-                    ends = (frac <= _QUARTER) | (frac >= 1.0 - _QUARTER)
-                    roles[idx] = np.where(ends, R.WHEEL_FULL, R.OFF)
-                elif recorded:
-                    roles[idx] = R.WHEEL_DIM
-                else:
-                    # Waiting panel: the first-30-LED preview sliver of
-                    # its intended wheel portion, dimmed like recorded.
-                    sliver = frac <= _PREVIEW_LEDS / _HYPO_DENSITY
-                    roles[idx] = np.where(sliver, R.WHEEL_DIM, R.BEADS)
+                is_cursor = scene == "active" and j == st.panel_cursor
+                roles[idx] = self._strip_roles(scene, p, is_cursor, frac)
         return roles
 
     def _window_pattern(self) -> R.MappingPattern:
@@ -352,7 +395,8 @@ class SessionCore:
             panel: PanelPlan,
             density: int,
             winding: str,
-            role: Union[int, np.ndarray],
+            scene: str,
+            is_cursor: bool = False,
         ) -> None:
             xy = self._strip_path_xy(panel, density, winding)
             for i in range(density):
@@ -365,40 +409,33 @@ class SessionCore:
                         pos=[float(xy[i, 0]), float(xy[i, 1])],
                     )
                 )
-            role_parts.append(
-                np.full(density, role, dtype=np.int64)
-                if np.isscalar(role)
-                else np.asarray(role, dtype=np.int64)
-            )
+            frac = (np.arange(density) + 0.5) / density
+            role_parts.append(self._strip_roles(scene, panel, is_cursor, frac))
             ref_parts.append(self.strip_refs(panel, density, winding))
 
         for cid, unit in sorted(self._controller_units().items()):
             board = st.boards[unit]
-            role = unit_roles[unit]
+            scene = unit_roles[unit]
             panels = plan.panels[unit]
 
-            if role == "ring":
+            if scene == "ring":
                 for ch, rec in board.channels.items():
                     p = plan.by_face[rec.face]
-                    add_strip(cid, ch, p, rec.density, rec.winding, R.RING)
+                    add_strip(cid, ch, p, rec.density, rec.winding, "ring")
                 continue
 
-            if role == "active":
+            if scene == "active":
                 for ch, rec in board.channels.items():
                     p = plan.by_face[rec.face]
-                    add_strip(cid, ch, p, rec.density, rec.winding, R.WHEEL_DIM)
-                cursor_panel = panels[st.panel_cursor]
-                n = st.candidate_density
-                idx = np.arange(n)
-                quarter = int(n * _QUARTER)
-                ends = (idx < quarter) | (idx >= n - quarter)
+                    add_strip(cid, ch, p, rec.density, rec.winding, "active")
                 add_strip(
                     cid,
                     st.candidate_channel,
-                    cursor_panel,
-                    n,
+                    panels[st.panel_cursor],
+                    st.candidate_density,
                     st.candidate_winding,
-                    np.where(ends, R.WHEEL_FULL, R.OFF),
+                    "active",
+                    is_cursor=True,
                 )
                 recorded_faces = {rec.face for rec in board.channels.values()}
                 waiting = [
@@ -413,30 +450,24 @@ class SessionCore:
                 ]
                 for k, ch in enumerate(free):
                     if k < len(waiting):
-                        preview = np.where(
-                            np.arange(_HYPO_DENSITY) < _PREVIEW_LEDS,
-                            R.WHEEL_DIM,
-                            R.BEADS,
-                        )
-                        add_strip(cid, ch, waiting[k], _HYPO_DENSITY, "ccw", preview)
+                        add_strip(cid, ch, waiting[k], _HYPO_DENSITY, "ccw", "active")
                     else:
                         p = panels[k % len(panels)]
-                        add_strip(cid, ch, p, _HYPO_DENSITY, "ccw", R.BEADS)
+                        add_strip(cid, ch, p, _HYPO_DENSITY, "ccw", "beads")
                 continue
 
             # beads / breathe / solid: all 8 channels stay fed —
             # whatever is physically plugged follows the board's scene.
             # Recorded channels (a paused board) keep their true
             # placement; the rest take the canonical hypothesis.
-            constant = {"beads": R.BEADS, "breathe": R.BREATHE, "solid": R.SOLID}[role]
             for ch in range(8):
                 known = board.channels.get(ch)
                 if known is not None:
                     p = plan.by_face[known.face]
-                    add_strip(cid, ch, p, known.density, known.winding, constant)
+                    add_strip(cid, ch, p, known.density, known.winding, scene)
                 else:
                     p = panels[ch % len(panels)]
-                    add_strip(cid, ch, p, _HYPO_DENSITY, "ccw", constant)
+                    add_strip(cid, ch, p, _HYPO_DENSITY, "ccw", scene)
 
         if not specs:
             return None

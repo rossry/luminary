@@ -76,6 +76,19 @@ def test_build_continue_resumes_from_the_store(tmp_path):
     assert resumed.state.boards == core.state.boards
 
 
+def test_store_dir_is_var_with_no_fallback_logic():
+    """Runtime state defaults to var/ — which ships in the repo
+    (var/.gitkeep), so the resolver carries no existence or legacy
+    logic at all; an explicit --store wins verbatim."""
+    from luminary.cli import _store_dir
+
+    assert _store_dir(None) == Path("var")
+    assert _store_dir(None, "mapping") == Path("var") / "mapping"
+    # An explicit path is the directory itself, sub or no sub.
+    assert _store_dir("elsewhere", "mapping") == Path("elsewhere")
+    assert (REPO / "var" / ".gitkeep").exists()  # the checkout guarantee
+
+
 def test_parse_keys_alpha_only_confirms():
     """p and space are enter synonyms: the whole flow works on an
     alpha-only keyboard (arrows already have WASD)."""

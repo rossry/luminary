@@ -30,7 +30,7 @@ python -m luminary.cli map --continue    # resume a half-done mapping
 Stage A locks each planned board to a controller (the matching cluster
 breathes its color); stage B records channel, density, and winding per
 panel (one enter each). Every step saves one YAML per board under
-`store/mapping/`; when the last panel is recorded the sphere plays the
+`var/mapping/`; when the last panel is recorded the sphere plays the
 completion finale and settles into the show. The full design and visual
 language: [`plan/mapping/DESCRIPTION.md`](plan/mapping/DESCRIPTION.md).
 

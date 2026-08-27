@@ -49,5 +49,5 @@ jobs:
           luminary/color/color.py luminary/comms/ luminary/engine/
           luminary/patterns/base.py luminary/patterns/registry.py
           luminary/patterns/util.py luminary/render/ luminary/server/
-          luminary/drivers/ luminary/cli.py luminary/mapping/
+          luminary/drivers/ luminary/cli.py luminary/mapping/ luminary/statedir.py
           --explicit-package-bases --follow-imports=silent

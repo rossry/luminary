@@ -138,7 +138,12 @@ class Net(SVGExportable):
 
         return svg_content
 
-    def get_svg(self, extended: bool = False, show_vertices: bool = False, beam_colors: dict = None) -> List[str]:
+    def get_svg(
+        self,
+        extended: bool = False,
+        show_vertices: bool = False,
+        beam_colors: dict = None,
+    ) -> List[str]:
         """Generate complete SVG representation of the Net.
 
         Args:
@@ -179,20 +184,22 @@ class Net(SVGExportable):
                             beam_elements = beam.get_svg(facet.color, beam_colors)
                             for element in beam_elements:
                                 svg_content += element + "\n"
-            
+
             # Render facet edge lines on top of beams for geometric structure
             from ..writers.svg.utilities import create_line_svg
+
             for triangle in self.triangles:
                 for facet in triangle.facets:
                     vertices = facet.get_vertices()
                     for i in range(len(vertices)):
                         start_vertex = vertices[i]
                         end_vertex = vertices[(i + 1) % len(vertices)]
-                        
+
                         line_svg = create_line_svg(
-                            start_vertex, end_vertex,
+                            start_vertex,
+                            end_vertex,
                             stroke_color="black",
-                            stroke_width=0.5
+                            stroke_width=0.5,
                         )
                         svg_content += line_svg + "\n"
         else:
@@ -226,7 +233,11 @@ class Net(SVGExportable):
         return [svg_content]
 
     def save_svg(
-        self, output_path: Path, extended: bool = False, show_vertices: bool = False, beam_colors: dict = None
+        self,
+        output_path: Path,
+        extended: bool = False,
+        show_vertices: bool = False,
+        beam_colors: dict = None,
     ) -> None:
         """Save SVG to file.
 
@@ -236,7 +247,9 @@ class Net(SVGExportable):
             show_vertices: If True, draw circles for triangle vertices
             beam_colors: Optional dictionary mapping beam_id to Color objects for pattern rendering
         """
-        svg_elements = self.get_svg(extended=extended, show_vertices=show_vertices, beam_colors=beam_colors)
+        svg_elements = self.get_svg(
+            extended=extended, show_vertices=show_vertices, beam_colors=beam_colors
+        )
         svg_content = "".join(svg_elements)
         output_path.write_text(svg_content)
 

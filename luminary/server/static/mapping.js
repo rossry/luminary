@@ -10,8 +10,13 @@ import { LumiDecoder, FRAME_SESSION } from "./decoder.js";
 import { oklchToSrgb8 } from "./color.js";
 
 /* Every REST/WS path is resolved against the *page*, so the app serves
- * identically standalone (/) and mounted under a prefix (/demo/mapping/). */
-export const BASE = new URL(".", location.href);
+ * identically standalone (/) and mounted under a prefix (/demo/mapping/).
+ * (The location guard keeps the module importable under node for the
+ * key-map conformance test.) */
+export const BASE = new URL(
+  ".",
+  typeof location === "undefined" ? "http://node.test/" : location.href
+);
 
 export function wsUrl(path) {
   const url = new URL(path, BASE);
@@ -19,13 +24,18 @@ export function wsUrl(path) {
   return `${proto}//${url.host}${url.pathname}${url.search}`;
 }
 
-export function pointInTriangle(x, y, tri) {
-  const [[ax, ay], [bx, by], [cx, cy]] = tri;
-  const s1 = (bx - ax) * (y - ay) - (by - ay) * (x - ax);
-  const s2 = (cx - bx) * (y - by) - (cy - by) * (x - bx);
-  const s3 = (ax - cx) * (y - cy) - (ay - cy) * (x - cx);
-  return (s1 >= 0 && s2 >= 0 && s3 >= 0) || (s1 <= 0 && s2 <= 0 && s3 <= 0);
-}
+/* Key -> control event, by KeyboardEvent.key (lowercased). Arrows and
+ * WASD are equivalent; enter, p, and space all confirm — p/space keep
+ * the whole flow on an alpha-only keyboard. The TUI reads the same
+ * contract from its own bytes; tests/test_mapping_keys.py holds the two
+ * maps together. */
+export const KEYS = {
+  arrowleft: "left", a: "left",
+  arrowright: "right", d: "right",
+  arrowup: "up", w: "up",
+  arrowdown: "down", s: "down",
+  enter: "enter", p: "enter", " ": "enter",
+};
 
 /* Fit a layout viewBox into a canvas; world -> device transforms. */
 export function fitTransform(canvas, viewBox) {
@@ -39,8 +49,10 @@ export function fitTransform(canvas, viewBox) {
 }
 
 /* Per-light draw list from a layout (client.js's draw-from-layout shape,
- * flat cells only), plus each light's structural triangle index and the
- * frame overlay segments in device coords. */
+ * flat cells only), plus the frame overlay segments in device coords.
+ * Deliberately no geometry logic beyond coordinate transforms: anything
+ * per-light (panel membership, strip position) comes from the server's
+ * plan JSON, the same source the wire renderer uses. */
 export function buildDraws(layout, t) {
   const draws = layout.lights.map((light) => {
     if (light.display && light.display.length >= 3) {
@@ -56,25 +68,10 @@ export function buildDraws(layout, t) {
       controller: light.controller, channel: light.channel, index: light.index,
     };
   });
-  const triangles = ((layout.overlays && layout.overlays.triangles) || []).map(
-    (tri) => tri.map(([px, py]) => [t.tx(px), t.ty(py)])
-  );
-  const lightTri = draws.map((d) => {
-    let cx, cy;
-    if (d.kind === "poly") {
-      cx = cy = 0;
-      for (const [px, py] of d.points) { cx += px; cy += py; }
-      cx /= d.points.length;
-      cy /= d.points.length;
-    } else {
-      cx = d.x; cy = d.y;
-    }
-    return triangles.findIndex((tri) => pointInTriangle(cx, cy, tri));
-  });
   const frame = ((layout.overlays && layout.overlays.frame) || []).map(
     ([a, b]) => [t.tx(a[0]), t.ty(a[1]), t.tx(b[0]), t.ty(b[1])]
   );
-  return { draws, lightTri, frame, triangles };
+  return { draws, frame };
 }
 
 export function fillDraw(ctx, d, fill) {
@@ -222,16 +219,8 @@ export class ControlChannel {
     }
   }
 
-  /* Arrows and WASD are equivalent; enter, p, and space all confirm —
-   * p/space keep the whole flow on an alpha-only keyboard. */
+  /* Key handling delegates to the module-level KEYS contract. */
   bindKeys(target = window) {
-    const KEYS = {
-      arrowleft: "left", a: "left",
-      arrowright: "right", d: "right",
-      arrowup: "up", w: "up",
-      arrowdown: "down", s: "down",
-      enter: "enter", p: "enter", " ": "enter",
-    };
     target.addEventListener("keydown", (e) => {
       const name = KEYS[e.key.toLowerCase()];
       if (!name || e.altKey || e.ctrlKey || e.metaKey) return;

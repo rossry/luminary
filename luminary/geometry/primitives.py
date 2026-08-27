@@ -176,7 +176,9 @@ class Segment(LinearElement):
         """
         return self.p1.distance(self.p2)
 
-    def intersection(self, other: "LinearElement", ignore_bounds: bool = False) -> Optional[Point]:
+    def intersection(
+        self, other: "LinearElement", ignore_bounds: bool = False
+    ) -> Optional[Point]:
         """Find intersection with another linear element if it exists on this segment.
 
         Args:
@@ -240,7 +242,9 @@ class Ray(LinearElement):
         direction = self.p2 - self.p1
         return direction.unit_vector()
 
-    def intersection(self, other: "LinearElement", ignore_bounds: bool = False) -> Optional[Point]:
+    def intersection(
+        self, other: "LinearElement", ignore_bounds: bool = False
+    ) -> Optional[Point]:
         """Find intersection with another linear element if it exists on this ray.
 
         Args:
@@ -279,7 +283,9 @@ class Ray(LinearElement):
 class Line(LinearElement):
     """Infinite line passing through two points."""
 
-    def intersection(self, other: "LinearElement", ignore_bounds: bool = False) -> Optional[Point]:
+    def intersection(
+        self, other: "LinearElement", ignore_bounds: bool = False
+    ) -> Optional[Point]:
         """Find intersection with another linear element.
 
         Args:

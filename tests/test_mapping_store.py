@@ -106,6 +106,22 @@ def test_load_records_tolerates_an_empty_store(tmp_path, plan):
     assert MappingStore(tmp_path).load_records(plan) == {}
 
 
+def test_clear_records_removes_yamls_and_twins_keeps_dated(tmp_path, plan, mid_state):
+    """The demo's start-over: board YAMLs and their .bak twins go, dated
+    backups (the trust flow's history) stay."""
+    store = MappingStore(tmp_path)
+    store.save_state(mid_state, plan)
+    dated = tmp_path / "mapping-3.yaml.2026-08-27T0412Z.bak"
+    dated.write_bytes(b"history")
+    assert list(tmp_path.glob("mapping-*.yaml"))
+    removed = store.clear_records()
+    assert removed and all(not p.exists() for p in removed)
+    assert list(tmp_path.glob("mapping-*.yaml")) == []
+    assert not any(p.name.endswith(".yaml.bak") for p in tmp_path.iterdir())
+    assert dated.exists()
+    assert store.load_records(plan) == {}
+
+
 # ------------------------------------------------------- progress marker
 
 

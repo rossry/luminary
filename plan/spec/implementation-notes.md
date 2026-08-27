@@ -69,6 +69,24 @@
    hot path is `color/convert.py` array functions only.
 8. **No per-light Python loops on the hot path** (spec §1.3.3). Per-light
    loops are tolerated only in load/capture-time code.
+9. **One logic path across modes — surfaces are thin adapters.** Demo,
+   tutorial, TUI, web, and production must run the *same* state,
+   persistence, field-evaluation, and decision code; a surface may only
+   adapt I/O (keys → events, frames → paint, placement of its lights).
+   Any logic that exists once per surface is a production-divergence
+   bug even when its output looks right — twice this shipped and broke
+   in the field (wire-side field evaluation; a memory-only demo store).
+   Concretely: mapping visual fields render net-side and are gathered
+   by `ref`; the per-light role rule is `SessionCore._strip_roles`,
+   called by both builders; SESSION resync is core-owned
+   (`resync_sinks`); all mapping state persists through `MappingStore`
+   (the demo included); the mockup paints through server-computed
+   `strip_refs`; runtime-state paths resolve through
+   `luminary/statedir.py`. Where an adapter *must* carry a parallel
+   table (the web/TUI key maps), a conformance test holds it to one
+   canon (`tests/test_mapping_keys.py`) — the golden-vector philosophy.
+   When adding a surface or a feature, ask: "where does this logic
+   already live?" — never re-derive it locally.
 
 ## 3. Changing the wire protocol — the conformance workflow
 

@@ -60,7 +60,7 @@ class Beam(Polygon, SVGExportable):
         self.parity = parity
         self.face_index = face_index
         self.facet_index = facet_index
-        
+
         # Create beam ID tuple
         self.beam_id = (face_index, facet_index, edge_index, beam_index)
 
@@ -69,7 +69,7 @@ class Beam(Polygon, SVGExportable):
 
         # Calculate full vertices from single extent
         vertices = self._calculate_vertices()
-        
+
         # Initialize Polygon with vertices
         super().__init__(vertices)
 
@@ -143,9 +143,9 @@ class Beam(Polygon, SVGExportable):
                 extent1_extent2_intersection = extent0.intersection(extent1)
                 if extent1_extent2_intersection is None:
                     # Parallel lines - use midpoint as fallback
-                    extent1_extent2_intersection = extent0.get_point_by_label("port").midpoint_to(
-                        extent1.get_point_by_label("port")
-                    )
+                    extent1_extent2_intersection = extent0.get_point_by_label(
+                        "port"
+                    ).midpoint_to(extent1.get_point_by_label("port"))
 
                 # Create 5-sided polygon: baseline_port, baseline_starboard, starboard_nearest, intersection, port_nearest
                 vertices = [
@@ -168,10 +168,10 @@ class Beam(Polygon, SVGExportable):
 
     def get_basis_point(self) -> Point:
         """Get the basis point for pattern evaluation.
-        
+
         The basis point is located half a width forward from the anchor point,
         providing a representative coordinate for SDF evaluation.
-        
+
         Returns:
             Point representing the beam's basis coordinate for pattern evaluation
         """
@@ -223,14 +223,18 @@ class Beam(Polygon, SVGExportable):
             final_color = self._adjust_color_brightness(base_color, color_multiplier)
 
         # Create beam ID string for SVG
-        beam_id_str = f"{self.beam_id[0]}:{self.beam_id[1]}:{self.beam_id[2]}:{self.beam_id[3]}"
-        
+        beam_id_str = (
+            f"{self.beam_id[0]}:{self.beam_id[1]}:{self.beam_id[2]}:{self.beam_id[3]}"
+        )
+
         # Create polygon SVG with ID and class
         beam_svg = create_polygon_svg(self.vertices, final_color, 0.6)
-        
+
         # Add beam ID and class to the SVG element
         if 'id="' not in beam_svg:
-            beam_svg = beam_svg.replace('<polygon', f'<polygon id="beam_{beam_id_str}" class="beam"')
+            beam_svg = beam_svg.replace(
+                "<polygon", f'<polygon id="beam_{beam_id_str}" class="beam"'
+            )
 
         return [beam_svg]
 
