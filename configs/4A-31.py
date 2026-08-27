@@ -293,6 +293,7 @@ def main():
             "triangles": triangles,  # Five series of triangles (6 triangles each)
             "apex": apex,
             "lines": lines,
+            "default_beam_counts": [7, 4, 4, 7],  # legacy density (uncalibrated)
         },
         "rendering": {
             "svg": {

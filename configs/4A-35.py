@@ -429,6 +429,10 @@ def main():
             "triangles": triangles,  # Five series of triangles (3 for dir 2, 9 for dirs 1&3, 7 for others)
             "apex": apex,
             "lines": lines,
+            # Calibrated to the physical panels: 19+11+11+19 = 60 beams
+            # per facet, 180 per panel — one wire light per LED on a
+            # 180-LED panel.
+            "default_beam_counts": [19, 11, 11, 19],
         },
         "rendering": {
             "svg": {

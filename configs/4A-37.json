@@ -403,6 +403,12 @@
       0.0
     ],
     "lines": [],
+    "default_beam_counts": [
+      19,
+      11,
+      11,
+      19
+    ],
     "points3d": [
       [
         -0.0,
