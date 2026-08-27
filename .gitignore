@@ -220,3 +220,6 @@ firmware/test/host/test_decoder.exe
 
 # PlatformIO build output for the Scorpio firmware (firmware/scorpio/pio run)
 firmware/scorpio/.pio/
+
+# Claude Code harness state (agent worktrees, local settings)
+/.claude/
