@@ -195,7 +195,10 @@ class SessionCore:
         k = next(i for i, v in enumerate(vs) if np.allclose(v, corner))
         v1, va, vb = vs[k], vs[(k + 1) % 3], vs[(k + 2) % 3]
         # ccw: walk the boundary counterclockwise in the net frame.
-        cross = float(np.cross(va - v1, vb - v1))
+        # (2-D cross product spelled out: numpy >= 2 removed it.)
+        cross = float(
+            (va[0] - v1[0]) * (vb[1] - v1[1]) - (va[1] - v1[1]) * (vb[0] - v1[0])
+        )
         v2, v3 = (va, vb) if cross > 0 else (vb, va)
         o = (v1 + v2 + v3) / 3.0
         m12, m23, m31 = (v1 + v2) / 2, (v2 + v3) / 2, (v3 + v1) / 2
