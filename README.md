@@ -75,6 +75,8 @@ against shared golden vectors (`firmware/golden/`).
 | `POST /api/lights/from-scaffold` | capture with defaults: `{scaffold_id, params}` |
 | `GET/POST /api/patterns` | list / upload+hot-reload patterns |
 | `WS /api/play?lights=ID&pattern=NAME` | wire-protocol streaming |
+| `GET /api/mapping/layout` · `WS /api/mapping/{window,wire,control}` | deployment-mapping mirror (own app, `luminary.mapping.web`): layout+plan+state JSON; wire-codec streams; key events |
+| `GET /` + `/demo` + `/api/mapping/demo-truth` (mapping app) | base-station window page; scrambled-build tutorial — `python -m luminary.mapping.web` |
 
 ## Pattern development
 
