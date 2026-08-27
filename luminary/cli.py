@@ -4,24 +4,28 @@ python -m luminary.cli serve   [--host --port --store]
 python -m luminary.cli play    --lights F --pattern N [--serial P | --dry-run]
 python -m luminary.cli capture --scaffold F [--params F] -o OUT
 python -m luminary.cli render  --lights F --pattern N [-t S] -o OUT.svg
+python -m luminary.cli map     [--continue --trust-boards --controllers IDS --web]
 """
 
 from __future__ import annotations
 
 import argparse
+import importlib
 import json
 import sys
 import time
 from pathlib import Path
 from typing import Optional
 
-from typing import TYPE_CHECKING, Dict, Union
+from typing import TYPE_CHECKING, Dict, Tuple, Union
 
 from luminary.comms.codec import CodecConfig
 
 if TYPE_CHECKING:
     from luminary.engine.engine import Engine
     from luminary.geometry.lights import LightsGeometry
+    from luminary.mapping.session import SessionCore
+    from luminary.mapping.store import MappingStore
 
 
 def _load_lights(ref: str, store_dir: Path) -> "LightsGeometry":
@@ -144,6 +148,89 @@ def cmd_render(args: argparse.Namespace) -> int:
     return 0
 
 
+def build_mapping_session(
+    args: argparse.Namespace,
+) -> Tuple["SessionCore", "MappingStore"]:
+    """Everything of ``map`` short of the surfaces, so tests can build a
+    session with neither a terminal nor hardware attached."""
+    from luminary.geometry.net import Net
+    from luminary.geometry.pentagon import capture
+    from luminary.mapping.plan import Plan
+    from luminary.mapping.serial_sink import SerialSink, probe_controllers
+    from luminary.mapping.session import SessionCore
+    from luminary.mapping.state import initial_state, resume_state
+    from luminary.mapping.store import MappingStore, SerialBoards, trust_boards
+
+    plan = Plan.load(args.config)
+    configs = Path(__file__).resolve().parents[1] / "configs"
+    net_lights = capture(Net.from_json_file(configs / f"{args.config}.json"))
+
+    ports: Dict[int, str] = {}
+    if args.controllers:
+        controllers = [int(part) for part in args.controllers.split(",")]
+    else:
+        ports = probe_controllers()
+        controllers = sorted(ports)
+        if not controllers:
+            raise SystemExit(
+                "no boards answered the identity probe; pass --controllers "
+                "(e.g. --controllers 0,1,2) for a window-only run"
+            )
+
+    store = MappingStore(Path(args.store))
+    store.port_hints = dict(ports)
+    if args.trust_boards:
+        trust_boards(store, SerialBoards(ports), plan)
+    if args.continue_ or args.trust_boards:
+        state = resume_state(plan, controllers, store.load_records(plan))
+    else:
+        state = initial_state(plan, controllers)
+
+    core = SessionCore(plan, net_lights, state, fps=args.fps)
+    if ports:
+        core.wire_sinks.append(SerialSink(ports))
+    return core, store
+
+
+def cmd_map(args: argparse.Namespace) -> int:
+    serve_web = None
+    if args.web:
+        # The web surface ships separately; the TUI must not require it.
+        try:
+            serve_web = importlib.import_module("luminary.mapping.web").serve_mapping
+        except (ImportError, AttributeError):
+            print(
+                "web surface not present: luminary.mapping.web is not in this "
+                "checkout; run without --web for the terminal surface",
+                file=sys.stderr,
+            )
+            return 2
+    try:
+        core, store = build_mapping_session(args)
+    except NotImplementedError as exc:
+        print(exc, file=sys.stderr)  # --trust-boards before the firmware transport
+        return 2
+    try:
+        if serve_web is not None:
+            serve_web(core, store, args.host, args.port)
+        else:
+            try:
+                from luminary.mapping.tui import run_tui
+            except ImportError:  # termios: the TUI needs a POSIX terminal
+                print(
+                    "the mapping TUI needs a POSIX terminal; use --web",
+                    file=sys.stderr,
+                )
+                return 2
+            run_tui(core, store, args.fps)
+        return 0
+    finally:
+        for sink in core.wire_sinks:
+            close = getattr(sink, "close", None)
+            if callable(close):
+                close()
+
+
 def main(argv: Optional[list] = None) -> int:
     parser = argparse.ArgumentParser(prog="luminary", description=__doc__)
     parser.add_argument("--store", default="store", help="Geometry store directory")
@@ -185,6 +272,37 @@ def main(argv: Optional[list] = None) -> int:
     cap.add_argument("--params", help="JSON file of CaptureParams")
     cap.add_argument("-o", "--output", required=True)
     cap.set_defaults(func=cmd_capture)
+
+    mapping = sub.add_parser(
+        "map", help="Interactive deployment mapping (plan/mapping/DESCRIPTION.md)"
+    )
+    mapping.add_argument(
+        "--store", default="store/mapping", help="Mapping YAML directory"
+    )
+    mapping.add_argument("--config", default="4A-37", help="Net config name")
+    mapping.add_argument(
+        "--continue",
+        dest="continue_",
+        action="store_true",
+        help="Resume from saved records (the progress markers)",
+    )
+    mapping.add_argument(
+        "--trust-boards",
+        action="store_true",
+        help="Replace local files with the boards' stored mappings first "
+        "(prior local copies kept as dated backups)",
+    )
+    mapping.add_argument(
+        "--controllers",
+        help="Comma-separated controller ids; overrides probing (window-only runs)",
+    )
+    mapping.add_argument("--fps", type=float, default=30.0)
+    mapping.add_argument(
+        "--web", action="store_true", help="Serve the web surface instead of the TUI"
+    )
+    mapping.add_argument("--host", default="127.0.0.1", help="--web bind host")
+    mapping.add_argument("--port", type=int, default=8080, help="--web bind port")
+    mapping.set_defaults(func=cmd_map)
 
     render = sub.add_parser("render", help="Static SVG of a pattern at time t")
     render.add_argument("--lights", required=True, help="Lights file or store id")
