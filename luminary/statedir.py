@@ -1,10 +1,12 @@
 """Where runtime state lives — one resolver for every entrypoint.
 
 The runtime state root is ``var/`` (geometry store, pattern uploads,
-``var/mapping/``, ``var/mapping-demo/``); a legacy ``store/`` tree keeps
-working with a rename nudge until it is moved (``mv store var``). Both
-the CLI and the standalone mapping web entrypoint resolve through this
-module, so the default location cannot drift between surfaces.
+``var/mapping/``, ``var/mapping-demo/``). Both the CLI and the
+standalone mapping web entrypoint resolve through this module, so the
+default location cannot drift between surfaces. There is no legacy
+fallback: a checkout still carrying the old ``store/`` name fails fast
+with the one-command migration instead of silently starting on an
+empty (or stale) tree.
 """
 
 from __future__ import annotations
@@ -19,8 +21,8 @@ def runtime_state_dir(explicit: Optional[str] = None, sub: str = "") -> Path:
     whose state lives in a subdirectory)."""
     if explicit is not None:
         return Path(explicit)
-    root = Path("var")
-    if not root.exists() and Path("store").exists():
-        print("note: using legacy ./store; rename it: mv store var")
-        root = Path("store")
-    return root / sub if sub else root
+    if not Path("var").exists() and Path("store").exists():
+        raise SystemExit(
+            "runtime state moved from ./store to ./var — run: mv store var"
+        )
+    return Path("var") / sub if sub else Path("var")

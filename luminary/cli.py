@@ -29,7 +29,8 @@ if TYPE_CHECKING:
 
 
 # One resolver for every entrypoint (luminary/statedir.py): --store is
-# honored verbatim; the default is var/ with a legacy store/ nudge.
+# honored verbatim; the default is var/ (a legacy store/ tree fails
+# fast with the migration command).
 from luminary.statedir import runtime_state_dir as _store_dir
 
 

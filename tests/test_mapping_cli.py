@@ -76,9 +76,11 @@ def test_build_continue_resumes_from_the_store(tmp_path):
     assert resumed.state.boards == core.state.boards
 
 
-def test_store_dir_prefers_var_and_honors_legacy(tmp_path, monkeypatch, capsys):
-    """Runtime state defaults to var/ (an explicit --store wins); a
-    legacy store/ tree keeps working with a rename nudge until moved."""
+def test_store_dir_is_var_and_legacy_fails_fast(tmp_path, monkeypatch):
+    """Runtime state defaults to var/ (an explicit --store wins). There
+    is no legacy fallback: an un-migrated store/ tree refuses to start
+    with the one-command migration, instead of silently running on an
+    empty or stale tree."""
     from luminary.cli import _store_dir
 
     monkeypatch.chdir(tmp_path)
@@ -88,10 +90,12 @@ def test_store_dir_prefers_var_and_honors_legacy(tmp_path, monkeypatch, capsys):
     assert _store_dir("elsewhere", "mapping") == Path("elsewhere")
 
     (tmp_path / "store").mkdir()
-    assert _store_dir(None) == Path("store")
-    assert "mv store var" in capsys.readouterr().out
+    with pytest.raises(SystemExit, match="mv store var"):
+        _store_dir(None)
+    # An explicit --store is still honored verbatim, migration or not.
+    assert _store_dir("store") == Path("store")
     (tmp_path / "var").mkdir()
-    assert _store_dir(None) == Path("var")  # once var exists, it wins
+    assert _store_dir(None) == Path("var")  # migrated: the guard retires
 
 
 def test_parse_keys_alpha_only_confirms():
