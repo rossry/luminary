@@ -28,18 +28,9 @@ if TYPE_CHECKING:
     from luminary.mapping.store import MappingStore
 
 
-def _store_dir(explicit: Optional[str], sub: str = "") -> Path:
-    """Resolve a runtime-state directory: an explicit --store is honored
-    verbatim; the default is ``var/`` (joined with ``sub`` for verbs
-    whose state lives in a subdirectory). A legacy ``store/`` tree is
-    still used, with a nudge, until it is renamed (mv store var)."""
-    if explicit is not None:
-        return Path(explicit)
-    root = Path("var")
-    if not root.exists() and Path("store").exists():
-        print("note: using legacy ./store; rename it: mv store var")
-        root = Path("store")
-    return root / sub if sub else root
+# One resolver for every entrypoint (luminary/statedir.py): --store is
+# honored verbatim; the default is var/ with a legacy store/ nudge.
+from luminary.statedir import runtime_state_dir as _store_dir
 
 
 def _load_lights(ref: str, store_dir: Path) -> "LightsGeometry":

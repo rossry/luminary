@@ -31,6 +31,13 @@ quick start). Agents start here.
   regenerate `firmware/golden/`, `pytest tests/test_golden.py` green.
 - **Canonical light order** is `(controller, channel, index)`; codec,
   SESSION maps, and firmware addressing all assume it.
+- **One logic path across modes; surfaces are thin adapters.** Demo,
+  tutorial, TUI, web, and production run the *same* state, persistence,
+  field-evaluation, and decision code — a surface may only adapt I/O.
+  Logic that exists once per surface is a production-divergence bug even
+  when its output looks right; where a parallel table is unavoidable
+  (key maps), a conformance test holds it to one canon. Details and the
+  current single-source points: implementation-notes §2.9.
 
 ## Quality gates
 

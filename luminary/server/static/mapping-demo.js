@@ -47,14 +47,15 @@ class BuildMockup {
       for (const p of panels) refs.set(p.tri_index, p.refs);
     }
     // The scrambled wiring: which physical panel each (controller, channel)
-    // actually drives, and how that panel is physically built.
+    // actually drives, and how that panel is physically built. The server
+    // serves refs per density AND winding, so no index logic lives here.
     this.wiring = [];
     for (const [cid, board] of Object.entries(truth.boards)) {
       for (const [ch, p] of Object.entries(board.channels)) {
         this.wiring.push({
           cid: Number(cid), ch: Number(ch),
-          refs: refs.get(p.tri_index)[String(p.density)],
-          winding: p.winding, density: p.density,
+          refs: refs.get(p.tri_index)[String(p.density)][p.winding],
+          density: p.density,
         });
       }
     }
@@ -103,7 +104,7 @@ class BuildMockup {
       }
       const fed = strip.length / 3;
       for (let i = 0; i < w.density; i++) {
-        const cell = w.winding === "cw" ? w.refs[w.density - 1 - i] : w.refs[i];
+        const cell = w.refs[i];
         counts[cell]++;
         if (i < fed) {
           const [r, g, b] = oklchToSrgb8(

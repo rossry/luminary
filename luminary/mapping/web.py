@@ -109,12 +109,12 @@ def state_snapshot(state: MappingState, plan: Plan) -> Dict[str, Any]:
 
 def plan_json(core: SessionCore) -> Dict[str, Any]:
     """The plan as JSON: units, per-unit panels, and each panel's
-    serpentine strip references — per density, the reference net light
-    (an index into the layout's lights, which are in the same row
-    order) for each hypothesis LED along the ccw path; cw is the same
-    list reversed. The demo mockup paints decoded strips through
-    exactly these references — the same bridge the wire renderer uses
-    (``SessionCore.strip_refs``), so the mockup cannot diverge either."""
+    serpentine strip references — per density and winding, the
+    reference net light (an index into the layout's lights, which are
+    in the same row order) for each hypothesis LED. The demo mockup
+    paints decoded strips through exactly these references — the same
+    ``SessionCore.strip_refs`` the wire renderer uses, with both
+    windings served so the client holds no index logic of its own."""
     plan = core.plan
     return {
         "net_name": plan.net_name,
@@ -128,8 +128,11 @@ def plan_json(core: SessionCore) -> Dict[str, Any]:
                     "corner_vertex": p.corner_vertex,
                     "corner_xy": [float(p.corner_xy[0]), float(p.corner_xy[1])],
                     "refs": {
-                        "180": core.strip_refs(p, 180, "ccw").tolist(),
-                        "360": core.strip_refs(p, 360, "ccw").tolist(),
+                        str(density): {
+                            winding: core.strip_refs(p, density, winding).tolist()
+                            for winding in ("ccw", "cw")
+                        }
+                        for density in (180, 360)
                     },
                 }
                 for p in plan.panels[unit]
@@ -247,15 +250,11 @@ def create_mapping_app(
             q.put(text)
 
     def _on_state_change(_new: MappingState) -> None:
-        # Persist first, then restart this app's stream consumers with the
-        # rebuilt engines' SESSION frames (their first tick emits a
-        # keyframe), then refresh every HUD.
+        # Adapter-local work only: the core already re-sent SESSION to
+        # every sink (SessionCore.resync_sinks). Persist, then refresh
+        # every HUD.
         if store is not None:
             store.save_state(core.state, core.plan)
-        session = core.session_frames()
-        for stream in ("window", "wire"):
-            for sink in list(my_sinks[stream]):
-                sink(session[stream])
         _push_state_all()
 
     core.on_state_change.append(_on_state_change)
@@ -532,11 +531,15 @@ def create_demo_app(
 def serve_demo(
     host: str = "127.0.0.1",
     port: int = 8090,
-    store_dir: Path = Path("var") / "mapping-demo",
+    store_dir: Optional[Path] = None,
 ) -> None:
     """Serve the hardware-free tutorial (blocking): / mirrors the window,
-    /demo is the scrambled-build training page."""
-    uvicorn.run(create_demo_app(store_dir=store_dir), host=host, port=port)
+    /demo is the scrambled-build training page. State resolves through
+    the one runtime-state resolver (luminary.statedir)."""
+    from luminary.statedir import runtime_state_dir
+
+    resolved = store_dir or runtime_state_dir(None, "mapping-demo")
+    uvicorn.run(create_demo_app(store_dir=resolved), host=host, port=port)
 
 
 if __name__ == "__main__":  # pragma: no cover — `python -m luminary.mapping.web`
