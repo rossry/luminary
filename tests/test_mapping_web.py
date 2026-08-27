@@ -22,7 +22,7 @@ from luminary.mapping.session import SessionCore
 from luminary.mapping.state import Event, initial_state
 from luminary.mapping.web import build_demo_truth, create_demo_app, create_mapping_app
 
-CONTROLLERS = [3, 1, 4, 0, 6, 2, 5]
+CONTROLLERS = [3, 1, 4, 0, 5, 2]
 
 
 @pytest.fixture(scope="module")
@@ -31,9 +31,9 @@ def plan():
 
 
 @pytest.fixture(scope="module")
-def net_lights():
+def net_lights(plan):
     configs = Path(__file__).resolve().parents[1] / "configs"
-    return capture(Net.from_json_file(configs / "4A-37.json"))
+    return capture(Net.from_json_file(configs / f"{plan.net_name}.json"))
 
 
 @pytest.fixture()
@@ -100,24 +100,27 @@ def test_window_stream_session_then_frames(core):
 def test_wire_stream_resyncs_across_rebuild(core):
     app = create_mapping_app(core, run_ticker=False)
     decoder = Decoder()
+    n = len(CONTROLLERS)
     with TestClient(app) as client:
         with client.websocket_connect("/api/mapping/wire") as ws:
-            # Ports stage: only the candidate board is on the wire.
-            frame_type, controller = decoder.decode(ws.receive_bytes())
-            assert frame_type == p.FRAME_SESSION and controller == CONTROLLERS[0]
+            # Every probed controller is on the wire from the start (the
+            # beads backdrop goes down the wire even before mapping).
+            received = [decoder.decode(ws.receive_bytes()) for _ in range(n)]
+            assert {t for t, _ in received} == {p.FRAME_SESSION}
+            assert sorted(c for _, c in received) == sorted(CONTROLLERS)
             core.tick(0.1)
-            frame_type, _ = decoder.decode(ws.receive_bytes())
-            assert frame_type == p.FRAME_KEYFRAME
-            # Locking the board rebuilds the engines; the adapter re-sends
-            # SESSION (now: locked board 3 + next candidate 1), and the
-            # fresh encoder keyframes on its first tick — a late joiner and
-            # a rebuild are the same clean resync.
+            received = [decoder.decode(ws.receive_bytes()) for _ in range(n)]
+            assert {t for t, _ in received} == {p.FRAME_KEYFRAME}
+            # Locking a board rebuilds the engines; the adapter re-sends
+            # SESSION for the whole set, and the fresh encoder keyframes
+            # on its first tick — a late joiner and a rebuild are the
+            # same clean resync.
             core.apply(Event.ENTER)
-            received = [decoder.decode(ws.receive_bytes()) for _ in range(2)]
-            assert [t for t, _ in received] == [p.FRAME_SESSION, p.FRAME_SESSION]
-            assert sorted(c for _, c in received) == sorted(CONTROLLERS[:2])
+            received = [decoder.decode(ws.receive_bytes()) for _ in range(n)]
+            assert {t for t, _ in received} == {p.FRAME_SESSION}
+            assert sorted(c for _, c in received) == sorted(CONTROLLERS)
             core.tick(0.2)
-            received = [decoder.decode(ws.receive_bytes()) for _ in range(2)]
+            received = [decoder.decode(ws.receive_bytes()) for _ in range(n)]
             assert {t for t, _ in received} == {p.FRAME_KEYFRAME}
 
 
@@ -194,9 +197,15 @@ def test_demo_app_serves_streams(demo_client):
     core = app.state.core
     decoder = Decoder()
     with client.websocket_connect("/api/mapping/wire") as ws:
-        frame_type, controller = decoder.decode(ws.receive_bytes())
-        assert frame_type == p.FRAME_SESSION
-        assert controller == core.state.candidate_controller
+        # Every scrambled controller is on the wire from the start —
+        # the beads backdrop reaches the whole (miswired) build.
+        seen = {}
+        for _ in core.state.controllers:
+            frame_type, controller = decoder.decode(ws.receive_bytes())
+            seen[controller] = frame_type
+        assert set(seen.values()) == {p.FRAME_SESSION}
+        assert set(seen) == set(core.state.controllers)
+        assert core.state.candidate_controller in seen
 
 
 # ------------------------------------------------- mounted on the main server

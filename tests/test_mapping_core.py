@@ -6,6 +6,7 @@ import pytest
 from luminary.geometry.lights import LightColumns
 from luminary.geometry.net import Net
 from luminary.geometry.pentagon import capture
+from luminary.mapping import render as R
 from luminary.mapping.plan import Plan
 from luminary.mapping.session import SessionCore
 from luminary.mapping.state import (
@@ -24,24 +25,40 @@ def plan():
 
 
 @pytest.fixture(scope="module")
-def net_lights():
+def net_lights(plan):
     from pathlib import Path
 
     configs = Path(__file__).resolve().parents[1] / "configs"
-    return capture(Net.from_json_file(configs / "4A-37.json"))
+    return capture(Net.from_json_file(configs / f"{plan.net_name}.json"))
 
 
 def test_plan_derivation(plan):
-    # Seven 8-channel data units cover all 37 panels, none overloaded.
-    assert len(plan.units) == 7
-    assert plan.n_panels == 37
+    # Production default: 4A-33 with the data-aux wiring — six boards
+    # cover all 33 panels; the front unit (8) fields no board.
+    assert plan.net_name == "4A-33" and plan.data_aux
+    assert len(plan.units) == 6 and 8 not in plan.units
+    assert plan.n_panels == 33
     for unit, panels in plan.panels.items():
         assert 0 < len(panels) <= 8
         for p in panels:
             # The six-red corner is a vertex of the face itself.
             assert p.corner_vertex in p.face
-    # The front data unit (vertex 8) serves exactly the three arc faces.
-    assert len(plan.panels[8]) == 3
+    # The three door-side faces ride the flanks: two on the screen-right
+    # hex (9, board 2 in plan order), one on the left hex (7).
+    assert plan.units[1] == 9
+    assert plan.by_face[(3, 4, 8)].unit_vertex == 9
+    assert plan.by_face[(4, 8, 14)].unit_vertex == 9
+    assert plan.by_face[(3, 8, 13)].unit_vertex == 7
+    # Their strip start corner is physical and does not move with aux.
+    for face in [(3, 4, 8), (3, 8, 13), (4, 8, 14)]:
+        assert plan.by_face[face].corner_vertex == 8
+
+
+def test_plan_without_aux():
+    base = Plan.load("4A-33", data_aux=False)
+    assert len(base.units) == 7 and 8 in base.units
+    assert len(base.panels[8]) == 3
+    assert base.n_panels == 33
 
 
 def test_state_machine_full_walk(plan):
@@ -53,7 +70,9 @@ def test_state_machine_full_walk(plan):
         state = step(state, plan, Event.ENTER)
     assert state.stage == "panels"
     assigned = [b.controller_id for b in state.boards.values()]
-    assert sorted(assigned) == sorted(CONTROLLERS)
+    # Six boards claim six of the seven probed controllers.
+    assert len(assigned) == len(plan.units) == 6
+    assert len(set(assigned)) == 6 and set(assigned) <= set(CONTROLLERS)
 
     # Map every panel; toggle density and winding on the first one.
     state = step(state, plan, Event.UP)
@@ -128,3 +147,162 @@ def test_wire_hypothesis_matches_records(plan, net_lights):
         & (lights.ints(LightColumns.CHANNEL) == ch)
     ).sum()
     assert rows == 360
+
+
+def test_wire_covers_every_controller_in_every_stage(plan, net_lights):
+    """All probed controllers stay on the wire — the beads backdrop goes
+    down the wire pre-mapping, and moving the selection cleans up the
+    previously-selected board instead of stranding its last color."""
+    core = SessionCore(plan, net_lights, initial_state(plan, CONTROLLERS))
+
+    def wire_cids():
+        return set(core.wire_engine.lights.ints(LightColumns.CONTROLLER))
+
+    assert wire_cids() == set(CONTROLLERS)  # spare controller included
+    first_candidate = core.state.candidate_controller
+    core.apply(Event.RIGHT)  # deselect: old candidate falls back to beads
+    assert wire_cids() == set(CONTROLLERS)
+    cand_rows = core.wire_engine.lights.ints(LightColumns.CONTROLLER) == (
+        first_candidate
+    )
+    assert set(core._wire_roles[cand_rows]) == {R.BEADS}
+    while core.state.stage == "ports":
+        core.apply(Event.ENTER)
+    assert wire_cids() == set(CONTROLLERS)
+    # Locked-but-waiting boards hold their steady color, not breathing.
+    later_cid = core.state.boards[plan.units[-1]].controller_id
+    later = core.wire_engine.lights.ints(LightColumns.CONTROLLER) == later_cid
+    assert set(core._wire_roles[later]) == {R.SOLID}
+
+
+def test_active_board_wire_details(plan, net_lights):
+    """The strip under test plays the wheel on its first and last index
+    quarters with a dark middle (density mismatches read as one half
+    lit); every other unmapped strip previews its first 30 LEDs."""
+    core = SessionCore(plan, net_lights, initial_state(plan, CONTROLLERS))
+    while core.state.stage == "ports":
+        core.apply(Event.ENTER)
+    st = core.state
+    lights = core.wire_engine.lights
+    roles = core._wire_roles
+    cid = st.boards[plan.units[st.board_cursor]].controller_id
+    onboard = lights.ints(LightColumns.CONTROLLER) == cid
+    chans = lights.ints(LightColumns.CHANNEL)
+    cand = onboard & (chans == st.candidate_channel)
+    n = int(cand.sum())
+    assert n == st.candidate_density == 180
+    assert (roles[cand] == R.WHEEL_FULL).sum() == 2 * (n // 4)
+    assert (roles[cand] == R.OFF).sum() == n - 2 * (n // 4)
+    preview_channels = [
+        ch
+        for ch in range(8)
+        if ch != st.candidate_channel
+        and (roles[onboard & (chans == ch)] == R.WHEEL_DIM).any()
+    ]
+    # Six panels on board 1: five wait behind the cursor panel.
+    assert len(preview_channels) == 5
+    for ch in preview_channels:
+        m = onboard & (chans == ch)
+        assert (roles[m] == R.WHEEL_DIM).sum() == 30
+        assert (roles[m] == R.BEADS).sum() == int(m.sum()) - 30
+
+
+def test_completed_board_rings_on_both_surfaces(plan, net_lights):
+    core = SessionCore(plan, net_lights, initial_state(plan, CONTROLLERS))
+    while core.state.stage == "ports":
+        core.apply(Event.ENTER)
+    for _ in plan.panels[plan.units[0]]:
+        core.apply(Event.ENTER)
+    assert (core._wire_roles == R.RING).sum() > 0
+    ring = core._wire_roles == R.RING
+    pattern = core.wire_engine.pattern
+    peak = max(
+        float(pattern.render(None, t)[ring, 0].max()) for t in np.arange(0, 7.0, 0.5)
+    )
+    assert peak > 0.4  # the ring visibly broadcasts on the wire
+    window = core._window_roles()
+    assert (window["roles"] == R.RING).sum() > 0
+
+
+def test_finale_waves_black_then_spiral_wipe(plan, net_lights):
+    """Completion: three quick waves over the still-running beads (the
+    last wave clears them out behind its front), a beat of black, then
+    the spiral show wipes in through phi with a soft border — anchored
+    to the completion moment identically on both surfaces."""
+    core = SessionCore(plan, net_lights, initial_state(plan, CONTROLLERS))
+    core.tick(50.0)  # establish the session clock before finishing
+    while core.state.stage != "done":
+        core.apply(Event.ENTER)
+    pat = core.window_engine.pattern
+    assert isinstance(pat, R.FinalePattern)
+    assert isinstance(core.wire_engine.pattern, R.FinalePattern)
+    assert pat._t0 == core.wire_engine.pattern._t0 == 50.0
+    assert pat._show.name == "spiral"
+
+    phi = net_lights.array[:, LightColumns.PHI_S]
+    t0 = 50.0
+    waves_end = R.FINALE_WAVES * R.FINALE_WAVE_PERIOD
+
+    # Mid-first-wave: a bright crest somewhere.
+    a = pat.render(net_lights.array, t0 + 0.9)
+    assert a[:, 0].max() > 0.4
+    # Last wave, half descended: swept-past lights are beadless black.
+    b = pat.render(net_lights.array, t0 + (R.FINALE_WAVES - 0.5) * R.FINALE_WAVE_PERIOD)
+    behind = phi < 0.5 * np.radians(130.0) - np.radians(20.0)
+    assert behind.any() and b[behind, 0].max() < 0.01
+    # The black beat.
+    c = pat.render(net_lights.array, t0 + waves_end + 0.5 * R.FINALE_BLACK)
+    assert c.max() == 0.0
+    # Mid-wipe, probed exactly: place the reveal edge at mid-phi — all
+    # lights above it are fully revealed, all lights past its soft
+    # border are still exactly black.
+    wipe_start = t0 + waves_end + R.FINALE_BLACK
+    soft = R._WIPE_SOFT
+    span = pat._phi_hi - pat._phi_lo + 2 * soft
+    mid = 0.5 * (pat._phi_lo + pat._phi_hi)
+    frac = (mid - (pat._phi_lo - soft)) / span
+    d = pat.render(net_lights.array, wipe_start + frac * R.FINALE_WIPE)
+    below = phi > mid + soft + 1e-9  # past the soft border: masked
+    above = phi < mid  # at or above the edge: fully revealed
+    assert below.any() and d[below, 0].max() == 0.0
+    assert above.any() and d[above, 0].max() > 0.1
+    # After the wipe the show plays unmasked.
+    late = wipe_start + R.FINALE_WIPE + 5.0
+    e = pat.render(net_lights.array, late)
+    assert np.allclose(e, np.nan_to_num(pat._show.render(net_lights.array, late)))
+
+
+def test_ring_waves_rotate_and_wheel_has_three_spokes():
+    # A ring of lights about a corner at radius 30, plus a phi ramp.
+    n = 360
+    ang = 2 * np.pi * np.arange(n) / n
+    xy = 30.0 * np.stack([np.cos(ang), np.sin(ang)], axis=1)
+    edges = np.array([[0.0, 0.0, 50.0, 0.0]])
+    phi = np.linspace(0.0, np.radians(130.0), n)
+
+    wheel = R.MappingPattern(
+        xy=xy,
+        roles=np.full(n, R.WHEEL_FULL),
+        edges=edges,
+        corner_xy=np.zeros((n, 2)),
+    )
+    out = wheel.render(None, 1.234)
+    # Hue is the plain angle about the corner: continuous, position-only.
+    assert np.allclose(out[:, 2], np.degrees(ang) % 360.0, atol=1.5)
+    # Three dark spokes: the intensity field repeats every 120 degrees.
+    assert np.allclose(out[:, 0], np.roll(out[:, 0], n // 3), atol=1e-9)
+    assert out[:, 0].min() < 0.2 < 0.55 < out[:, 0].max()
+
+    ring = R.MappingPattern(
+        xy=xy,
+        roles=np.full(n, R.RING),
+        edges=edges,
+        phi_s=phi,
+    )
+    a = ring.render(None, 2.0)
+    b = ring.render(None, 2.0 + 7.0)  # same descent phase, next wave
+    lit = (a[:, 1] > 0.2) & (b[:, 1] > 0.2)
+    assert lit.any()
+    spin = (b[lit, 2] - a[lit, 2]) % 360.0
+    # Every lit light rotated by the same seeded, nonzero angle.
+    assert spin.std() < 1e-6 and 1.0 < spin.mean() < 359.0

@@ -20,7 +20,7 @@ REPO = Path(__file__).resolve().parents[1]
 def _args(tmp_path, **overrides):
     base = dict(
         store=str(tmp_path / "mapping"),
-        config="4A-37",
+        config="4A-33",
         continue_=False,
         trust_boards=False,
         controllers="1,2,3,4,5,6,7",
@@ -43,6 +43,7 @@ def test_map_help_exits_zero():
     assert result.returncode == 0
     for flag in ("--continue", "--trust-boards", "--controllers", "--web"):
         assert flag in result.stdout
+    assert "4A-33" in result.stdout  # the production-default net
 
 
 def test_build_mapping_session_without_hardware(tmp_path):
@@ -73,6 +74,16 @@ def test_build_continue_resumes_from_the_store(tmp_path):
     assert resumed.state.stage == "ports"
     assert resumed.state.board_cursor == 3
     assert resumed.state.boards == core.state.boards
+
+
+def test_parse_keys_alpha_only_confirms():
+    """p and space are enter synonyms: the whole flow works on an
+    alpha-only keyboard (arrows already have WASD)."""
+    from luminary.mapping.tui import parse_keys
+
+    tokens, rest = parse_keys(b"pP \r\n")
+    assert tokens == [Event.ENTER] * 5
+    assert rest == b""
 
 
 def test_web_flag_without_the_web_surface_exits_cleanly(tmp_path, capsys):

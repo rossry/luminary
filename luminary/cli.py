@@ -285,7 +285,11 @@ def main(argv: Optional[list] = None) -> int:
     mapping.add_argument(
         "--store", default="store/mapping", help="Mapping YAML directory"
     )
-    mapping.add_argument("--config", default="4A-37", help="Net config name")
+    mapping.add_argument(
+        "--config",
+        default="4A-33",
+        help="Net config name (default: 4A-33, the production net)",
+    )
     mapping.add_argument(
         "--continue",
         dest="continue_",

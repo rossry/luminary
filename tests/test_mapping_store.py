@@ -240,7 +240,8 @@ def test_trust_boards_replaces_local_and_keeps_dated_backups(
     fake = FakeBoards(board_files)
     assert isinstance(fake, BoardStore)
 
-    before = {cid: local.path_for(cid).read_bytes() for cid in CONTROLLERS}
+    assigned = {b.controller_id for b in mid_state.boards.values()}
+    before = {cid: local.path_for(cid).read_bytes() for cid in assigned}
     replaced = trust_boards(local, fake, plan)
 
     assert set(replaced) == set(board_files)

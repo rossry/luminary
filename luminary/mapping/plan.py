@@ -6,6 +6,14 @@ is (a) the physical strip's start corner — always, by build convention —
 and (b) the key that assigns the face to its data unit: the unit at that
 vertex, or the consolidation chip that serves it (sphere3v
 `electronics.data_consolidations`).
+
+The production default is the data-aux wiring (sphere3v
+`electronics.data_aux`, the construction app's aux mode "data"): the
+front hexagon unit keeps power but its three door-side hairband panels
+hand their data to the flanking hexagon boards — two ride the screen-
+right flank, one the left — so the front unit fields no data board at
+all. The strip start corner is unchanged (it is a physical property of
+the panel); only which board drives it moves.
 """
 
 from __future__ import annotations
@@ -36,14 +44,15 @@ class Plan:
     units: List[int]  # data-unit vertices, mapping order
     panels: Dict[int, List[PanelPlan]]  # unit vertex -> its panels
     by_face: Dict[Face, PanelPlan] = field(repr=False)
-    net_name: str = "4A-37"
+    net_name: str = "4A-33"
+    data_aux: bool = True
 
     @property
     def n_panels(self) -> int:
         return sum(len(p) for p in self.panels.values())
 
     @classmethod
-    def load(cls, net_name: str = "4A-37") -> "Plan":
+    def load(cls, net_name: str = "4A-33", data_aux: bool = True) -> "Plan":
         sphere = json.loads((_CONFIGS / "sphere3v.json").read_text())
         net = json.loads((_CONFIGS / f"{net_name}.json").read_text())
         g = net["geometry"]
@@ -57,6 +66,10 @@ class Plan:
         for chip, served in elec["data_consolidations"].items():
             for v in served:
                 unit_of[v] = int(chip)
+        aux_of: Dict[Tuple[int, ...], int] = {}
+        if data_aux:
+            for f, u in elec["data_aux"]["reassign"]:
+                aux_of[tuple(sorted(f))] = int(u)
 
         point_vertex: List[Optional[int]] = g["fold"]["point_vertex"]
         tris: List[Tuple[int, int, int]] = [
@@ -83,7 +96,7 @@ class Plan:
                     corner = c
                     corner_point = tri[(k + 2) % 3]
             assert corner is not None, f"face {face} has no C-C corner"
-            unit = unit_of[corner]
+            unit = aux_of.get(face, unit_of[corner])
             px, py = g["points"][corner_point][0], g["points"][corner_point][1]
             plan = PanelPlan(
                 face=face,
@@ -95,10 +108,19 @@ class Plan:
             panels[unit].append(plan)
             by_face[face] = plan
 
+        # A unit with no panels fields no board (data-aux empties the
+        # front unit — its panels ride the flanks).
+        panels = {v: plist for v, plist in panels.items() if plist}
         for unit, plist in panels.items():
             assert 0 < len(plist) <= 8, f"unit {unit} serves {len(plist)} panels"
             # Mapping order within a board: stable by triangle index.
             plist.sort(key=lambda p: p.tri_index)
 
         units = sorted(panels, key=lambda v: min(p.tri_index for p in panels[v]))
-        return cls(units=units, panels=panels, by_face=by_face, net_name=net_name)
+        return cls(
+            units=units,
+            panels=panels,
+            by_face=by_face,
+            net_name=net_name,
+            data_aux=data_aux,
+        )

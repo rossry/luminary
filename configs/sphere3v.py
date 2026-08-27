@@ -537,6 +537,43 @@ def main() -> None:
             }
         )
 
+    # ---- data-aux (construction app, aux mode "data") ----------------
+    # The front hexagon unit (az 180, over the door) keeps its power unit
+    # and primary, but its three hairband panels hand their DATA role to
+    # the flanking hexagon units over chained secondaries. Screen right
+    # (az > 180) carries two of the three — its flank face plus the
+    # middle face over the door — the left side carries one. Derived
+    # here from the faces alone and asserted against the app's values.
+    nbr: dict = {}
+    for i, j, _c in EDGES:
+        nbr.setdefault(i, set()).add(j)
+        nbr.setdefault(j, set()).add(i)
+
+    def off_front(v: int) -> float:
+        return (vertices[v]["az_deg"] - 180.0 + 180.0) % 360.0 - 180.0
+
+    hexes = [u for u in DATA_UNIT_VERTICES if u not in DATA_CONSOLIDATIONS]
+    front = min(hexes, key=lambda u: abs(off_front(u)))
+    assert front == 8 and abs(off_front(front)) < 1e-6, front
+    front_faces = [f for f in PLAN_A_FACES if front in f]
+    assert len(front_faces) == 3, front_faces
+    others = [v for f in front_faces for v in f if v != front]
+    shared = sorted(v for v in set(others) if others.count(v) == 2)
+    (middle,) = [f for f in front_faces if all(v in f for v in shared)]
+    right = max(shared, key=off_front)  # screen right: az > 180
+    unit_at = {s: next(u for u in hexes if u != front and s in nbr[u]) for s in shared}
+
+    def flank_of(face: tuple) -> int:
+        if face is middle:  # the middle face rides the right secondary
+            return right
+        (s,) = [v for v in shared if v in face]
+        return s
+
+    reassign = sorted(
+        (tuple(sorted(face)), unit_at[flank_of(face)]) for face in front_faces
+    )
+    assert reassign == [((3, 4, 8), 9), ((3, 8, 13), 7), ((4, 8, 14), 9)], reassign
+
     out = {
         "schema": "luminary.sphere3v/1",
         "source": (
@@ -561,6 +598,15 @@ def main() -> None:
             "power_unit_vertices": POWER_UNIT_VERTICES,
             "power_double_units": POWER_DOUBLE_UNITS,
             "base_station_vertex": BASE_STATION_VERTEX,
+            "data_aux": {
+                "unit": front,
+                "reassign": [[list(face), unit] for face, unit in reassign],
+                "note": (
+                    "aux mode 'data': the front unit keeps its power unit "
+                    "and primary, but its panels' data rides the flanking "
+                    "hexes (screen right takes the middle + right faces)"
+                ),
+            },
         },
     }
     output = Path(__file__).parent / "sphere3v.json"

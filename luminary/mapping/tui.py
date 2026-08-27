@@ -7,7 +7,8 @@ redrawn line. This is an I/O adapter — the stateless conventions of the
 pattern layer deliberately do not apply here.
 
 Keys: arrows and WASD are equivalent (left/right cycle, up density,
-down winding), enter confirms, q (or ctrl-C) quits. The physical
+down winding); enter, p, and space all confirm (p/space keep the whole
+flow on an alpha-only keyboard); q (or ctrl-C) quits. The physical
 feedback lives on the sphere and the mirror page; the status line only
 names where in the sequence the operator stands.
 """
@@ -33,6 +34,8 @@ _PLAIN = {
     b"d": Event.RIGHT,
     b"\r": Event.ENTER,
     b"\n": Event.ENTER,
+    b"p": Event.ENTER,  # alpha-keyboard confirm
+    b" ": Event.ENTER,
 }
 _CSI = {b"A": Event.UP, b"B": Event.DOWN, b"C": Event.RIGHT, b"D": Event.LEFT}
 
@@ -73,7 +76,7 @@ def status_line(core: SessionCore) -> str:
     if state.stage == "done":
         return (
             f"done — all {plan.n_panels} panels on {len(plan.units)} boards "
-            "mapped; markers cleared; q quits"
+            "mapped; finale, then the spiral show; q quits"
         )
     unit = plan.units[state.board_cursor]
     where = f"board {state.board_cursor + 1}/{len(plan.units)} unit {unit}"
@@ -82,7 +85,7 @@ def status_line(core: SessionCore) -> str:
         shown = "-" if candidate is None else str(candidate)
         return (
             f"[ports] {where} · breathing controller {shown} · "
-            "arrows/ad cycle, enter locks, q quits"
+            "arrows/ad cycle, enter/p locks, q quits"
         )
     board = state.boards[unit]
     return (
@@ -90,7 +93,7 @@ def status_line(core: SessionCore) -> str:
         f"panel {state.panel_cursor + 1}/{len(plan.panels[unit])} · "
         f"ch {state.candidate_channel} · {state.candidate_density}/panel · "
         f"{state.candidate_winding} · ad channel, w density, s winding, "
-        "enter confirms, q quits"
+        "enter/p confirms, q quits"
     )
 
 
