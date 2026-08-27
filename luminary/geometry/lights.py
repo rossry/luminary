@@ -107,6 +107,7 @@ class LightSpec(BaseModel):
     index: int = Field(ge=0)
     kind: str = "active"
     pos: Optional[List[float]] = None
+    pos3: Optional[List[float]] = None
     dir: Optional[List[float]] = None
     extent: Optional[List[float]] = None
     normal: Optional[List[float]] = None
@@ -124,6 +125,13 @@ class LightSpec(BaseModel):
     def _check_pos(cls, v: Optional[List[float]]) -> Optional[List[float]]:
         if v is not None and len(v) not in (2, 3):
             raise ValueError("pos must have 2 or 3 components")
+        return v
+
+    @field_validator("pos3")
+    @classmethod
+    def _check_pos3(cls, v: Optional[List[float]]) -> Optional[List[float]]:
+        if v is not None and len(v) != 3:
+            raise ValueError("pos3 must have 3 components")
         return v
 
     @field_validator("dir", "extent", "normal")
@@ -274,25 +282,43 @@ class LightsGeometry:
         array[:, LightColumns.KIND] = [_KIND_NAMES[s.kind] for s in specs]
 
         # Authoritative positions (rows without pos stay NaN until interpolated).
+        use_xy = "xy" in space.authoritative
         use_xyz = "xyz" in space.authoritative
-        pos_dim = 3 if use_xyz else 2
-        pos = np.full((n, pos_dim), np.nan)
-        for row, spec in enumerate(specs):
-            if spec.pos is not None:
-                p = spec.pos
-                if use_xyz:
-                    pos[row] = p if len(p) == 3 else [p[0], p[1], 0.0]
-                else:
-                    pos[row] = p[:2]
-
-        # Fill missing INTERPOLATED positions by index-fraction lerp between
-        # bounding lights that have positions, per channel (spec §6.5.1).
-        _fill_missing_positions(identity, pos, specs)
-
-        if use_xyz:
-            block = coords.derive_all(None, pos, space.projection)
+        if use_xy and use_xyz:
+            # Dual-authoritative (spec §4.1.2): the drawing plane and the
+            # true 3D position are independent facts — a folded net's XY
+            # is not a projection of its XYZ. `pos` carries the plane,
+            # `pos3` the fold.
+            pos = np.full((n, 2), np.nan)
+            pos3 = np.full((n, 3), np.nan)
+            for row, spec in enumerate(specs):
+                if spec.pos is not None:
+                    pos[row] = spec.pos[:2]
+                if spec.pos3 is not None:
+                    pos3[row] = spec.pos3
+            _fill_missing_positions(identity, pos, specs)
+            _fill_missing_positions(identity, pos3, specs)
+            block = coords.derive_all(pos, pos3, None)
         else:
-            block = coords.derive_all(pos, None, None)
+            pos_dim = 3 if use_xyz else 2
+            pos = np.full((n, pos_dim), np.nan)
+            for row, spec in enumerate(specs):
+                if spec.pos is not None:
+                    p = spec.pos
+                    if use_xyz:
+                        pos[row] = p if len(p) == 3 else [p[0], p[1], 0.0]
+                    else:
+                        pos[row] = p[:2]
+
+            # Fill missing INTERPOLATED positions by index-fraction lerp
+            # between bounding lights that have positions, per channel
+            # (spec §6.5.1).
+            _fill_missing_positions(identity, pos, specs)
+
+            if use_xyz:
+                block = coords.derive_all(None, pos, space.projection)
+            else:
+                block = coords.derive_all(pos, None, None)
         array[:, LightColumns.X : LightColumns.PHI_S + 1] = block
 
         for row, spec in enumerate(specs):
@@ -335,7 +361,9 @@ class LightsGeometry:
 
     def to_file_dict(self) -> Dict[str, Any]:
         """Serialize authoritative quantities only (spec §6.5.2)."""
+        use_xy = "xy" in self.space.authoritative
         use_xyz = "xyz" in self.space.authoritative
+        dual = use_xy and use_xyz
         lights: List[Dict[str, Any]] = []
         arr = self.array
         for row in range(self.n):
@@ -345,12 +373,16 @@ class LightsGeometry:
                 "index": int(arr[row, LightColumns.INDEX]),
                 "kind": _KIND_STRINGS[Kind(int(arr[row, LightColumns.KIND]))],
             }
-            if use_xyz:
+            if use_xyz and not dual:
                 p = arr[row, LightColumns.X3 : LightColumns.Z3 + 1]
             else:
                 p = arr[row, LightColumns.X : LightColumns.Y + 1]
             if not np.any(np.isnan(p)):
                 entry["pos"] = [float(v) for v in p]
+            if dual:
+                p3 = arr[row, LightColumns.X3 : LightColumns.Z3 + 1]
+                if not np.any(np.isnan(p3)):
+                    entry["pos3"] = [float(v) for v in p3]
             d = arr[row, LightColumns.DX : LightColumns.DZ + 1]
             if not np.any(np.isnan(d)):
                 entry["dir"] = [float(v) for v in d]

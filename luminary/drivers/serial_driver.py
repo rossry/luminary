@@ -42,25 +42,24 @@ def _raise_timer_resolution() -> bool:
     burning most of a core. Returns whether it was granted, so it can be
     released again.
     """
-    if sys.platform != "win32":
-        return False
-    try:
-        import ctypes
+    if sys.platform == "win32":
+        try:
+            import ctypes
 
-        return bool(ctypes.WinDLL("winmm").timeBeginPeriod(1) == 0)
-    except Exception:
-        return False
+            return bool(ctypes.WinDLL("winmm").timeBeginPeriod(1) == 0)
+        except Exception:
+            return False
+    return False
 
 
 def _restore_timer_resolution() -> None:
-    if sys.platform != "win32":
-        return
-    try:
-        import ctypes
+    if sys.platform == "win32":
+        try:
+            import ctypes
 
-        ctypes.WinDLL("winmm").timeEndPeriod(1)
-    except Exception:
-        pass
+            ctypes.WinDLL("winmm").timeEndPeriod(1)
+        except Exception:
+            pass
 
 
 # How often a downed controller is retried, and how long a blocked write may

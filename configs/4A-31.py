@@ -11,6 +11,15 @@ import math
 from pathlib import Path
 
 
+def _fit_viewbox(colored_points, pad=15.0):
+    xs = [p[0] for p in colored_points]
+    ys = [p[1] for p in colored_points]
+    x0, y0 = min(xs) - pad, min(ys) - pad
+    w = max(xs) - x0 + pad
+    h = max(ys) - y0 + pad
+    return f"{x0:.0f} {y0:.0f} {math.ceil(w):.0f} {math.ceil(h):.0f}"
+
+
 def main():
     """Generate 4A-31.json configuration."""
 
@@ -118,7 +127,7 @@ def main():
         # Need to adjust indices since we skipped direction 2 in previous layers
         layer3first_idx = layer3first_start + (i if i < 2 else i - 1)
         layer3second_idx = layer3second_start + (i if i < 2 else i - 1)
-        
+
         layer2center_point = all_points[layer2center_start + i]
         layer3first_point = all_points[layer3first_idx]
         layer3second_point = all_points[layer3second_idx]
@@ -167,13 +176,14 @@ def main():
         "goldenrod",  # 23: Direction 0
         "magenta",  # 24: Direction 1
         "magenta",  # 25: Direction 3 (direction 2 skipped)
-        "goldenrod"  # 26: Direction 4
+        "goldenrod",  # 26: Direction 4
     ]
 
-    # Create colored points
+    # Create colored points (y negated: long arms and front stub point up,
+    # matching the construction schematic frame — see 4A-35.py).
     colored_points = []
     for i, point in enumerate(all_points):
-        colored_points.append([point[0], point[1], vertex_colors[i]])
+        colored_points.append([point[0], -point[1], vertex_colors[i]])
 
     # Create triangles using 6-triangle loop pattern with 5 series
     triangles = []
@@ -186,21 +196,25 @@ def main():
         layer2vertex_curr = layer2vertex_start + i
         layer2vertex_next = layer2vertex_start + (i + 1) % 5
         layer2center_curr = layer2center_start + i
-        
+
         # Skip direction 2 completely for triangles that use layer 3 or 4 vertices
         if i == 2:
             # For direction 2, only create triangles that don't use layer 3 or 4
             direction_triangles = []
             # Triangle 2: layer2center - layer2vertex_curr - layer1_curr
-            direction_triangles.append([layer2center_curr, layer2vertex_curr, layer1_curr])
+            direction_triangles.append(
+                [layer2center_curr, layer2vertex_curr, layer1_curr]
+            )
             # Triangle 3: layer2center - layer1_curr - layer1_next
             direction_triangles.append([layer2center_curr, layer1_curr, layer1_next])
             # Triangle 4: layer2center - layer1_next - layer2vertex_next
-            direction_triangles.append([layer2center_curr, layer1_next, layer2vertex_next])
+            direction_triangles.append(
+                [layer2center_curr, layer1_next, layer2vertex_next]
+            )
             # Add this reduced series to the triangles array
             triangles.append(direction_triangles)
             continue
-        
+
         # For other directions, adjust indexing for layer 3 and 4 vertices
         # Since we skipped direction 2, directions 3+ need adjusted indices
         layer3first_idx = layer3first_start + (i if i < 2 else i - 1)
@@ -279,12 +293,13 @@ def main():
             "triangles": triangles,  # Five series of triangles (6 triangles each)
             "apex": apex,
             "lines": lines,
+            "default_beam_counts": [7, 4, 4, 7],  # legacy density (uncalibrated)
         },
         "rendering": {
             "svg": {
                 "width": "100%",
                 "height": "400",
-                "viewBox": "-170 -150 340 240",  # Fits all vertices with padding
+                "viewBox": _fit_viewbox(colored_points),  # Refit with padding
             }
         },
     }
