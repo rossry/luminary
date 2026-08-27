@@ -75,6 +75,15 @@ def test_sphere3v_invariants(sphere):
     elec = sphere["electronics"]
     assert len(elec["data_unit_vertices"]) == 7
     assert len(sphere["plan_a_faces"]) == 37
+    # Data-aux: the front unit's three door faces ride the flanking
+    # hexes — two on the screen-right hex, one on the left.
+    aux = elec["data_aux"]
+    assert aux["unit"] == 8
+    assert sorted((tuple(f), u) for f, u in aux["reassign"]) == [
+        ((3, 4, 8), 9),
+        ((3, 8, 13), 7),
+        ((4, 8, 14), 9),
+    ]
 
 
 def test_4a37_fold_matches_sphere(sphere):
@@ -164,7 +173,27 @@ def test_flipped_net_orientation():
     assert max(ys) > 100
 
 
-def test_unfolded_nets_have_no_3d():
+def test_4a33_fold_matches_4a37(sphere):
+    """4A-33 (the production net) folds identically to 4A-37 on their
+    shared 31 points: same radius, same correspondence, same 3D."""
+    n33 = json.loads((CONFIGS / "4A-33.json").read_text())["geometry"]
+    n37 = json.loads((CONFIGS / "4A-37.json").read_text())["geometry"]
+    assert n33["fold"]["radius_units"] == n37["fold"]["radius_units"]
+    k = len(n33["fold"]["point_vertex"])
+    assert n33["fold"]["point_vertex"] == n37["fold"]["point_vertex"][:k]
+    assert n33["points3d"] == n37["points3d"][:k]
+    xyz = {v["id"]: np.array(v["xyz"]) for v in sphere["vertices"]}
+    faces = {tuple(sorted(f)) for f in sphere["plan_a_faces"]}
+    for series in n33["triangles"]:
+        for tri in series:
+            mapped = tuple(sorted(n33["fold"]["point_vertex"][i] for i in tri))
+            assert mapped in faces, (tri, mapped)
     lights = capture(Net.from_json_file(CONFIGS / "4A-33.json"))
+    assert lights.space.authoritative == ["xy", "xyz"]
+    assert lights.n == 33 * 180  # calibrated capture density held
+
+
+def test_unfolded_nets_have_no_3d():
+    lights = capture(Net.from_json_file(CONFIGS / "4A-35.json"))
     assert lights.space.authoritative == ["xy"]
     assert np.all(lights.array[:, LightColumns.Z3] == 0)

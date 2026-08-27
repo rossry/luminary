@@ -2485,6 +2485,36 @@
    9,
    10
   ],
-  "base_station_vertex": 81
+  "base_station_vertex": 81,
+  "data_aux": {
+   "unit": 8,
+   "reassign": [
+    [
+     [
+      3,
+      4,
+      8
+     ],
+     9
+    ],
+    [
+     [
+      3,
+      8,
+      13
+     ],
+     7
+    ],
+    [
+     [
+      4,
+      8,
+      14
+     ],
+     9
+    ]
+   ],
+   "note": "aux mode 'data': the front unit keeps its power unit and primary, but its panels' data rides the flanking hexes (screen right takes the middle + right faces)"
+  }
  }
 }

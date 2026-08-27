@@ -103,27 +103,34 @@
     <button data-event="up" title="toggle density (↑/W)">▲</button>
     <button data-event="down" title="toggle winding (↓/S)">▼</button>
     <button data-event="right" title="next (→/D)">▶</button>
-    <button data-event="enter" class="confirm" title="confirm (Enter)">⏎ confirm</button>
-    <span class="legend">arrows or WASD move · enter confirms</span>
+    <button data-event="enter" class="confirm" title="confirm (Enter/P/Space)">⏎ confirm</button>
+    <span class="legend">arrows or WASD move · enter, P, or space confirms</span>
   </footer>
   <div id="overlay">
     <div class="card">
       <h2 id="overlay-title">Map a scrambled sphere</h2>
       <div id="overlay-body">
-        <p>The <b>top view</b> is the physical build: seven boards and 37
+        <p>The <b>top view</b> is the physical build: six boards and 33
         panels plugged in with no organization — mixed 180/360-LED
         densities, random windings, unknown ports. The <b>bottom view</b>
-        is the base station's window: what the plan <i>intends</i>.</p>
-        <p><b>Stage A</b> — one planned board breathes below. Press
-        <kbd>←</kbd>/<kbd>→</kbd> until the matching cluster breathes
-        above, then <kbd>Enter</kbd> to lock that controller.</p>
-        <p><b>Stage B</b> — one planned panel shows the color-wheel test.
-        <kbd>←</kbd>/<kbd>→</kbd> pick the channel until the right panel
-        lights; <kbd>↑</kbd> toggles density (wrong = the wheel covers the
-        wrong arc); <kbd>↓</kbd> toggles winding (wrong = the dark band
-        sweeps the wrong way). One <kbd>Enter</kbd> records all three.</p>
-        <p>WASD works everywhere; mapped boards flip to the descending
-        ring when their last panel is confirmed.</p>
+        is the base station's window: what the plan <i>intends</i>. Both
+        show the same broadcast — idle struts crawl with white beads,
+        scrambled up top until the mapping unscrambles them.</p>
+        <p><b>Stage A</b> — one planned board breathes below in its own
+        color. Press <kbd>←</kbd>/<kbd>→</kbd> until the matching cluster
+        breathes above, then <kbd>Enter</kbd> to lock that controller —
+        locked boards hold their color steady.</p>
+        <p><b>Stage B</b> — the panel under test plays the color wheel on
+        its first and last quarters (a density mismatch shows as only one
+        half lit). <kbd>←</kbd>/<kbd>→</kbd> pick the channel until the
+        right panel lights; <kbd>↑</kbd> toggles density;
+        <kbd>↓</kbd> toggles winding (wrong = the windmill sweeps the
+        wrong way). One <kbd>Enter</kbd> records all three. Unmapped
+        strips on the active board glow their first 30 LEDs as a hint.</p>
+        <p>WASD works everywhere, and <kbd>P</kbd> or <kbd>space</kbd>
+        confirm just like Enter — the whole flow fits an alpha-only
+        keyboard. Mapped boards flip to the descending rainbow ring when
+        their last panel is confirmed.</p>
       </div>
       <button id="start">Start</button>
     </div>

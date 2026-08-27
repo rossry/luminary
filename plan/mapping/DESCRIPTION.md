@@ -29,6 +29,18 @@ which carries the compiled-in controller id, so port ↔ controller-id is
 probed automatically and mappings are keyed on **controller id**, never
 port paths — replugging USB later cannot scramble a saved mapping.
 
+**Production plan (this year): 4A-33 with data-aux.** The net is 4A-33
+(33 panels) and the data wiring uses the construction app's aux mode
+"data" (`sphere3v.json` `electronics.data_aux`): the front hexagon unit
+(vertex 8, over the door) keeps its power role but fields no data
+board — its three hairband panels ride the flanking hexes over chained
+secondaries, two on the screen-right hex (unit 9, board 2 in plan
+order: faces 3·4·8 and 4·8·14) and one on the left hex (unit 7, face
+3·8·13). Six boards cover all 33 panels; the reassigned panels' strip
+start corner stays vertex 8 (physical), only their serving board moves.
+`Plan.load()` defaults to this; `data_aux=False` recovers the
+seven-board corner-rule plan.
+
 ## Mirror mode
 
 Before and during mapping, the base station shows a live window of
@@ -40,39 +52,67 @@ bytes, decoded by the existing browser decoder. No second render path.
 ## The sequence
 
 One state machine, surface-agnostic (see below). Keys: arrow keys and
-WASD are equivalent; enter confirms.
+WASD are equivalent; enter, `p`, and space all confirm — so the whole
+flow works on an alpha-only keyboard with no special keys.
 
-**Stage A — ports to boards.** For each planned data unit, the window
-breathes one color on that unit's planned panel region; the wire sends
-the same breathing to *all channels* of one candidate board. ←/→ moves
-the breathing to a different board (by controller id) until the
-physical cluster that lights up matches the window; enter locks the
-assignment. Confirmed boards keep breathing at half brightness while
-the rest are mapped.
+The window and the wire are an **exact broadcast of one scene** — every
+board has one role at a time (beads / breathe / solid / active test /
+ring), applied to its planned panels on the window and to its strips on
+the wire; only placement differs (recorded strips use their recorded
+density and winding, everything else the canonical hypothesis: channel
+j ↔ planned panel j, 360 LEDs, ccw). Every probed controller is on the
+wire in every stage, so nothing physically plugged ever strands its
+last frame — before mapping, boards carry the beads backdrop, landing
+scrambled on the build by construction.
 
-**Stage B — panels, winding, density (per board).** The window breathes
-one planned panel; ←/→ changes which channel carries the signal until
-the right physical panel breathes. Then the panel switches to the
-orientation test: a sixth of a color wheel centered on the panel's
-six-red corner, with a dark band sweeping clockwise around that vertex.
-↑ toggles density (180/360 — wrong density shows as the wheel occupying
-the wrong arc), ↓ toggles winding (wrong winding shows the band
-sweeping the wrong way). A **single enter** confirms channel + density
-+ winding together and advances; the confirmed panel holds its test
-pattern at half brightness until the board completes.
+Each board also owns an **identity color**: pleasant OKLCH hues spaced
+equally around the color wheel in plan order (moderate chroma — tags,
+not tests).
+
+**Stage A — ports to boards.** The board being placed breathes its
+identity color — on the window over its planned panel region, on the
+wire over *all channels* of one candidate controller. ←/→ moves the
+breathing to a different controller until the physical cluster that
+lights up matches the window; enter locks the assignment. A locked
+board switches to holding its color **steady** (no more breathing); a
+deselected candidate falls back to beads.
+
+**Stage B — panels, winding, density (per board).** The strip under
+test plays the orientation test: hue is the light's angle about the
+panel's six-red corner — one continuous wheel around the vertex, fixed
+by logical panel position (recording mappings never moves it) — under a
+three-spoke dark windmill sweeping clockwise around that vertex (three
+spokes = a third of the wait per panel). The active strip lights only
+its **first and last index quarters**, deliberately dark between, so a
+density mismatch in either direction reads as "only one half lit"
+rather than a subtle hue shift. ←/→ changes which channel carries the
+test until the right physical panel lights; ↑ toggles density
+(180/360), ↓ toggles winding (wrong winding shows the windmill sweeping
+the wrong way). A **single enter** confirms channel + density + winding
+together and advances; a confirmed panel holds its full-arc wheel
+portion at 30% of the active strip's brightness until the board
+completes. Meanwhile every *unmapped* strip on the active board lights
+its **first 30 LEDs** with its intended wheel portion at the same 30%
+(the flock of corner glows shows at a glance which physical panels
+belong to this board), and boards waiting their turn hold their steady
+identity color.
 
 **Stage C — mapped boards.** A fully mapped board flips to the "mapped"
-pattern: a horizontal ring of light, hue varying around the
-circumference, descending from the apex at constant angular-elevation
-velocity every few seconds (`PHI_S` is filled by the fold — PR #13),
-layered over the beads backdrop. Unmapped panels play *only* beads.
+pattern *on both surfaces*: a horizontal ring of light, hue varying
+around the circumference, descending from the apex at constant
+angular-elevation velocity every few seconds (`PHI_S` — filled by the
+fold on the window, borrowed from the nearest net light per hypothesis
+strip on the wire), each successive wave spinning its hues by a seeded
+random angle, layered over the beads backdrop.
 
-**Beads backdrop.** Gentle white beads that grow, fade, and drift a
-short way along a strip straightaway, with a mirrored twin on the far
-side of the same strut — the twins only visually align once mapping is
-correct, which makes drift or error visible at a glance. Beads is also
-the firmware's default idle pattern before a host connects (see board
-storage below), so an unmapped, unhosted board looks intentional.
+**Beads backdrop.** White beads that fade in, crawl the length of a
+strut (either direction), and fade out — independent seeded phases per
+strut and lane, staggered rather than synchronized — with a mirrored
+twin on the far side of the same strut: the twins only visually align
+once mapping is correct, which makes drift or error visible at a
+glance. Beads is also the firmware's default idle pattern before a host
+connects (see board storage below), so an unmapped, unhosted board
+looks intentional.
 
 ## Saved state
 

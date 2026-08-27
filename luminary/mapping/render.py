@@ -3,26 +3,42 @@
 The same class renders the base-station window (true net capture
 positions) and the wire (hypothesis strip positions): construction takes
 per-light annotation arrays, so the pattern itself never knows which
-surface it is on. Role assignment happens in the session/builders; this
-module only turns (roles, geometry, t) into OKLCH — pure and vectorized,
+surface it is on. Role assignment happens in the session/builders — the
+two surfaces are given the *same* role per panel-and-strip, so the
+window is an exact broadcast of what goes down the wire; this module
+only turns (roles, geometry, t) into OKLCH, pure and vectorized,
 stateless for a fixed construction (the session swaps instances when the
 mapping state changes, exactly like a WS set_pattern).
 
 Visual language (plan/mapping/DESCRIPTION.md):
-  BEADS        gentle white beads drifting along strut straightaways,
-               mirrored across each strut — the pre-mapping backdrop.
-  BREATHE      slow single-color breathing (stage A: full = the board
-               being placed, half = boards already locked).
-  WHEEL        the orientation test: a sixth of a color wheel about the
-               panel's six-red corner with a dark band sweeping
-               clockwise (net frame); half brightness once confirmed.
+  BEADS        the idle backdrop everywhere, wire included: staggered
+               white beads that fade in, crawl their strut, fade out —
+               independent seeded phases per strut and lane, never
+               synchronized. Twins mirror across each strut.
+  BREATHE      the board being placed breathes in its board color.
+  SOLID        a locked board holds its board color, steady.
+  WHEEL        the orientation test: hue is the light's angle about its
+               panel's six-red corner — one continuous wheel around the
+               vertex, fixed by logical position (recording a mapping
+               never moves it) — under a three-spoke dark windmill
+               sweeping clockwise (net frame). Full brightness on the
+               strip under test; 30% brightness on recorded strips and
+               on the first-30-LED previews of unmapped strips.
+  OFF          deliberately unlit. The active strip plays the wheel on
+               its first and last index quarters with OFF between, so a
+               density mismatch in either direction reads as "only one
+               half of the strip lit", not a subtle hue shift.
   RING         the mapped pattern: a hue ring descending in elevation
-               (PHI_S) every few seconds, over the beads backdrop.
+               (PHI_S), each successive wave rotating its hues by a
+               seeded random angle.
+
+Board colors are pleasant OKLCH hues spaced equally around the wheel in
+plan order (moderate chroma — identity tags, not tests): `board_hues`.
 """
 
 from __future__ import annotations
 
-from typing import List, Optional, Sequence, Tuple
+from typing import List, Optional, Tuple
 
 import numpy as np
 
@@ -31,16 +47,24 @@ from luminary.patterns.util import seeded_random
 
 # Per-light roles
 BEADS = 0
-BREATHE_FULL = 1
-BREATHE_HALF = 2
+BREATHE = 1
+SOLID = 2
 WHEEL_FULL = 3
-WHEEL_HALF = 4
+WHEEL_DIM = 4
 RING = 5
+OFF = 6  # deliberately unlit (the active strip's dark middle half)
 
 _BREATHE_PERIOD = 2.6  # seconds; calm but clearly alive
-_BAND_PERIOD = 3.0  # seconds per revolution of the wheel's dark band
+_BAND_PERIOD = 3.0  # seconds per windmill revolution (angular speed)
+_SPOKES = 3  # dark windmill spokes — a third of the wait per panel
 _RING_PERIOD = 7.0  # seconds per apex-to-rim descent
-_BEAD_SLOT = 2.4  # seconds per spawn slot per edge
+_BEAD_LANES = (7.3, 9.1)  # seconds per crawl; incommensurate lanes
+_BEAD_CYCLES = 8  # per-(edge, lane) random slots before traffic repeats
+
+
+def board_hues(n: int) -> np.ndarray:
+    """n pleasant identity hues, equally spaced around the color wheel."""
+    return (25.0 + 360.0 * np.arange(n) / max(n, 1)) % 360.0
 
 
 def net_edges(geometry: dict) -> np.ndarray:
@@ -71,18 +95,16 @@ class MappingPattern(Pattern):
         roles: np.ndarray,  # (n,) ints from the role constants above
         edges: np.ndarray,  # (e, 4) net edges for the beads backdrop
         corner_xy: Optional[np.ndarray] = None,  # (n, 2) six-red corner
-        winding_sign: Optional[np.ndarray] = None,  # (n,) +1 ccw / -1 cw
+        hue: Optional[np.ndarray] = None,  # (n,) board identity hue
         phi_s: Optional[np.ndarray] = None,  # (n,) radians, for RING
-        breathe_hue: float = 200.0,
     ) -> None:
         n = xy.shape[0]
         self._xy = xy
         self._roles = roles
         self._edges = edges
         self._corner = corner_xy if corner_xy is not None else np.zeros((n, 2))
-        self._wind = winding_sign if winding_sign is not None else np.ones(n)
+        self._board_hue = hue if hue is not None else np.zeros(n)
         self._phi = phi_s
-        self._hue = breathe_hue
         # Precompute per-light bead-edge projections: nearest point on
         # each edge is expensive per frame; instead each light binds to
         # its nearest edge once (mapping visuals, not a show pattern).
@@ -98,57 +120,78 @@ class MappingPattern(Pattern):
         self._edge_s = s[rows, self._edge_of]  # position along bound edge
         self._edge_d = dist[rows, self._edge_of]  # distance from it
         self._edge_len = np.sqrt(seg_len2[0, self._edge_of])
+        # Constant seeded bead tables (per edge): a phase per lane, and a
+        # small pool of per-cycle randomness (gate, direction, spare).
+        e = self._edges.shape[0]
+        self._bead_phase = [
+            seeded_random(f"map-bead-phase-{lane}", e)
+            for lane in range(len(_BEAD_LANES))
+        ]
+        self._bead_r = [
+            seeded_random(f"map-bead-{lane}", e * _BEAD_CYCLES * 3).reshape(
+                e, _BEAD_CYCLES, 3
+            )
+            for lane in range(len(_BEAD_LANES))
+        ]
 
     # ---------------------------------------------------------- layers
 
     def _beads(self, t: float) -> np.ndarray:
-        """Per-light bead intensity: beads spawn per edge in hashed time
-        slots, glide a short way along the edge, grow and fade. Both
-        sides of a strut bind to the same edge, so twins match."""
+        """Per-light bead intensity. Each strut hosts one bead per lane
+        on an independent seeded clock — beads fade in, crawl the whole
+        strut (either direction), and fade out, staggered across struts
+        and lanes rather than synchronized. Both sides of a strut bind
+        to the same edge, so twins match."""
         n = self._xy.shape[0]
         out = np.zeros(n)
-        for slot in (int(t / _BEAD_SLOT) - 1, int(t / _BEAD_SLOT)):
-            if slot < 0:
-                continue
-            r = seeded_random(f"map-bead-{slot}", self._edges.shape[0] * 3)
-            r = r.reshape(-1, 3)
-            gate = r[self._edge_of, 0]
-            s0 = 0.15 + 0.6 * r[self._edge_of, 1]
-            drift = (r[self._edge_of, 2] - 0.5) * 0.25
-            rel = (t - slot * _BEAD_SLOT) / _BEAD_SLOT
-            if not 0.0 <= rel <= 2.0:
-                continue
-            env = np.sin(np.clip(rel / 1.6, 0.0, 1.0) * np.pi) ** 2
-            center = s0 + drift * rel
+        eo = self._edge_of
+        for lane, period in enumerate(_BEAD_LANES):
+            clock = t / period + self._bead_phase[lane][eo]
+            cycle = np.floor(clock).astype(np.int64)
+            u = clock - cycle  # 0..1 through this bead's life
+            r = self._bead_r[lane][eo, cycle % _BEAD_CYCLES]
+            gate = r[:, 0] < 0.65  # a random subset of struts each cycle
+            forward = r[:, 1] < 0.5
+            uu = np.where(forward, u, 1.0 - u)
+            margin = 8.0 / self._edge_len  # enter/exit past the ends
+            center = -margin + (1.0 + 2.0 * margin) * uu
+            env = np.sin(0.5 * np.pi * np.clip(np.minimum(u, 1.0 - u) / 0.18, 0, 1))
             along = (self._edge_s - center) * self._edge_len
             profile = np.exp(-(along**2) / (2 * 6.0**2))
             across = np.exp(-(self._edge_d**2) / (2 * 5.0**2))
-            out = np.maximum(out, (gate < 0.5) * env * profile * across)
+            out = np.maximum(out, gate * env**2 * profile * across)
         return out
 
     def _wheel(self, t: float) -> Tuple[np.ndarray, np.ndarray]:
-        """(intensity, hue) of the orientation test about each light's
-        own corner. Hue spans the wheel with angle; the dark band sweeps
-        clockwise in the net frame at _BAND_PERIOD."""
+        """(intensity, hue) of the orientation test. Hue is the light's
+        angle about its panel's six-red corner — pure logical position,
+        one continuous wheel per vertex — and the dark windmill's three
+        spokes sweep clockwise in the net frame at _BAND_PERIOD."""
         rel = self._xy - self._corner
-        ang = np.arctan2(rel[:, 1], rel[:, 0]) * self._wind
-        hue = (np.degrees(ang)) % 360.0
+        ang = np.arctan2(rel[:, 1], rel[:, 0])
+        hue = np.degrees(ang) % 360.0
         band = 2.0 * np.pi * (t / _BAND_PERIOD)
-        diff = np.mod(ang - band + np.pi, 2 * np.pi) - np.pi
-        dark = 1.0 - 0.85 * np.exp(-(diff**2) / (2 * 0.35**2))
+        pitch = 2.0 * np.pi / _SPOKES
+        diff = np.mod(ang - band, pitch)
+        diff = np.minimum(diff, pitch - diff)  # to the nearest spoke
+        dark = 1.0 - 0.85 * np.exp(-(diff**2) / (2 * 0.30**2))
         return dark, hue
 
     def _ring(self, t: float) -> Tuple[np.ndarray, np.ndarray]:
-        """(intensity, hue) of the descending elevation ring."""
+        """(intensity, hue) of the descending elevation ring; each wave
+        rotates the hue wheel by a seeded random angle."""
         n = self._xy.shape[0]
         if self._phi is None:
             return np.zeros(n), np.zeros(n)
+        wave = int(t // _RING_PERIOD)
         phase = (t % _RING_PERIOD) / _RING_PERIOD
         target = phase * np.radians(130.0)  # apex past the panel rim
         diff = self._phi - target
         intensity = np.exp(-(diff**2) / (2 * np.radians(6.0) ** 2))
-        # Hue varies around the ring: azimuth about the apex.
-        hue = (np.degrees(np.arctan2(self._xy[:, 0], -self._xy[:, 1]))) % 360.0
+        # Hue varies around the ring (azimuth about the apex), spun to a
+        # fresh seeded angle every descent.
+        spin = 360.0 * float(seeded_random(f"map-ring-{wave}", 1)[0])
+        hue = (np.degrees(np.arctan2(self._xy[:, 0], -self._xy[:, 1])) + spin) % 360.0
         return intensity, hue
 
     # ---------------------------------------------------------- render
@@ -163,21 +206,32 @@ class MappingPattern(Pattern):
         out[:, 1] = 0.03 + 0.02 * (1.0 - beads)  # beads run near-white
         out[:, 2] = 250.0
 
-        breathe = 0.5 - 0.5 * np.cos(2 * np.pi * t / _BREATHE_PERIOD)
-        for role, gain in ((BREATHE_FULL, 1.0), (BREATHE_HALF, 0.5)):
-            m = roles == role
-            if m.any():
-                out[m, 0] = 0.06 + 0.55 * gain * breathe
-                out[m, 1] = 0.24
-                out[m, 2] = self._hue
+        m = roles == BREATHE
+        if m.any():
+            breathe = 0.5 - 0.5 * np.cos(2 * np.pi * t / _BREATHE_PERIOD)
+            out[m, 0] = 0.10 + 0.50 * breathe
+            out[m, 1] = 0.16
+            out[m, 2] = self._board_hue[m]
 
-        wheel_m = (roles == WHEEL_FULL) | (roles == WHEEL_HALF)
+        m = roles == SOLID
+        if m.any():
+            out[m, 0] = 0.32
+            out[m, 1] = 0.14
+            out[m, 2] = self._board_hue[m]
+
+        wheel_m = (roles == WHEEL_FULL) | (roles == WHEEL_DIM)
         if wheel_m.any():
             dark, hue = self._wheel(t)
-            wgain = np.where(roles == WHEEL_FULL, 1.0, 0.5)
+            wgain = np.where(roles == WHEEL_FULL, 1.0, 0.30)
             out[wheel_m, 0] = (0.05 + 0.55 * dark[wheel_m]) * wgain[wheel_m]
             out[wheel_m, 1] = 0.30
             out[wheel_m, 2] = hue[wheel_m]
+
+        m = roles == OFF
+        if m.any():
+            out[m, 0] = 0.02
+            out[m, 1] = 0.02
+            out[m, 2] = 250.0
 
         ring_m = roles == RING
         if ring_m.any():

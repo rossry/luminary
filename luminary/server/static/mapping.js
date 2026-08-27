@@ -222,14 +222,15 @@ export class ControlChannel {
     }
   }
 
-  /* Arrows and WASD are equivalent; enter confirms (DESCRIPTION.md). */
+  /* Arrows and WASD are equivalent; enter, p, and space all confirm —
+   * p/space keep the whole flow on an alpha-only keyboard. */
   bindKeys(target = window) {
     const KEYS = {
       arrowleft: "left", a: "left",
       arrowright: "right", d: "right",
       arrowup: "up", w: "up",
       arrowdown: "down", s: "down",
-      enter: "enter",
+      enter: "enter", p: "enter", " ": "enter",
     };
     target.addEventListener("keydown", (e) => {
       const name = KEYS[e.key.toLowerCase()];
