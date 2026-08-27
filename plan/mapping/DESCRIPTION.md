@@ -146,7 +146,14 @@ so an unmapped, unhosted board looks intentional.
 
 ## Saved state
 
-One YAML per board, keyed by controller id — draft schema:
+One YAML per board, keyed by controller id, in the runtime state tree
+(`var/mapping/` by default; the tutorial's session uses
+`var/mapping-demo/`). **The store is the only place mapping state may
+live** — every surface, the hardware-free tutorial included, persists
+through the same `MappingStore` code; there is no memory-only or
+alternative path (the tutorial resumes from its store like
+`--continue`, and its ↺ restart control clears the records the same
+way they were written). Draft schema:
 
 ```yaml
 schema: luminary.mapping/1
@@ -190,7 +197,11 @@ The sequence logic is one pure state machine: `(state, input_event) ->
   against a simulated build, for training and for developing the tool
   without hardware. The main pattern server mounts this tutorial at
   `/demo/mapping` (`luminary.cli serve`; every page/API URL is
-  page-relative, so the same app serves standalone or under the prefix).
+  page-relative, so the same app serves standalone or under the
+  prefix). All viewers mirror the one live session; its records
+  persist in `var/mapping-demo/` through the production store code
+  and resume across restarts, and the page's ↺ restart control clears
+  them to start the sequence over.
 
 Entry point: one script (`python -m luminary.cli map`, flags
 `--continue`, `--trust-boards`) — details at implementation time.

@@ -11,8 +11,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-VOLUME /data/store
+VOLUME /data/var
 EXPOSE 8080
 
-CMD ["python", "-m", "luminary.cli", "--store", "/data/store", \
+CMD ["python", "-m", "luminary.cli", "--store", "/data/var", \
      "serve", "--host", "0.0.0.0", "--port", "8080", "--seed-demo"]

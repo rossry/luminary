@@ -54,13 +54,17 @@ class Facet(SVGExportable):
         self.label = label
         self.face_index = face_index
         self.facet_index = facet_index
-        
+
         # Named vertex properties for better code clarity
         self.vertex_primary = vertex
-        self.vertex_port = midpoint1  # TODO: Verify this is correct port/starboard mapping
+        self.vertex_port = (
+            midpoint1  # TODO: Verify this is correct port/starboard mapping
+        )
         self.vertex_incenter = incenter
-        self.vertex_starboard = midpoint2  # TODO: Verify this is correct port/starboard mapping
-        
+        self.vertex_starboard = (
+            midpoint2  # TODO: Verify this is correct port/starboard mapping
+        )
+
         self.centroid = self._calculate_centroid()
 
         # Generate beams at init time
@@ -272,8 +276,12 @@ class Facet(SVGExportable):
             )
 
             # First beam axis intersections - use ignore_bounds for axis intersections
-            first_beamport_axis = first_beamport_ray.intersection(axis, ignore_bounds=True)
-            first_beamstarboard_axis = first_beamstarboard_ray.intersection(axis, ignore_bounds=True)
+            first_beamport_axis = first_beamport_ray.intersection(
+                axis, ignore_bounds=True
+            )
+            first_beamstarboard_axis = first_beamstarboard_ray.intersection(
+                axis, ignore_bounds=True
+            )
 
             # First beam bisector intersections - use ignore_bounds for bisector intersections
             first_beamport_bisector = first_beamport_ray.intersection(

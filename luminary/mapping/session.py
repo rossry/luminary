@@ -144,11 +144,17 @@ class SessionCore:
     def apply(self, event: Event) -> MappingState:
         new = step(self.state, self.plan, event)
         if new is not self.state:
-            self.state = new
-            self.rebuild()
-            for hook in self.on_state_change:
-                hook(new)
+            self.reset_state(new)
         return new
+
+    def reset_state(self, state: MappingState) -> None:
+        """Adopt a whole new state — the demo's start-over, or any other
+        wholesale replacement — with the same rebuild + change hooks a
+        stepped transition gets."""
+        self.state = state
+        self.rebuild()
+        for hook in self.on_state_change:
+            hook(state)
 
     # ------------------------------------------------ shared assignment
 

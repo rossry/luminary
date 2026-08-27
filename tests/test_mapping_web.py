@@ -163,8 +163,10 @@ def test_control_socket_applies_events_and_saves(core, plan):
 
 
 @pytest.fixture(scope="module")
-def demo_client():
-    app = create_demo_app(run_ticker=False)
+def demo_client(tmp_path_factory):
+    app = create_demo_app(
+        run_ticker=False, store_dir=tmp_path_factory.mktemp("demo-store")
+    )
     with TestClient(app) as client:
         yield client, app
 
@@ -213,6 +215,48 @@ def test_demo_app_serves_streams(demo_client):
         assert set(seen.values()) == {p.FRAME_SESSION}
         assert set(seen) == set(core.state.controllers)
         assert core.state.candidate_controller in seen
+
+
+def test_demo_persists_resumes_and_resets(tmp_path, plan):
+    """The tutorial's mapping state lives ONLY where production's would:
+    a real MappingStore. A new server over the same store resumes like
+    --continue; the reset control clears the records and starts over."""
+    store_dir = tmp_path / "mapping-demo"
+    app = create_demo_app(run_ticker=False, store_dir=store_dir)
+    with TestClient(app) as client:
+        with client.websocket_connect("/api/mapping/control") as ws:
+            json.loads(ws.receive_text())
+            ws.send_text(json.dumps({"event": "enter"}))  # lock board 1
+            pushed = json.loads(ws.receive_text())["state"]
+            assert pushed["board_cursor"] == 1
+    # The lock is on disk, production-shaped.
+    files = sorted(store_dir.glob("mapping-*.yaml"))
+    assert len(files) == 1
+
+    resumed = create_demo_app(run_ticker=False, store_dir=store_dir)
+    with TestClient(resumed) as client:
+        state = client.get("/api/mapping/layout").json()["state"]
+        assert state["board_cursor"] == 1  # resumed, not restarted
+        with client.websocket_connect("/api/mapping/control") as ws:
+            json.loads(ws.receive_text())
+            ws.send_text(json.dumps({"event": "reset"}))
+            fresh = json.loads(ws.receive_text())["state"]
+            assert fresh["stage"] == "ports" and fresh["board_cursor"] == 0
+            assert fresh["boards"][str(plan.units[0])]["controller_id"] is None
+    assert list(store_dir.glob("mapping-*.yaml")) == []
+
+    # ... and a real (non-demo) session ignores reset entirely.
+    again = create_demo_app(run_ticker=False, store_dir=store_dir)
+    core = again.state.core
+    plain = create_mapping_app(core, run_ticker=False)  # no allow_reset
+    with TestClient(plain) as client:
+        with client.websocket_connect("/api/mapping/control") as ws:
+            json.loads(ws.receive_text())
+            ws.send_text(json.dumps({"event": "enter"}))
+            assert json.loads(ws.receive_text())["state"]["board_cursor"] == 1
+            ws.send_text(json.dumps({"event": "reset"}))
+            ws.send_text(json.dumps({"event": "up"}))  # no-op → push
+            assert json.loads(ws.receive_text())["state"]["board_cursor"] == 1
 
 
 # ------------------------------------------------- mounted on the main server

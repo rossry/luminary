@@ -210,7 +210,10 @@ __marimo__/
 output/*
 !output/.gitkeep
 
-# Luminary runtime geometry store (spec §15.6) - operator data, ships empty
+# Luminary runtime state (spec §15.6): geometry store, pattern uploads,
+# mapping YAMLs (var/mapping/, var/mapping-demo/) - operator data, ships
+# empty. store/ is the legacy name for the same tree.
+var/
 store/
 
 # Host-compiled firmware conformance test binary (firmware/test/host/Makefile)

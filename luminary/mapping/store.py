@@ -80,6 +80,18 @@ class MappingStore:
     def path_for(self, controller_id: int) -> Path:
         return self.directory / f"mapping-{controller_id}.yaml"
 
+    def clear_records(self) -> List[Path]:
+        """Delete every board YAML and its ``.bak`` twin (the demo's
+        start-over); dated backups are kept. Returns what was removed."""
+        removed: List[Path] = []
+        for path in sorted(self.directory.glob("mapping-*.yaml")):
+            twin = path.with_name(path.name + ".bak")
+            for victim in (path, twin):
+                if victim.exists():
+                    victim.unlink()
+                    removed.append(victim)
+        return removed
+
     # -------------------------------------------------------------- save
 
     def save_state(self, state: MappingState, plan: Plan) -> Dict[int, Path]:

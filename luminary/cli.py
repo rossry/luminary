@@ -28,6 +28,20 @@ if TYPE_CHECKING:
     from luminary.mapping.store import MappingStore
 
 
+def _store_dir(explicit: Optional[str], sub: str = "") -> Path:
+    """Resolve a runtime-state directory: an explicit --store is honored
+    verbatim; the default is ``var/`` (joined with ``sub`` for verbs
+    whose state lives in a subdirectory). A legacy ``store/`` tree is
+    still used, with a nudge, until it is renamed (mv store var)."""
+    if explicit is not None:
+        return Path(explicit)
+    root = Path("var")
+    if not root.exists() and Path("store").exists():
+        print("note: using legacy ./store; rename it: mv store var")
+        root = Path("store")
+    return root / sub if sub else root
+
+
 def _load_lights(ref: str, store_dir: Path) -> "LightsGeometry":
     from luminary.geometry.lights import LightsGeometry
     from luminary.server.store import Store
@@ -43,10 +57,11 @@ def cmd_serve(args: argparse.Namespace) -> int:
 
     from luminary.server.app import create_app
 
+    store_dir = _store_dir(args.store)
     if args.seed_demo:
-        _seed(Path(args.store))
+        _seed(store_dir)
     app = create_app(
-        store_dir=Path(args.store),
+        store_dir=store_dir,
         allow_pattern_upload=not args.disable_pattern_upload,
         mapping_demo=not args.no_mapping_demo,
     )
@@ -62,7 +77,7 @@ def _seed(store_dir: Path) -> None:
 
 
 def cmd_seed(args: argparse.Namespace) -> int:
-    _seed(Path(args.store))
+    _seed(_store_dir(args.store))
     return 0
 
 
@@ -70,7 +85,7 @@ def cmd_play(args: argparse.Namespace) -> int:
     from luminary.engine.engine import Engine
     from luminary.patterns.registry import default_registry
 
-    lights = _load_lights(args.lights, Path(args.store))
+    lights = _load_lights(args.lights, _store_dir(args.store))
     pattern = default_registry().get(args.pattern)
     config = CodecConfig(budget_bytes=args.budget)
     engine = Engine(lights, pattern, fps=args.fps, codec_config=config)
@@ -140,7 +155,7 @@ def cmd_render(args: argparse.Namespace) -> int:
     from luminary.patterns.registry import default_registry
     from luminary.render.svg import lights_svg
 
-    lights = _load_lights(args.lights, Path(args.store))
+    lights = _load_lights(args.lights, _store_dir(args.store))
     pattern = default_registry().get(args.pattern)
     engine = Engine(lights, pattern)
     markup = lights_svg(lights, colors_srgb8=engine.colors_srgb8(args.time))
@@ -178,7 +193,7 @@ def build_mapping_session(
                 "(e.g. --controllers 0,1,2) for a window-only run"
             )
 
-    store = MappingStore(Path(args.store))
+    store = MappingStore(_store_dir(args.store, "mapping"))
     store.port_hints = dict(ports)
     if args.trust_boards:
         trust_boards(store, SerialBoards(ports), plan)
@@ -234,7 +249,9 @@ def cmd_map(args: argparse.Namespace) -> int:
 
 def main(argv: Optional[list] = None) -> int:
     parser = argparse.ArgumentParser(prog="luminary", description=__doc__)
-    parser.add_argument("--store", default="store", help="Geometry store directory")
+    parser.add_argument(
+        "--store", default=None, help="Runtime state directory (default: var)"
+    )
     sub = parser.add_subparsers(dest="command", required=True)
 
     serve = sub.add_parser("serve", help="Run the web server (spec §15)")
@@ -283,7 +300,7 @@ def main(argv: Optional[list] = None) -> int:
         "map", help="Interactive deployment mapping (plan/mapping/DESCRIPTION.md)"
     )
     mapping.add_argument(
-        "--store", default="store/mapping", help="Mapping YAML directory"
+        "--store", default=None, help="Mapping YAML directory (default: var/mapping)"
     )
     mapping.add_argument(
         "--config",

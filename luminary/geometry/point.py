@@ -116,11 +116,11 @@ class Point:
     def __sub__(self, other):
         """Subtract another point or vector from this point."""
         from .primitives import Vector
-        
+
         if isinstance(other, Point):
             # Point - Point = Vector
             return Vector(self.x - other.x, self.y - other.y)
-        elif hasattr(other, 'x') and hasattr(other, 'y'):  # Vector-like object
+        elif hasattr(other, "x") and hasattr(other, "y"):  # Vector-like object
             # Point - Vector = Point
             return Point(self.x - other.x, self.y - other.y)
         else:

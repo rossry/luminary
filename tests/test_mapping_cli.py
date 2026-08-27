@@ -76,6 +76,24 @@ def test_build_continue_resumes_from_the_store(tmp_path):
     assert resumed.state.boards == core.state.boards
 
 
+def test_store_dir_prefers_var_and_honors_legacy(tmp_path, monkeypatch, capsys):
+    """Runtime state defaults to var/ (an explicit --store wins); a
+    legacy store/ tree keeps working with a rename nudge until moved."""
+    from luminary.cli import _store_dir
+
+    monkeypatch.chdir(tmp_path)
+    assert _store_dir(None) == Path("var")
+    assert _store_dir(None, "mapping") == Path("var") / "mapping"
+    # An explicit path is the directory itself, sub or no sub.
+    assert _store_dir("elsewhere", "mapping") == Path("elsewhere")
+
+    (tmp_path / "store").mkdir()
+    assert _store_dir(None) == Path("store")
+    assert "mv store var" in capsys.readouterr().out
+    (tmp_path / "var").mkdir()
+    assert _store_dir(None) == Path("var")  # once var exists, it wins
+
+
 def test_parse_keys_alpha_only_confirms():
     """p and space are enter synonyms: the whole flow works on an
     alpha-only keyboard (arrows already have WASD)."""

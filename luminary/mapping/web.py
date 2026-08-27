@@ -45,7 +45,7 @@ from fastapi.staticfiles import StaticFiles
 from luminary.engine.engine import Engine
 from luminary.mapping.plan import Plan
 from luminary.mapping.session import SessionCore
-from luminary.mapping.state import Event, MappingState, initial_state
+from luminary.mapping.state import Event, MappingState, initial_state, resume_state
 from luminary.patterns.util import seeded_random
 from luminary.render import projection
 
@@ -214,6 +214,7 @@ def create_mapping_app(
     demo_truth: Optional[Dict[str, Any]] = None,
     run_ticker: bool = True,
     root_page: str = "window",
+    allow_reset: bool = False,
 ) -> FastAPI:
     """Build the mapping web app around a running :class:`SessionCore`.
 
@@ -223,7 +224,10 @@ def create_mapping_app(
     ``run_ticker=False`` skips the frame clock (tests drive ``core.tick``).
     ``root_page`` picks what ``/`` serves — ``"window"`` for a base
     station, ``"demo"`` for the mounted tutorial; both pages always stay
-    reachable at ``/window`` and ``/demo``.
+    reachable at ``/window`` and ``/demo``. ``allow_reset`` arms the
+    control event ``reset`` (start the mapping over: clear the store's
+    records, back to a fresh ports stage) — the tutorial only; a real
+    session must never lose its records to a stray click.
     """
     plan_doc = plan_json(core)
     assert core.window_engine is not None  # rebuild() always constructs it
@@ -420,8 +424,20 @@ def create_mapping_app(
                     body = json.loads(text)
                 except json.JSONDecodeError:
                     continue
+                name = str(body.get("event"))
+                if name == "reset":
+                    # Start over (tutorial only): the records leave the
+                    # store the same way they entered it, and the fresh
+                    # state broadcasts through the usual change hooks.
+                    if allow_reset:
+                        if store is not None:
+                            store.clear_records()
+                        core.reset_state(
+                            initial_state(core.plan, list(core.state.controllers))
+                        )
+                    continue
                 try:
-                    event = Event(str(body.get("event")))
+                    event = Event(name)
                 except ValueError:
                     continue
                 before = core.state
@@ -473,32 +489,54 @@ def serve_mapping(
 def create_demo_app(
     seed: str = "mapping-demo",
     *,
+    store_dir: Path,
     run_ticker: bool = True,
     root_page: str = "window",
 ) -> FastAPI:
     """The tutorial app: plan + net capture + scrambled fake controllers,
-    no hardware and no CLI involved."""
+    no hardware and no CLI involved.
+
+    The demo's mapping state lives ONLY where a production session's
+    would: a real :class:`MappingStore` at ``store_dir`` (required — a
+    storeless demo would be a second, unprincipled persistence path).
+    The session resumes from the store's records exactly like
+    ``map --continue``, so a restarted server picks up where the last
+    operator left off; the page's ↺ restart control clears the records
+    and starts the sequence over. The scrambled truth is seeded, so it
+    is identical across restarts and needs no persistence of its own.
+    """
     from luminary.geometry.net import Net
     from luminary.geometry.pentagon import capture
+    from luminary.mapping.store import MappingStore
 
     plan = Plan.load()
     net_lights = capture(Net.from_json_file(_CONFIGS / f"{plan.net_name}.json"))
     truth = build_demo_truth(plan, seed)
-    state = initial_state(plan, controllers=list(truth["controllers"]))
+    store = MappingStore(Path(store_dir))
+    state = resume_state(
+        plan,
+        controllers=list(truth["controllers"]),
+        boards=store.load_records(plan),
+    )
     core = SessionCore(plan, net_lights, state)
     return create_mapping_app(
         core,
-        store=None,
+        store=store,
         demo_truth=truth,
         run_ticker=run_ticker,
         root_page=root_page,
+        allow_reset=True,
     )
 
 
-def serve_demo(host: str = "127.0.0.1", port: int = 8090) -> None:
+def serve_demo(
+    host: str = "127.0.0.1",
+    port: int = 8090,
+    store_dir: Path = Path("var") / "mapping-demo",
+) -> None:
     """Serve the hardware-free tutorial (blocking): / mirrors the window,
     /demo is the scrambled-build training page."""
-    uvicorn.run(create_demo_app(), host=host, port=port)
+    uvicorn.run(create_demo_app(store_dir=store_dir), host=host, port=port)
 
 
 if __name__ == "__main__":  # pragma: no cover — `python -m luminary.mapping.web`

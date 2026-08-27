@@ -38,7 +38,7 @@ def create_validation_svgs() -> None:
 
     # Validation 7: OKLCH color validation
     create_oklch_color_validation_svg(output_dir)
-    
+
     # Validation 8: Dual extent beam validation
     create_dual_extent_beam_validation_svg(output_dir)
 
@@ -910,57 +910,57 @@ def create_dual_extent_beam_validation_svg(output_dir: Path) -> None:
     from pathlib import Path
     from luminary.geometry.net import Net
     from luminary.config.schema import NetConfiguration
-    
+
     # Create a simple triangle configuration with OKLCH colors for precise control
     config_data = {
         "colors": {
-            "royal_blue": "#4169E1",           # Royal blue hex
-            "forest_green": "#228B22",         # Forest green hex
-            "crimson": "#DC143C"               # Crimson hex
+            "royal_blue": "#4169E1",  # Royal blue hex
+            "forest_green": "#228B22",  # Forest green hex
+            "crimson": "#DC143C",  # Crimson hex
         },
         "geometry": {
             "points": [
-                [0, -60, "royal_blue"],      # Top vertex - royal blue
-                [52, 30, "forest_green"],    # Bottom right vertex - forest green  
-                [-52, 30, "crimson"]         # Bottom left vertex - crimson
+                [0, -60, "royal_blue"],  # Top vertex - royal blue
+                [52, 30, "forest_green"],  # Bottom right vertex - forest green
+                [-52, 30, "crimson"],  # Bottom left vertex - crimson
             ],
-            "triangles": [
-                [[0, 1, 2]]  # Single triangle using all three points
-            ],
+            "triangles": [[[0, 1, 2]]],  # Single triangle using all three points
             "apex": [0.0, 0.0],
             "lines": [],
-            "default_beam_counts": [7, 4, 4, 7]  # More beams to show dual extent effect
+            "default_beam_counts": [
+                7,
+                4,
+                4,
+                7,
+            ],  # More beams to show dual extent effect
         },
         "rendering": {
-            "svg": {
-                "width": "100%", 
-                "height": "400",
-                "viewBox": "-80 -80 160 160"
-            }
-        }
+            "svg": {"width": "100%", "height": "400", "viewBox": "-80 -80 160 160"}
+        },
     }
-    
+
     # Create temporary config file
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
         json.dump(config_data, f, indent=2)
         temp_config_path = f.name
-    
+
     try:
         # Load configuration and create Net
         config = NetConfiguration.from_file(Path(temp_config_path))
         net = Net(config)
-        
+
         # Generate extended SVG content
         extended_svg_elements = net.get_svg(extended=True)
         extended_svg_content = "".join(extended_svg_elements)
-        
+
         # Save extended SVG
         output_path = output_dir / "08_dual_extent_beam_validation.svg"
         output_path.write_text(extended_svg_content)
-        
+
     finally:
         # Clean up temporary file
         import os
+
         os.unlink(temp_config_path)
 
 

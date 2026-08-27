@@ -39,8 +39,9 @@ def create_app(
     POST /api/patterns (403) — uploads execute in-process (spec §15.5.2), so
     shared deployments run without them and take patterns from the repo
     instead (docs/deploy.md). ``mapping_demo=True`` mounts the hardware-free
-    mapping tutorial (``luminary.mapping.web``) at ``/demo/mapping``."""
-    store_dir = Path(store_dir or "store")
+    mapping tutorial (``luminary.mapping.web``) at ``/demo/mapping``; its
+    mapping records persist under ``<store_dir>/mapping-demo/``."""
+    store_dir = Path(store_dir or "var")
     uploads_dir = Path(uploads_dir or store_dir / "patterns-uploads")
     uploads_dir.mkdir(parents=True, exist_ok=True)
     store = Store(store_dir)
@@ -51,7 +52,9 @@ def create_app(
     if mapping_demo:
         from luminary.mapping.web import create_demo_app
 
-        demo_app = create_demo_app(root_page="demo")
+        demo_app = create_demo_app(
+            root_page="demo", store_dir=store_dir / "mapping-demo"
+        )
 
         @asynccontextmanager
         async def _demo_lifespan(_app: FastAPI) -> AsyncIterator[None]:
