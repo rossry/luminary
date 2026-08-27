@@ -76,7 +76,7 @@ def status_line(core: SessionCore) -> str:
     if state.stage == "done":
         return (
             f"done — all {plan.n_panels} panels on {len(plan.units)} boards "
-            "mapped; markers cleared; q quits"
+            "mapped; finale, then the spiral show; q quits"
         )
     unit = plan.units[state.board_cursor]
     where = f"board {state.board_cursor + 1}/{len(plan.units)} unit {unit}"

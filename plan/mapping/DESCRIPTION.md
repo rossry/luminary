@@ -105,6 +105,17 @@ fold on the window, borrowed from the nearest net light per hypothesis
 strip on the wire), each successive wave spinning its hues by a seeded
 random angle, layered over the beads backdrop.
 
+**Finale.** The moment the last panel is recorded, both surfaces play
+the completion sequence: **three rainbow waves in quick succession**
+(1.8 s each) over the still-running beads backdrop — **the last wave
+sweeps the beads out behind its front** — a **beat of black**, then the
+**`spiral` pattern wipes in through phi, apex to rim, behind a
+soft-bordered edge** — after which the show simply plays. The finale is
+anchored to the completion moment on the session clock (a construction
+parameter of the swapped-in pattern instance, so patterns stay pure);
+a session resumed directly into the done stage replays it once from its
+own start.
+
 **Beads backdrop.** White beads that fade in, crawl the length of a
 strut (either direction), and fade out — independent seeded phases per
 strut and lane, staggered rather than synchronized — with a mirrored

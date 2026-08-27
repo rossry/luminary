@@ -61,6 +61,13 @@ _RING_PERIOD = 7.0  # seconds per apex-to-rim descent
 _BEAD_LANES = (7.3, 9.1)  # seconds per crawl; incommensurate lanes
 _BEAD_CYCLES = 8  # per-(edge, lane) random slots before traffic repeats
 
+# Completion finale (stage done): waves, black, then the show wipes in.
+FINALE_WAVES = 3
+FINALE_WAVE_PERIOD = 1.8  # quick succession — not the stately 7s ring
+FINALE_BLACK = 1.2  # a beat of darkness before the show
+FINALE_WIPE = 4.5  # seconds for the phi wipe, apex to rim
+_WIPE_SOFT = np.radians(9.0)  # soft border width of the wipe, in phi
+
 
 def board_hues(n: int) -> np.ndarray:
     """n pleasant identity hues, equally spaced around the color wheel."""
@@ -83,6 +90,149 @@ def net_edges(geometry: dict) -> np.ndarray:
     return np.asarray(rows, dtype=np.float64)
 
 
+class FinalePattern(Pattern):
+    """The completion sequence, then the show. When the last panel is
+    recorded, both surfaces play three rainbow waves in quick
+    succession over the still-running beads backdrop — the last wave
+    sweeps the beads out behind its front — then hold black for a beat,
+    and then run the ``spiral`` pattern masked by a soft-bordered wipe
+    through PHI_S, apex to rim — after which the show simply plays.
+
+    Pure in ``(lights, t)`` for a fixed construction: ``t0`` — the
+    session-clock moment the mapping completed — is a construction
+    parameter, exactly like the session's other instance swaps. A
+    session resumed directly into the done stage replays the finale
+    from its own start (t0=0), then settles into the show.
+    """
+
+    name = "mapping-finale"
+    description = "Mapping complete: three waves, black, spiral wipe-in"
+
+    def __init__(
+        self,
+        show: Pattern,
+        xy: np.ndarray,  # (n, 2) net-plane positions (ring hue azimuth)
+        phi_s: np.ndarray,  # (n,) radians (waves and the wipe run on phi)
+        edges: np.ndarray,  # (e, 4) net edges — the beads keep playing
+        t0: float,
+    ) -> None:
+        self._show = show
+        self._xy = xy
+        self._phi = phi_s
+        self._beads = BeadField(xy, edges)
+        self._t0 = t0
+        self._phi_lo = float(np.nanmin(phi_s))
+        self._phi_hi = float(np.nanmax(phi_s))
+
+    def render(self, lights: np.ndarray, t: float) -> np.ndarray:
+        n = self._xy.shape[0]
+        dt = max(0.0, t - self._t0)
+        waves_end = FINALE_WAVES * FINALE_WAVE_PERIOD
+        if dt < waves_end:
+            wave = int(dt // FINALE_WAVE_PERIOD)
+            phase = (dt % FINALE_WAVE_PERIOD) / FINALE_WAVE_PERIOD
+            target = phase * np.radians(130.0)
+            intensity = np.exp(
+                -((self._phi - target) ** 2) / (2 * np.radians(6.0) ** 2)
+            )
+            spin = 360.0 * float(seeded_random(f"map-finale-{wave}", 1)[0])
+            hue = (
+                np.degrees(np.arctan2(self._xy[:, 0], -self._xy[:, 1])) + spin
+            ) % 360.0
+            # The beads have been playing the whole time (same session
+            # clock, so the backdrop is continuous into the finale); the
+            # last wave clears them out behind its front.
+            beads = self._beads(t)
+            keep = np.ones(n)
+            if wave == FINALE_WAVES - 1:
+                keep = np.clip((self._phi - target) / np.radians(4.0), 0.0, 1.0)
+            out = np.zeros((n, 3))
+            out[:, 0] = np.maximum((0.035 + 0.30 * beads) * keep, 0.65 * intensity)
+            lit = intensity > 0.12
+            out[:, 1] = np.where(lit, 0.30, (0.03 + 0.02 * (1.0 - beads)) * keep)
+            out[:, 2] = np.where(lit, hue, 250.0)
+            return out
+        if dt < waves_end + FINALE_BLACK:
+            return np.zeros((n, 3))
+        out = np.asarray(self._show.render(lights, t), dtype=np.float64).copy()
+        out = np.nan_to_num(out, nan=0.0, posinf=0.0, neginf=0.0)
+        wipe_t = dt - waves_end - FINALE_BLACK
+        if wipe_t < FINALE_WIPE:
+            # The reveal edge sweeps top (phi_lo) to bottom, starting and
+            # ending a soft-border past the ends so 0% and 100% are real.
+            span = self._phi_hi - self._phi_lo + 2 * _WIPE_SOFT
+            edge = self._phi_lo - _WIPE_SOFT + span * (wipe_t / FINALE_WIPE)
+            x = np.clip((edge - self._phi) / _WIPE_SOFT + 1.0, 0.0, 1.0)
+            mask = x * x * (3.0 - 2.0 * x)  # smoothstep: the soft border
+            out[:, 0] *= mask
+            out[:, 1] *= mask
+        return out
+
+
+class BeadField:
+    """Per-light bead intensity over time — the shared beads machinery.
+
+    Each strut hosts one bead per lane on an independent seeded clock —
+    beads fade in, crawl the whole strut (either direction), and fade
+    out, staggered across struts and lanes rather than synchronized.
+    Both sides of a strut bind to the same edge, so twins match. The
+    edge binding and seeded tables are precomputed once; ``field(t)``
+    is then pure and vectorized.
+    """
+
+    def __init__(self, xy: np.ndarray, edges: np.ndarray) -> None:
+        n = xy.shape[0]
+        # Per-light bead-edge projections: nearest point on each edge is
+        # expensive per frame; instead each light binds to its nearest
+        # edge once (mapping visuals, not a show pattern).
+        p1 = edges[:, 0:2][None, :, :]
+        d = edges[:, 2:4][None, :, :] - p1
+        rel = xy[:, None, :] - p1
+        seg_len2 = np.maximum((d**2).sum(-1), 1e-9)
+        s = np.clip((rel * d).sum(-1) / seg_len2, 0.0, 1.0)
+        foot = p1 + s[..., None] * d
+        dist = np.linalg.norm(xy[:, None, :] - foot, axis=-1)
+        self._n = n
+        self._edge_of = dist.argmin(axis=1)
+        rows = np.arange(n)
+        self._edge_s = s[rows, self._edge_of]  # position along bound edge
+        self._edge_d = dist[rows, self._edge_of]  # distance from it
+        self._edge_len = np.sqrt(seg_len2[0, self._edge_of])
+        # Constant seeded bead tables (per edge): a phase per lane, and a
+        # small pool of per-cycle randomness (gate, direction, spare).
+        e = edges.shape[0]
+        self._bead_phase = [
+            seeded_random(f"map-bead-phase-{lane}", e)
+            for lane in range(len(_BEAD_LANES))
+        ]
+        self._bead_r = [
+            seeded_random(f"map-bead-{lane}", e * _BEAD_CYCLES * 3).reshape(
+                e, _BEAD_CYCLES, 3
+            )
+            for lane in range(len(_BEAD_LANES))
+        ]
+
+    def __call__(self, t: float) -> np.ndarray:
+        out = np.zeros(self._n)
+        eo = self._edge_of
+        for lane, period in enumerate(_BEAD_LANES):
+            clock = t / period + self._bead_phase[lane][eo]
+            cycle = np.floor(clock).astype(np.int64)
+            u = clock - cycle  # 0..1 through this bead's life
+            r = self._bead_r[lane][eo, cycle % _BEAD_CYCLES]
+            gate = r[:, 0] < 0.65  # a random subset of struts each cycle
+            forward = r[:, 1] < 0.5
+            uu = np.where(forward, u, 1.0 - u)
+            margin = 8.0 / self._edge_len  # enter/exit past the ends
+            center = -margin + (1.0 + 2.0 * margin) * uu
+            env = np.sin(0.5 * np.pi * np.clip(np.minimum(u, 1.0 - u) / 0.18, 0, 1))
+            along = (self._edge_s - center) * self._edge_len
+            profile = np.exp(-(along**2) / (2 * 6.0**2))
+            across = np.exp(-(self._edge_d**2) / (2 * 5.0**2))
+            out = np.maximum(out, gate * env**2 * profile * across)
+        return out
+
+
 class MappingPattern(Pattern):
     """Composite renderer for one snapshot of the mapping state."""
 
@@ -101,66 +251,12 @@ class MappingPattern(Pattern):
         n = xy.shape[0]
         self._xy = xy
         self._roles = roles
-        self._edges = edges
         self._corner = corner_xy if corner_xy is not None else np.zeros((n, 2))
         self._board_hue = hue if hue is not None else np.zeros(n)
         self._phi = phi_s
-        # Precompute per-light bead-edge projections: nearest point on
-        # each edge is expensive per frame; instead each light binds to
-        # its nearest edge once (mapping visuals, not a show pattern).
-        p1 = self._edges[:, 0:2][None, :, :]
-        d = self._edges[:, 2:4][None, :, :] - p1
-        rel = xy[:, None, :] - p1
-        seg_len2 = np.maximum((d**2).sum(-1), 1e-9)
-        s = np.clip((rel * d).sum(-1) / seg_len2, 0.0, 1.0)
-        foot = p1 + s[..., None] * d
-        dist = np.linalg.norm(xy[:, None, :] - foot, axis=-1)
-        self._edge_of = dist.argmin(axis=1)
-        rows = np.arange(n)
-        self._edge_s = s[rows, self._edge_of]  # position along bound edge
-        self._edge_d = dist[rows, self._edge_of]  # distance from it
-        self._edge_len = np.sqrt(seg_len2[0, self._edge_of])
-        # Constant seeded bead tables (per edge): a phase per lane, and a
-        # small pool of per-cycle randomness (gate, direction, spare).
-        e = self._edges.shape[0]
-        self._bead_phase = [
-            seeded_random(f"map-bead-phase-{lane}", e)
-            for lane in range(len(_BEAD_LANES))
-        ]
-        self._bead_r = [
-            seeded_random(f"map-bead-{lane}", e * _BEAD_CYCLES * 3).reshape(
-                e, _BEAD_CYCLES, 3
-            )
-            for lane in range(len(_BEAD_LANES))
-        ]
+        self._beads = BeadField(xy, edges)
 
     # ---------------------------------------------------------- layers
-
-    def _beads(self, t: float) -> np.ndarray:
-        """Per-light bead intensity. Each strut hosts one bead per lane
-        on an independent seeded clock — beads fade in, crawl the whole
-        strut (either direction), and fade out, staggered across struts
-        and lanes rather than synchronized. Both sides of a strut bind
-        to the same edge, so twins match."""
-        n = self._xy.shape[0]
-        out = np.zeros(n)
-        eo = self._edge_of
-        for lane, period in enumerate(_BEAD_LANES):
-            clock = t / period + self._bead_phase[lane][eo]
-            cycle = np.floor(clock).astype(np.int64)
-            u = clock - cycle  # 0..1 through this bead's life
-            r = self._bead_r[lane][eo, cycle % _BEAD_CYCLES]
-            gate = r[:, 0] < 0.65  # a random subset of struts each cycle
-            forward = r[:, 1] < 0.5
-            uu = np.where(forward, u, 1.0 - u)
-            margin = 8.0 / self._edge_len  # enter/exit past the ends
-            center = -margin + (1.0 + 2.0 * margin) * uu
-            env = np.sin(0.5 * np.pi * np.clip(np.minimum(u, 1.0 - u) / 0.18, 0, 1))
-            along = (self._edge_s - center) * self._edge_len
-            profile = np.exp(-(along**2) / (2 * 6.0**2))
-            across = np.exp(-(self._edge_d**2) / (2 * 5.0**2))
-            out = np.maximum(out, gate * env**2 * profile * across)
-        return out
 
     def _wheel(self, t: float) -> Tuple[np.ndarray, np.ndarray]:
         """(intensity, hue) of the orientation test. Hue is the light's

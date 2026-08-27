@@ -281,7 +281,7 @@ export class Hud {
       parts.push(`<span class="dim">◀ ▶ channel · ▲ density · ▼ winding · ⏎ confirm</span>`);
     } else {
       parts.push(`<span class="chip done">stage C · mapped</span>`);
-      parts.push(`every panel recorded — the sphere is playing the mapped ring`);
+      parts.push(`every panel recorded — finale, then the spiral show`);
     }
     this.el.innerHTML = parts.join(`<span class="sep">·</span>`);
     if (this.progressEl) {

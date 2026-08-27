@@ -224,6 +224,54 @@ def test_completed_board_rings_on_both_surfaces(plan, net_lights):
     assert (window["roles"] == R.RING).sum() > 0
 
 
+def test_finale_waves_black_then_spiral_wipe(plan, net_lights):
+    """Completion: three quick waves over the still-running beads (the
+    last wave clears them out behind its front), a beat of black, then
+    the spiral show wipes in through phi with a soft border — anchored
+    to the completion moment identically on both surfaces."""
+    core = SessionCore(plan, net_lights, initial_state(plan, CONTROLLERS))
+    core.tick(50.0)  # establish the session clock before finishing
+    while core.state.stage != "done":
+        core.apply(Event.ENTER)
+    pat = core.window_engine.pattern
+    assert isinstance(pat, R.FinalePattern)
+    assert isinstance(core.wire_engine.pattern, R.FinalePattern)
+    assert pat._t0 == core.wire_engine.pattern._t0 == 50.0
+    assert pat._show.name == "spiral"
+
+    phi = net_lights.array[:, LightColumns.PHI_S]
+    t0 = 50.0
+    waves_end = R.FINALE_WAVES * R.FINALE_WAVE_PERIOD
+
+    # Mid-first-wave: a bright crest somewhere.
+    a = pat.render(net_lights.array, t0 + 0.9)
+    assert a[:, 0].max() > 0.4
+    # Last wave, half descended: swept-past lights are beadless black.
+    b = pat.render(net_lights.array, t0 + (R.FINALE_WAVES - 0.5) * R.FINALE_WAVE_PERIOD)
+    behind = phi < 0.5 * np.radians(130.0) - np.radians(20.0)
+    assert behind.any() and b[behind, 0].max() < 0.01
+    # The black beat.
+    c = pat.render(net_lights.array, t0 + waves_end + 0.5 * R.FINALE_BLACK)
+    assert c.max() == 0.0
+    # Mid-wipe, probed exactly: place the reveal edge at mid-phi — all
+    # lights above it are fully revealed, all lights past its soft
+    # border are still exactly black.
+    wipe_start = t0 + waves_end + R.FINALE_BLACK
+    soft = R._WIPE_SOFT
+    span = pat._phi_hi - pat._phi_lo + 2 * soft
+    mid = 0.5 * (pat._phi_lo + pat._phi_hi)
+    frac = (mid - (pat._phi_lo - soft)) / span
+    d = pat.render(net_lights.array, wipe_start + frac * R.FINALE_WIPE)
+    below = phi > mid + soft + 1e-9  # past the soft border: masked
+    above = phi < mid  # at or above the edge: fully revealed
+    assert below.any() and d[below, 0].max() == 0.0
+    assert above.any() and d[above, 0].max() > 0.1
+    # After the wipe the show plays unmasked.
+    late = wipe_start + R.FINALE_WIPE + 5.0
+    e = pat.render(net_lights.array, late)
+    assert np.allclose(e, np.nan_to_num(pat._show.render(net_lights.array, late)))
+
+
 def test_ring_waves_rotate_and_wheel_has_three_spokes():
     # A ring of lights about a corner at radius 30, plus a phi ramp.
     n = 360

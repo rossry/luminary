@@ -53,6 +53,7 @@ from luminary.geometry.lights import LightColumns, LightsGeometry, LightSpec, Sp
 from luminary.mapping import render as R
 from luminary.mapping.plan import PanelPlan, Plan
 from luminary.mapping.state import Event, MappingState, step
+from luminary.patterns.base import Pattern
 
 _CONFIGS = Path(__file__).resolve().parents[2] / "configs"
 
@@ -103,6 +104,8 @@ class SessionCore:
         self._net_phi = net_lights.array[:, LightColumns.PHI_S]
         hues = R.board_hues(len(plan.units))
         self._unit_hue = {u: float(hues[i]) for i, u in enumerate(plan.units)}
+        self._last_t = 0.0  # session clock, anchors the completion finale
+        self._show: Optional[Pattern] = None
         self.window_sinks: List[FrameSink] = []
         self.wire_sinks: List[FrameSink] = []
         self.on_state_change: List[Callable[[MappingState], None]] = []
@@ -427,20 +430,45 @@ class SessionCore:
 
     # -------------------------------------------------------- lifecycle
 
+    def _show_pattern(self) -> Pattern:
+        """The post-mapping show (`spiral`, from the repo's patterns)."""
+        if self._show is None:
+            from luminary.patterns.registry import default_registry
+
+            self._show = default_registry().get("spiral")
+        return self._show
+
     def rebuild(self) -> None:
-        self.window_engine = Engine(
-            self._net_lights, self._window_pattern(), fps=self.fps
-        )
-        wire_lights = self._wire_build()
-        self.wire_engine = (
-            Engine(
-                wire_lights,
-                self._wire_pattern(wire_lights),
-                fps=self.fps,
-                codec_config=CodecConfig(),
+        done = self.state.stage == "done"
+        window_pattern: Pattern = (
+            R.FinalePattern(
+                self._show_pattern(),
+                self._net_xy,
+                self._net_phi,
+                self._edges,
+                self._last_t,
             )
-            if wire_lights is not None
-            else None
+            if done
+            else self._window_pattern()
+        )
+        self.window_engine = Engine(self._net_lights, window_pattern, fps=self.fps)
+        wire_lights = self._wire_build()
+        if wire_lights is None:
+            self.wire_engine = None
+            return
+        wire_pattern: Pattern
+        if done:
+            xy = wire_lights.array[:, [LightColumns.X, LightColumns.Y]]
+            wire_pattern = R.FinalePattern(
+                self._show_pattern(), xy, self._wire_phi, self._edges, self._last_t
+            )
+        else:
+            wire_pattern = self._wire_pattern(wire_lights)
+        self.wire_engine = Engine(
+            wire_lights,
+            wire_pattern,
+            fps=self.fps,
+            codec_config=CodecConfig(),
         )
 
     def session_frames(self) -> Dict[str, List[bytes]]:
@@ -452,6 +480,7 @@ class SessionCore:
         return out
 
     def tick(self, t: float) -> None:
+        self._last_t = t  # the finale anchors to the completion moment
         if self.window_engine is not None:
             frames = self.window_engine.frame(t)
             for sink in self.window_sinks:
