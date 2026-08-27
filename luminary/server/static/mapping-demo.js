@@ -16,7 +16,7 @@
 
 import {
   StreamView, WireStream, ControlChannel, Hud,
-  fitTransform, buildDraws, fillDraw,
+  fitTransform, buildDraws, fillDraw, BASE,
 } from "./mapping.js";
 import { LumiDecoder, FRAME_SESSION } from "./decoder.js";
 import { oklchToSrgb8 } from "./color.js";
@@ -153,8 +153,8 @@ const el = (id) => document.getElementById(id);
 
 async function init() {
   const [meta, truthRes] = await Promise.all([
-    fetch("/api/mapping/layout").then((r) => r.json()),
-    fetch("/api/mapping/demo-truth"),
+    fetch(new URL("api/mapping/layout", BASE)).then((r) => r.json()),
+    fetch(new URL("api/mapping/demo-truth", BASE)),
   ]);
   if (!truthRes.ok) {
     el("overlay-title").textContent = "demo unavailable";
@@ -173,11 +173,11 @@ async function init() {
   const hud = new Hud(el("hud"), el("progress"));
   hud.render(meta.state);
 
-  const wire = new WireStream("/api/mapping/wire", (bytes) => {
+  const wire = new WireStream("api/mapping/wire", (bytes) => {
     if (build.feed(bytes)) wire.send({ type: "resync" });
   });
   const windowStream = new WireStream(
-    "/api/mapping/window",
+    "api/mapping/window",
     (bytes) => {
       if (win.feed(bytes)) windowStream.send({ type: "resync" });
     },

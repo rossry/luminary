@@ -48,6 +48,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
     app = create_app(
         store_dir=Path(args.store),
         allow_pattern_upload=not args.disable_pattern_upload,
+        mapping_demo=not args.no_mapping_demo,
     )
     uvicorn.run(app, host=args.host, port=args.port, log_level="info")
     return 0
@@ -249,6 +250,11 @@ def main(argv: Optional[list] = None) -> int:
         action="store_true",
         help="403 POST /api/patterns; patterns come from the repo only "
         "(shared deployments, docs/deploy.md)",
+    )
+    serve.add_argument(
+        "--no-mapping-demo",
+        action="store_true",
+        help="Don't mount the hardware-free mapping tutorial at /demo/mapping",
     )
     serve.set_defaults(func=cmd_serve)
 

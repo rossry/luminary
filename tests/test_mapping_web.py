@@ -56,6 +56,8 @@ def test_pages_and_layout(core, plan):
     with TestClient(app) as client:
         index = client.get("/")
         assert index.status_code == 200 and "window-canvas" in index.text
+        window = client.get("/window")
+        assert window.status_code == 200 and window.text == index.text
         demo = client.get("/demo")
         assert demo.status_code == 200 and "build-canvas" in demo.text
         # The modules the pages import are served alongside.
@@ -195,3 +197,47 @@ def test_demo_app_serves_streams(demo_client):
         frame_type, controller = decoder.decode(ws.receive_bytes())
         assert frame_type == p.FRAME_SESSION
         assert controller == core.state.candidate_controller
+
+
+# ------------------------------------------------- mounted on the main server
+
+
+def test_main_server_mounts_demo(tmp_path):
+    """`create_app(mapping_demo=True)` serves the tutorial at /demo/mapping
+    with the tutorial as the landing page, every URL surviving the mount
+    prefix, and the sub-app's frame ticker running under the parent
+    lifespan (mounted lifespans don't propagate on their own)."""
+    from luminary.server.app import create_app
+
+    app = create_app(store_dir=tmp_path / "store", mapping_demo=True)
+    with TestClient(app) as client:
+        # The main pattern UI is untouched.
+        assert "Luminary" in client.get("/").text
+        # /demo/mapping redirects to /demo/mapping/ and lands on the tutorial.
+        page = client.get("/demo/mapping")
+        assert page.status_code == 200 and "build-canvas" in page.text
+        assert './static/mapping-demo.js"' in page.text  # page-relative
+        window = client.get("/demo/mapping/window")
+        assert window.status_code == 200 and "window-canvas" in window.text
+        assert client.get("/demo/mapping/static/mapping.js").status_code == 200
+
+        body = client.get("/demo/mapping/api/mapping/layout").json()
+        assert set(body) == {"layout", "plan", "state"}
+        assert client.get("/demo/mapping/api/mapping/demo-truth").status_code == 200
+
+        decoder = Decoder()
+        with client.websocket_connect("/demo/mapping/api/mapping/window") as ws:
+            frame_type, controller = decoder.decode(ws.receive_bytes())
+            assert frame_type == p.FRAME_SESSION and controller == 0
+            # No manual core.tick here: the next frame proves the mounted
+            # ticker is alive (it idles until this socket joined).
+            frame_type, _ = decoder.decode(ws.receive_bytes())
+            assert frame_type == p.FRAME_KEYFRAME
+
+
+def test_main_server_demo_off_by_default(tmp_path):
+    from luminary.server.app import create_app
+
+    app = create_app(store_dir=tmp_path / "store")
+    with TestClient(app) as client:
+        assert client.get("/demo/mapping").status_code == 404

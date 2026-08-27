@@ -9,6 +9,16 @@
 import { LumiDecoder, FRAME_SESSION } from "./decoder.js";
 import { oklchToSrgb8 } from "./color.js";
 
+/* Every REST/WS path is resolved against the *page*, so the app serves
+ * identically standalone (/) and mounted under a prefix (/demo/mapping/). */
+export const BASE = new URL(".", location.href);
+
+export function wsUrl(path) {
+  const url = new URL(path, BASE);
+  const proto = url.protocol === "https:" ? "wss:" : "ws:";
+  return `${proto}//${url.host}${url.pathname}${url.search}`;
+}
+
 export function pointInTriangle(x, y, tri) {
   const [[ax, ay], [bx, by], [cx, cy]] = tri;
   const s1 = (bx - ax) * (y - ay) - (by - ay) * (x - ax);
@@ -168,12 +178,11 @@ export class StreamView {
   }
 }
 
-/* Binary WS to a stream endpoint; hands raw bytes to the consumer and
- * carries {"type":"resync"} requests back. */
+/* Binary WS to a stream endpoint (page-relative path); hands raw bytes to
+ * the consumer and carries {"type":"resync"} requests back. */
 export class WireStream {
   constructor(path, onBytes, onStatus) {
-    const proto = location.protocol === "https:" ? "wss:" : "ws:";
-    this.ws = new WebSocket(`${proto}//${location.host}${path}`);
+    this.ws = new WebSocket(wsUrl(path));
     this.ws.binaryType = "arraybuffer";
     this.bytes = 0;
     this.ws.onmessage = (event) => {
@@ -195,8 +204,7 @@ export class WireStream {
 /* The control socket: key/button events out, state snapshots in. */
 export class ControlChannel {
   constructor(onState, onStatus) {
-    const proto = location.protocol === "https:" ? "wss:" : "ws:";
-    this.ws = new WebSocket(`${proto}//${location.host}/api/mapping/control`);
+    this.ws = new WebSocket(wsUrl("api/mapping/control"));
     this.ws.onmessage = (event) => {
       let body;
       try { body = JSON.parse(event.data); } catch { return; }
@@ -287,7 +295,7 @@ const el = (id) => document.getElementById(id);
 
 /* The base-station window page (mapping.html). */
 export async function initWindowPage() {
-  const meta = await fetch("/api/mapping/layout").then((r) => r.json());
+  const meta = await fetch(new URL("api/mapping/layout", BASE)).then((r) => r.json());
   const view = new StreamView(el("window-canvas"));
   view.setLayout(meta.layout);
 
@@ -301,7 +309,7 @@ export async function initWindowPage() {
   control.bindKeys(window);
   control.bindButtons(document);
 
-  const stream = new WireStream("/api/mapping/window", (bytes) => {
+  const stream = new WireStream("api/mapping/window", (bytes) => {
     if (view.feed(bytes)) stream.send({ type: "resync" });
   });
 

@@ -7,8 +7,9 @@ imports this module.
 
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, AsyncIterator, Dict, Optional
 
 from fastapi import FastAPI, HTTPException, Query, UploadFile, WebSocket
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -32,11 +33,13 @@ def create_app(
     registry: Optional[PatternRegistry] = None,
     uploads_dir: Optional[Path] = None,
     allow_pattern_upload: bool = True,
+    mapping_demo: bool = False,
 ) -> FastAPI:
     """Build the app. ``allow_pattern_upload=False`` hard-disables
     POST /api/patterns (403) — uploads execute in-process (spec §15.5.2), so
     shared deployments run without them and take patterns from the repo
-    instead (docs/deploy.md)."""
+    instead (docs/deploy.md). ``mapping_demo=True`` mounts the hardware-free
+    mapping tutorial (``luminary.mapping.web``) at ``/demo/mapping``."""
     store_dir = Path(store_dir or "store")
     uploads_dir = Path(uploads_dir or store_dir / "patterns-uploads")
     uploads_dir.mkdir(parents=True, exist_ok=True)
@@ -45,7 +48,23 @@ def create_app(
         [uploads_dir] if allow_pattern_upload else []
     )
 
-    app = FastAPI(title="Luminary", version="2.1")
+    if mapping_demo:
+        from luminary.mapping.web import create_demo_app
+
+        demo_app = create_demo_app(root_page="demo")
+
+        @asynccontextmanager
+        async def _demo_lifespan(_app: FastAPI) -> AsyncIterator[None]:
+            # Starlette does not run mounted apps' lifespans; enter the
+            # demo's explicitly so its frame ticker starts and stops with
+            # this server.
+            async with demo_app.router.lifespan_context(demo_app):
+                yield
+
+        app = FastAPI(title="Luminary", version="2.1", lifespan=_demo_lifespan)
+        app.mount("/demo/mapping", demo_app, name="mapping-demo")
+    else:
+        app = FastAPI(title="Luminary", version="2.1")
     app.state.store = store
     app.state.registry = registry
     app.state.uploads_dir = uploads_dir

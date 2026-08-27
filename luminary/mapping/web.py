@@ -1,10 +1,14 @@
 """Web adapters for the mapping session: mirror window, control, tutorial.
 
 Design: plan/mapping/DESCRIPTION.md (mirror mode; the web/demo surface).
-This is the mapping tool's *own* FastAPI app, deliberately not wired into
-``luminary.server.app``: mapping runs at the base station as its own
-process (:func:`serve_mapping`), or hardware-free as the tutorial
-(:func:`serve_demo`, ``python -m luminary.mapping.web``).
+This is the mapping tool's *own* FastAPI app: a live mapping session runs
+at the base station as its own process (:func:`serve_mapping`), and the
+hardware-free tutorial (:func:`serve_demo`,
+``python -m luminary.mapping.web``) is the same app around a scrambled
+fake build. The main pattern server mounts that tutorial at
+``/demo/mapping`` (``luminary.server.app``); the pages and client JS
+resolve every URL relative to the page, so the app serves identically at
+any mount prefix.
 
 Light data is wire-codec-only (spec §1.3.1): the stream sockets carry
 SESSION / KEYFRAME / DELTA bytes, decoded in the browser by the standard
@@ -47,6 +51,7 @@ from luminary.render import projection
 
 _CONFIGS = Path(__file__).resolve().parents[2] / "configs"
 _STATIC = Path(__file__).resolve().parents[1] / "server" / "static"
+_IDLE_POLL = 0.25  # seconds between viewer checks while the ticker idles
 
 logger = logging.getLogger(__name__)
 
@@ -223,6 +228,7 @@ def create_mapping_app(
     *,
     demo_truth: Optional[Dict[str, Any]] = None,
     run_ticker: bool = True,
+    root_page: str = "window",
 ) -> FastAPI:
     """Build the mapping web app around a running :class:`SessionCore`.
 
@@ -230,6 +236,9 @@ def create_mapping_app(
     ``store.save_state(core.state, core.plan)`` runs on every state change.
     ``demo_truth`` enables ``/api/mapping/demo-truth`` for the tutorial.
     ``run_ticker=False`` skips the frame clock (tests drive ``core.tick``).
+    ``root_page`` picks what ``/`` serves — ``"window"`` for a base
+    station, ``"demo"`` for the mounted tutorial; both pages always stay
+    reachable at ``/window`` and ``/demo``.
     """
     geometry = json.loads((_CONFIGS / f"{core.plan.net_name}.json").read_text())[
         "geometry"
@@ -271,6 +280,15 @@ def create_mapping_app(
         start = loop.time()
         next_tick = start
         while True:
+            if not (core.window_sinks or core.wire_sinks or control_queues):
+                # Nobody is consuming frames — no sockets here and no
+                # serial/TUI sinks on the core — so idle instead of
+                # simulating at full fps (the tutorial mounts on the shared
+                # pattern server). A joiner gets SESSION on accept and is
+                # synced by the first tick after this poll notices it.
+                await asyncio.sleep(_IDLE_POLL)
+                next_tick = loop.time()
+                continue
             try:
                 core.tick(loop.time() - start)
             except Exception:  # keep the clock alive through a render bug
@@ -300,6 +318,11 @@ def create_mapping_app(
 
     @app.get("/", response_class=HTMLResponse)
     def index() -> str:
+        page = "mapping-demo.html" if root_page == "demo" else "mapping.html"
+        return (_STATIC / page).read_text()
+
+    @app.get("/window", response_class=HTMLResponse)
+    def window_page() -> str:
         return (_STATIC / "mapping.html").read_text()
 
     @app.get("/demo", response_class=HTMLResponse)
@@ -465,7 +488,12 @@ def serve_mapping(
     uvicorn.run(create_mapping_app(core, store), host=host, port=port)
 
 
-def create_demo_app(seed: str = "mapping-demo", *, run_ticker: bool = True) -> FastAPI:
+def create_demo_app(
+    seed: str = "mapping-demo",
+    *,
+    run_ticker: bool = True,
+    root_page: str = "window",
+) -> FastAPI:
     """The tutorial app: plan + net capture + scrambled fake controllers,
     no hardware and no CLI involved."""
     from luminary.geometry.net import Net
@@ -476,7 +504,13 @@ def create_demo_app(seed: str = "mapping-demo", *, run_ticker: bool = True) -> F
     truth = build_demo_truth(plan, seed)
     state = initial_state(plan, controllers=list(truth["controllers"]))
     core = SessionCore(plan, net_lights, state)
-    return create_mapping_app(core, store=None, demo_truth=truth, run_ticker=run_ticker)
+    return create_mapping_app(
+        core,
+        store=None,
+        demo_truth=truth,
+        run_ticker=run_ticker,
+        root_page=root_page,
+    )
 
 
 def serve_demo(host: str = "127.0.0.1", port: int = 8090) -> None:

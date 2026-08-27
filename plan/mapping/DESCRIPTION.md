@@ -118,7 +118,9 @@ The sequence logic is one pure state machine: `(state, input_event) ->
   preview window below, a start button, on-screen arrow/enter controls,
   and the same keyboard handling. It runs the identical state machine
   against a simulated build, for training and for developing the tool
-  without hardware.
+  without hardware. The main pattern server mounts this tutorial at
+  `/demo/mapping` (`luminary.cli serve`; every page/API URL is
+  page-relative, so the same app serves standalone or under the prefix).
 
 Entry point: one script (`python -m luminary.cli map`, flags
 `--continue`, `--trust-boards`) — details at implementation time.
