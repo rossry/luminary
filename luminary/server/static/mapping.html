@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Luminary — Mapping</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6' fill='%23bf9f7f'/%3E%3C/svg%3E">
+  <style>
+    :root { color-scheme: dark; }
+    body {
+      margin: 0; background: #0a0a0d; color: #dcdce4;
+      font-family: system-ui, sans-serif; display: flex; flex-direction: column;
+      height: 100vh;
+    }
+    header {
+      display: flex; gap: .6rem; align-items: center; flex-wrap: wrap;
+      padding: .55rem .8rem; background: #16161c; border-bottom: 1px solid #26262e;
+    }
+    header h1 { font-size: 1rem; margin: 0 .6rem 0 0; font-weight: 600; }
+    #status { font-size: .8rem; color: #7fbf7f; }
+    #progress { margin-left: auto; font-variant-numeric: tabular-nums;
+                font-size: .8rem; color: #9a9aa8; }
+    #hud {
+      padding: .45rem .8rem; background: #121218; border-bottom: 1px solid #26262e;
+      font-size: .85rem; min-height: 1.2rem;
+    }
+    #hud .chip {
+      background: #22303b; color: #9fd0ff; border-radius: 999px;
+      padding: .1rem .55rem; font-size: .75rem; margin-right: .5rem;
+    }
+    #hud .chip.done { background: #22372a; color: #9fe0af; }
+    #hud .sep { color: #4a4a56; margin: 0 .5rem; }
+    #hud .dim { color: #8a8a98; }
+    #hud b { color: #ffd9a0; font-weight: 600; }
+    main { flex: 1; min-height: 0; padding: .8rem; }
+    #stage { position: relative; width: 100%; height: 100%; }
+    #stage canvas { position: absolute; inset: 0; width: 100%; height: 100%;
+                    display: block; border-radius: 8px; }
+    footer {
+      display: flex; gap: .5rem; align-items: center;
+      padding: .55rem .8rem; background: #16161c; border-top: 1px solid #26262e;
+    }
+    footer button {
+      background: #22222b; color: #dcdce4; border: 1px solid #34343e;
+      border-radius: 6px; padding: .35rem .8rem; font-size: .95rem; cursor: pointer;
+    }
+    footer button:hover { background: #2d2d38; }
+    footer button.confirm { background: #24322a; border-color: #3a5343; }
+    footer button.confirm:hover { background: #2d3f35; }
+    footer .legend { margin-left: auto; font-size: .78rem; color: #8a8a98; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Luminary · Mapping</h1>
+    <span id="status">connecting…</span>
+    <span id="progress"></span>
+  </header>
+  <div id="hud">waiting for state…</div>
+  <main><div id="stage"><canvas id="window-canvas"></canvas></div></main>
+  <footer>
+    <button data-event="left" title="previous (←/A)">◀</button>
+    <button data-event="up" title="toggle density (↑/W)">▲</button>
+    <button data-event="down" title="toggle winding (↓/S)">▼</button>
+    <button data-event="right" title="next (→/D)">▶</button>
+    <button data-event="enter" class="confirm" title="confirm (Enter)">⏎ confirm</button>
+    <span class="legend">arrows or WASD move · enter confirms</span>
+  </footer>
+  <script type="module">
+    import { initWindowPage } from "./static/mapping.js";
+    initWindowPage();
+  </script>
+</body>
+</html>

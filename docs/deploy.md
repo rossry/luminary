@@ -128,3 +128,7 @@ B/light·frame readout confirms the wire codec is doing its job.
   restart the service picks up new/changed files in `patterns/`. (With
   upload enabled instead, uploads land in `store/patterns-uploads/` and
   hot-reload without a restart.)
+- **`/demo/mapping`** is the hardware-free deployment-mapping tutorial,
+  mounted by `serve` by default (`--no-mapping-demo` to skip). Its frame
+  ticker idles whenever no one is connected, so it costs nothing to leave
+  on; every viewer shares the one simulated session.

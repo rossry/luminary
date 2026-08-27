@@ -75,6 +75,8 @@ against shared golden vectors (`firmware/golden/`).
 | `POST /api/lights/from-scaffold` | capture with defaults: `{scaffold_id, params}` |
 | `GET/POST /api/patterns` | list / upload+hot-reload patterns |
 | `WS /api/play?lights=ID&pattern=NAME` | wire-protocol streaming |
+| `GET /demo/mapping` | the scrambled-build mapping tutorial, mounted here by `serve` (opt out: `--no-mapping-demo`); also standalone via `python -m luminary.mapping.web` |
+| `GET …/api/mapping/layout` · `WS …/api/mapping/{window,wire,control}` | the mapping app's own API (`luminary.mapping.web`, under whatever prefix it serves at): layout+plan+state JSON; wire-codec streams; key events. A live session's window page is `/window` — its own process, `python -m luminary.cli map --web` |
 
 ## Pattern development
 

@@ -28,11 +28,14 @@
 | `luminary/engine/engine.py` | §10 | `lights + pattern + t → wire frames`; the single pipeline assembly point; `colors_srgb8` for static renders |
 | `luminary/drivers/serial_driver.py` | §12.2 | One process, one engine, port-per-controller; baud-derived budgets; HELLO/RESYNC |
 | `luminary/drivers/websocket_driver.py` | §12.3 | Same bytes over WS; JSON control inbound (resync / set_pattern / pause / resume) |
+| `luminary/mapping/store.py` | `plan/mapping/DESCRIPTION.md` "Saved state" | One YAML per board (`mapping-<controller_id>.yaml`, schema `luminary.mapping/1`): write→fsync→readback→`.bak` discipline, `--continue` progress markers (dropped when a board completes), dated backups, and `--trust-boards` over the `BoardStore` protocol (`SerialBoards` raises toward the board-storage firmware handoff) |
+| `luminary/mapping/serial_sink.py` | `plan/mapping/DESCRIPTION.md` | RESYNC identity probe (port ↔ compiled-in controller id, as `firmware/tools/whoami.py`) and the wire-frame sink routing frames by header controller byte; degrades to window-only with no pyserial/ports |
+| `luminary/mapping/tui.py` | `plan/mapping/DESCRIPTION.md` "Surface-agnostic core" | Terminal adapter: cbreak arrows/WASD/enter → Events, one status line, monotonic tick loop, save + SESSION refresh on every state change |
 | `luminary/render/projection.py` | §14.4 | Shared world→2D layout for SVG **and** canvas (one projection rule) |
 | `luminary/render/svg.py` | §14.5 | Static SVG of scaffolds / lights (rendered once, never per frame) |
 | `luminary/server/app.py`, `store.py` | §15 | FastAPI adapter (all exit-condition endpoints) over a content-addressed file store |
 | `luminary/server/static/decoder.js`, `color.js`, `client.js`, `glow.js` | §14.2–§14.3 | Browser decoder (conformance sibling), color math, canvas client, WebGL2 realistic cloth render (§14.3.3) |
-| `luminary/cli.py` | §16 | `serve` / `play` / `capture` / `render` — every verb an adapter over the one engine |
+| `luminary/cli.py` | §16 | `serve` / `play` / `capture` / `render` / `map` — every verb an adapter over the one engine |
 | `firmware/scorpio/lib/lumicodec/` | §13 | Plain-C++17 decoder core + Q14 fixed-point color; host-compilable, no Arduino deps |
 | `firmware/scorpio/src/main.cpp` | §13 | Arduino sketch: serial in → NeoPXL8 out (not compilable without the Arduino toolchain) |
 | `firmware/golden/case1/` | §11.9 | Checked-in conformance corpus (see §3 below) |
