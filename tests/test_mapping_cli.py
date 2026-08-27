@@ -76,26 +76,17 @@ def test_build_continue_resumes_from_the_store(tmp_path):
     assert resumed.state.boards == core.state.boards
 
 
-def test_store_dir_is_var_and_legacy_fails_fast(tmp_path, monkeypatch):
-    """Runtime state defaults to var/ (an explicit --store wins). There
-    is no legacy fallback: an un-migrated store/ tree refuses to start
-    with the one-command migration, instead of silently running on an
-    empty or stale tree."""
+def test_store_dir_is_var_with_no_fallback_logic():
+    """Runtime state defaults to var/ — which ships in the repo
+    (var/.gitkeep), so the resolver carries no existence or legacy
+    logic at all; an explicit --store wins verbatim."""
     from luminary.cli import _store_dir
 
-    monkeypatch.chdir(tmp_path)
     assert _store_dir(None) == Path("var")
     assert _store_dir(None, "mapping") == Path("var") / "mapping"
     # An explicit path is the directory itself, sub or no sub.
     assert _store_dir("elsewhere", "mapping") == Path("elsewhere")
-
-    (tmp_path / "store").mkdir()
-    with pytest.raises(SystemExit, match="mv store var"):
-        _store_dir(None)
-    # An explicit --store is still honored verbatim, migration or not.
-    assert _store_dir("store") == Path("store")
-    (tmp_path / "var").mkdir()
-    assert _store_dir(None) == Path("var")  # migrated: the guard retires
+    assert (REPO / "var" / ".gitkeep").exists()  # the checkout guarantee
 
 
 def test_parse_keys_alpha_only_confirms():

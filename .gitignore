@@ -18,7 +18,8 @@ __pycache__/
 /lib64/
 /parts/
 /sdist/
-/var/
+# (the packaging template's /var/ entry is deliberately absent: var/ is
+# Luminary's runtime state root, governed by the rules at the bottom)
 /wheels/
 /share/python-wheels/
 *.egg-info/
@@ -211,9 +212,12 @@ output/*
 !output/.gitkeep
 
 # Luminary runtime state (spec §15.6): geometry store, pattern uploads,
-# mapping YAMLs (var/mapping/, var/mapping-demo/) - operator data, ships
-# empty. store/ is the legacy name for the same tree.
-var/
+# mapping YAMLs (var/mapping/, var/mapping-demo/) - operator data. The
+# directory itself ships in the repo (var/.gitkeep), so a checkout
+# always has it; its contents never do. store/ is the dead pre-rename
+# tree, ignored so stale deployments don't start tracking it.
+var/*
+!var/.gitkeep
 store/
 
 # Host-compiled firmware conformance test binary (firmware/test/host/Makefile)

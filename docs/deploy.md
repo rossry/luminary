@@ -121,13 +121,13 @@ B/light·frame readout confirms the wire codec is doing its job.
 
 - **State** is only `var/` — the geometry store, pattern uploads, and
   the mapping YAMLs (`var/mapping/`, and the tutorial's
-  `var/mapping-demo/`). Back it up or volume-mount it; everything else
-  is stateless and rebuilt from the repo. (A deployment still carrying
-  the pre-rename `store/` tree fails fast at startup with the
-  one-command migration, `mv store var` — there is deliberately no
-  silent fallback. Seeded demo geometries are regenerable with
-  `luminary.cli seed`; the only irreplaceable content is hand-saved
-  geometries and, once mapping has run, the mapping YAMLs.)
+  `var/mapping-demo/`). The directory ships in the repo
+  (`var/.gitkeep`); its contents are gitignored. Back it up or
+  volume-mount it; everything else is stateless and rebuilt from the
+  repo. (A pre-rename `store/` tree is dead: nothing reads it — delete
+  it, and rerun `luminary.cli seed` if you want the demo geometries
+  back. The only irreplaceable content is hand-saved geometries and,
+  once mapping has run, the mapping YAMLs.)
 - **CPU:** render+encode measures ~0.8 ms/frame for 2,048 lights
   (implementation-notes §7); each connected viewer runs its own engine, so
   budget roughly one core per handful of simultaneous viewers at 30 fps.

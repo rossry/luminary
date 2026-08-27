@@ -29,8 +29,8 @@ if TYPE_CHECKING:
 
 
 # One resolver for every entrypoint (luminary/statedir.py): --store is
-# honored verbatim; the default is var/ (a legacy store/ tree fails
-# fast with the migration command).
+# honored verbatim; the default is var/, which ships in the repo
+# (var/.gitkeep), so no existence or fallback logic exists anywhere.
 from luminary.statedir import runtime_state_dir as _store_dir
 
 
