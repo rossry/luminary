@@ -48,6 +48,8 @@ matter for pattern work:
 |---|---|
 | `X`, `Y` | Position in the piece's plane. **SVG convention: y grows downward** — "up" is negative y. |
 | `R`, `THETA` | Polar coordinates about the origin (the pentagon's center hole on the star geometries). |
+| `X3`, `Y3`, `Z3` | True 3D position on folded geometries (4A-37 folds onto the physical 3V geodesic sphere: apex +z, the door faces −y, radius ≈ 122 units). All-zero z on flat geometries — gate 3D-only effects on `np.any(lights[:, LightColumns.Z3] != 0)`. |
+| `RHO`, `THETA_S`, `PHI_S` | Spherical form of X3/Y3/Z3: radius, azimuth (radians), and polar angle from the apex — `PHI_S` is the "elevation ring" axis. |
 | `DX`, `DY` | The beam's throw direction — the fan mesostructure of the physical build. See `prism.py` for what this unlocks. |
 | `KIND`, `WEIGHT` | Light kind and interpolation weight. You normally ignore these: render every row and let the engine handle the wire. |
 

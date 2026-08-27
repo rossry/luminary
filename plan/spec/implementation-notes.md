@@ -15,7 +15,8 @@
 | `luminary/geometry/lights.py` | §6 | **The canonical representation**: `LightColumns` (24-column NumPy array), kinds, arc-length interpolation weights, canonical `(controller, channel, index)` sort, JSON round-trip, per-channel strip maps |
 | `luminary/geometry/capture/from_scaffold.py` | §7.2 | The default capture (exit condition): spacing/count, channel maps, 1-in-k interpolation policy, throw extents |
 | `luminary/geometry/capture/from_scan.py` | §7.4 | Camera-scan capture — **interface-only stub**; raises `NotImplementedError` |
-| `luminary/geometry/pentagon/` | §5.5, §7.3 | 2.0 `Net` → scaffold/lights adapters; beam polygons become per-light `display` shapes |
+| `luminary/geometry/pentagon/` | §5.5, §7.3 | 2.0 `Net` → scaffold/lights adapters; beam polygons become per-light `display` shapes; fills X3/Y3/Z3 by barycentric fold when the config carries `points3d` |
+| `configs/sphere3v.py` | §4.1 | The canonical 3V geodesic sphere of the physical build (first-principles trisect-and-project; vertex ids per the construction app). Carries the plan-A panel faces and the electronics plan (7 data units, base station) |
 | `luminary/color/convert.py` | §8 | Vectorized OKLCH/OKLab/sRGB hot path; normative §8.4 matrices; chroma-reducing gamut clip |
 | `luminary/color/color.py` | §8.5 | Scalar `Color` for config parsing **only** — never per-frame |
 | `luminary/patterns/base.py` | §9.1 | `Pattern.render(lights, t: float) -> (n,3) OKLCH`, pure and vectorized |

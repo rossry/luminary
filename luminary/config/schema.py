@@ -1,12 +1,12 @@
 """Pydantic models for JSON configuration schema."""
 
 from pydantic import BaseModel, Field, field_validator, model_validator
+
 # Using string-based colors instead of pydantic.color.Color
-from typing import List, Dict, Optional, Tuple
+from typing import Any, Iterator, List, Dict, Optional, Tuple
 from typing_extensions import TypeAlias
 from pathlib import Path
 from enum import Enum
-
 
 # Point as tuple: (x, y, color)
 PointTuple: TypeAlias = Tuple[float, float, str]
@@ -86,6 +86,36 @@ class GeometryConfig(BaseModel):
         max_length=4,
         description="Default beam counts per facet edge [major_starboard, minor_starboard, minor_port, major_port]",
     )
+    points3d: Optional[List[Optional[List[float]]]] = Field(
+        default=None,
+        description=(
+            "Per-point 3D position of the folded net (same order as "
+            "points; null for points no triangle references). Produced "
+            "by the config generator from the fold onto the 3V sphere "
+            "(configs/sphere3v.json)."
+        ),
+    )
+    fold: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description=(
+            "Fold provenance: sphere file, radius in net units, and the "
+            "net-point -> sphere-vertex map."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def validate_points3d(self) -> "GeometryConfig":
+        """points3d, when present, parallels points with 3-vectors."""
+        if self.points3d is not None:
+            if len(self.points3d) != len(self.points):
+                raise ValueError(
+                    f"points3d has {len(self.points3d)} entries for "
+                    f"{len(self.points)} points"
+                )
+            for i, p in enumerate(self.points3d):
+                if p is not None and len(p) != 3:
+                    raise ValueError(f"points3d[{i}] must have 3 components")
+        return self
 
     @model_validator(mode="after")
     def validate_triangle_indices(self):
@@ -105,7 +135,9 @@ class GeometryConfig(BaseModel):
 class NetConfiguration(BaseModel):
     """Complete configuration schema for Net class."""
 
-    colors: Dict[str, str] = Field(..., description="Named color definitions (hex or OKLCH strings)")
+    colors: Dict[str, str] = Field(
+        ..., description="Named color definitions (hex or OKLCH strings)"
+    )
     geometry: GeometryConfig = Field(..., description="Geometric definitions")
     rendering: RenderingConfig = Field(
         default_factory=lambda: RenderingConfig(
@@ -143,7 +175,7 @@ class NetConfiguration(BaseModel):
         """Calculate triangle ID from series and triangle indices (1-based series)."""
         return ((series_idx + 1) * 10) + triangle_idx
 
-    def iter_triangles_with_ids(self):
+    def iter_triangles_with_ids(self) -> "Iterator[Tuple[int, TriangleTuple, int]]":
         """Iterate over all triangles with their calculated IDs."""
         for series_idx, series in enumerate(self.geometry.triangles):
             for triangle_idx, triangle in enumerate(series):

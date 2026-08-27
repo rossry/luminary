@@ -11,6 +11,15 @@ import math
 from pathlib import Path
 
 
+def _fit_viewbox(colored_points, pad=15.0):
+    xs = [p[0] for p in colored_points]
+    ys = [p[1] for p in colored_points]
+    x0, y0 = min(xs) - pad, min(ys) - pad
+    w = max(xs) - x0 + pad
+    h = max(ys) - y0 + pad
+    return f"{x0:.0f} {y0:.0f} {math.ceil(w):.0f} {math.ceil(h):.0f}"
+
+
 def main():
     """Generate 4A-35.json configuration."""
 
@@ -122,7 +131,7 @@ def main():
         # Need to adjust indices since we skipped direction 2 in previous layers
         layer3first_idx = layer3first_start + (i if i < 2 else i - 1)
         layer3second_idx = layer3second_start + (i if i < 2 else i - 1)
-        
+
         layer2center_point = all_points[layer2center_start + i]
         layer3first_point = all_points[layer3first_idx]
         layer3second_point = all_points[layer3second_idx]
@@ -146,14 +155,18 @@ def main():
         layer3first_idx = layer3first_start + (i if i < 2 else i - 1)
         layer3second_idx = layer3second_start + (i if i < 2 else i - 1)
         layer4second_idx = layer4second_start + (i if i < 2 else i - 1)
-        
+
         layer3first_point = all_points[layer3first_idx]
         layer3second_point = all_points[layer3second_idx]
         layer4second_point = all_points[layer4second_idx]
 
         # Calculate layer4first using the formula: layer3first - layer3second + layer4second
-        layer4first_x = layer3first_point[0] - layer3second_point[0] + layer4second_point[0]
-        layer4first_y = layer3first_point[1] - layer3second_point[1] + layer4second_point[1]
+        layer4first_x = (
+            layer3first_point[0] - layer3second_point[0] + layer4second_point[0]
+        )
+        layer4first_y = (
+            layer3first_point[1] - layer3second_point[1] + layer4second_point[1]
+        )
 
         all_points.append([layer4first_x, layer4first_y])
 
@@ -165,14 +178,18 @@ def main():
         layer3first_idx = layer3first_start + (i if i < 2 else i - 1)
         layer4second_idx = layer4second_start + (i if i < 2 else i - 1)
         layer4first_idx = layer4first_start  # Index 27 for direction 1
-        
+
         layer3first_point = all_points[layer3first_idx]
         layer4second_point = all_points[layer4second_idx]
         layer4first_point = all_points[layer4first_idx]
 
         # Calculate layer5second using the formula: layer4second + (layer4first - layer3first)
-        layer5second_x = layer4second_point[0] + (layer4first_point[0] - layer3first_point[0])
-        layer5second_y = layer4second_point[1] + (layer4first_point[1] - layer3first_point[1])
+        layer5second_x = layer4second_point[0] + (
+            layer4first_point[0] - layer3first_point[0]
+        )
+        layer5second_y = layer4second_point[1] + (
+            layer4first_point[1] - layer3first_point[1]
+        )
 
         all_points.append([layer5second_x, layer5second_y])
 
@@ -184,14 +201,18 @@ def main():
         layer3first_idx = layer3first_start + (i if i < 2 else i - 1)
         layer3second_idx = layer3second_start + (i if i < 2 else i - 1)
         layer4second_idx = layer4second_start + (i if i < 2 else i - 1)
-        
+
         layer3first_point = all_points[layer3first_idx]
         layer3second_point = all_points[layer3second_idx]
         layer4second_point = all_points[layer4second_idx]
 
         # Calculate layer4third using the formula: layer3second - layer3first + layer4second
-        layer4third_x = layer3second_point[0] - layer3first_point[0] + layer4second_point[0]
-        layer4third_y = layer3second_point[1] - layer3first_point[1] + layer4second_point[1]
+        layer4third_x = (
+            layer3second_point[0] - layer3first_point[0] + layer4second_point[0]
+        )
+        layer4third_y = (
+            layer3second_point[1] - layer3first_point[1] + layer4second_point[1]
+        )
 
         all_points.append([layer4third_x, layer4third_y])
 
@@ -203,14 +224,18 @@ def main():
         layer3second_idx = layer3second_start + (i if i < 2 else i - 1)
         layer4second_idx = layer4second_start + (i if i < 2 else i - 1)
         layer4third_idx = layer4third_start  # Index 29 for direction 3
-        
+
         layer3second_point = all_points[layer3second_idx]
         layer4second_point = all_points[layer4second_idx]
         layer4third_point = all_points[layer4third_idx]
 
         # Calculate layer5third using the formula: (layer4second - layer3second) + layer4third
-        layer5third_x = (layer4second_point[0] - layer3second_point[0]) + layer4third_point[0]
-        layer5third_y = (layer4second_point[1] - layer3second_point[1]) + layer4third_point[1]
+        layer5third_x = (
+            layer4second_point[0] - layer3second_point[0]
+        ) + layer4third_point[0]
+        layer5third_y = (
+            layer4second_point[1] - layer3second_point[1]
+        ) + layer4third_point[1]
 
         all_points.append([layer5third_x, layer5third_y])
 
@@ -259,10 +284,14 @@ def main():
         "silver",  # 30: Direction 3
     ]
 
-    # Create colored points
+    # Create colored points. The net is drawn with y negated relative to
+    # the original generation: the long arms and the front stub point UP,
+    # matching the construction schematic's frame (sphere.html, BUILD
+    # 20260817-halo) — the net reads as the dome seen from outside with
+    # the apex hole at center and the door-side arc above it.
     colored_points = []
     for i, point in enumerate(all_points):
-        colored_points.append([point[0], point[1], vertex_colors[i]])
+        colored_points.append([point[0], -point[1], vertex_colors[i]])
 
     # Create triangles using 6-triangle loop pattern with 5 series
     triangles = []
@@ -275,27 +304,33 @@ def main():
         layer2vertex_curr = layer2vertex_start + i
         layer2vertex_next = layer2vertex_start + (i + 1) % 5
         layer2center_curr = layer2center_start + i
-        
+
         # Skip direction 2 completely for triangles that use layer 3 or 4 vertices
         if i == 2:
             # For direction 2, only create triangles that don't use layer 3 or 4
             direction_triangles = []
             # Triangle 2: layer2center - layer2vertex_curr - layer1_curr
-            direction_triangles.append([layer2center_curr, layer2vertex_curr, layer1_curr])
+            direction_triangles.append(
+                [layer2center_curr, layer2vertex_curr, layer1_curr]
+            )
             # Triangle 3: layer2center - layer1_curr - layer1_next
             direction_triangles.append([layer2center_curr, layer1_curr, layer1_next])
             # Triangle 4: layer2center - layer1_next - layer2vertex_next
-            direction_triangles.append([layer2center_curr, layer1_next, layer2vertex_next])
+            direction_triangles.append(
+                [layer2center_curr, layer1_next, layer2vertex_next]
+            )
             # Add this reduced series to the triangles array
             triangles.append(direction_triangles)
             continue
-        
+
         # For other directions, adjust indexing for layer 3 and 4 vertices
         # Since we skipped direction 2, directions 3+ need adjusted indices
         layer3first_idx = layer3first_start + (i if i < 2 else i - 1)
         layer3second_idx = layer3second_start + (i if i < 2 else i - 1)
         layer4second_idx = layer4second_start + (i if i < 2 else i - 1)
-        layer4first_idx = layer4first_start  # Only direction 1 has layer4first, so always index 27
+        layer4first_idx = (
+            layer4first_start  # Only direction 1 has layer4first, so always index 27
+        )
 
         # Create series of triangles for this direction (7 base + 1 extra for direction 1)
         direction_triangles = []
@@ -325,22 +360,32 @@ def main():
         )
 
         # Triangle 7: layer4second - layer3first - layer3second (original outer triangle)
-        direction_triangles.append([layer4second_idx, layer3first_idx, layer3second_idx])
-        
+        direction_triangles.append(
+            [layer4second_idx, layer3first_idx, layer3second_idx]
+        )
+
         # Triangle 8: layer3first - layer4first - layer4second (connection triangle, for direction 1 only)
         if i == 1:
             layer4first_idx = layer4first_start  # Index 27 for direction 1
-            direction_triangles.append([layer3first_idx, layer4first_idx, layer4second_idx])
+            direction_triangles.append(
+                [layer3first_idx, layer4first_idx, layer4second_idx]
+            )
             # Triangle 9: layer4first - layer4second - layer5second (new outer triangle, direction 1)
             layer5second_idx = layer5second_start  # Index 28 for direction 1
-            direction_triangles.append([layer4first_idx, layer4second_idx, layer5second_idx])
+            direction_triangles.append(
+                [layer4first_idx, layer4second_idx, layer5second_idx]
+            )
         elif i == 3:
             layer4third_idx = layer4third_start  # Index 29 for direction 3
             # Triangle 8: layer3second - layer4second - layer4third (connection triangle, direction 3)
-            direction_triangles.append([layer3second_idx, layer4second_idx, layer4third_idx])
+            direction_triangles.append(
+                [layer3second_idx, layer4second_idx, layer4third_idx]
+            )
             # Triangle 9: layer4second - layer4third - layer5third (new outer triangle, direction 3)
             layer5third_idx = layer5third_start  # Index 30 for direction 3
-            direction_triangles.append([layer4second_idx, layer4third_idx, layer5third_idx])
+            direction_triangles.append(
+                [layer4second_idx, layer4third_idx, layer5third_idx]
+            )
 
         # Add this series to the triangles array
         triangles.append(direction_triangles)
@@ -389,7 +434,8 @@ def main():
             "svg": {
                 "width": "100%",
                 "height": "400",
-                "viewBox": "-220 -150 440 240",  # Fits all vertices with padding
+                # Refit to the flipped points with padding.
+                "viewBox": _fit_viewbox(colored_points),
             }
         },
     }
@@ -412,7 +458,9 @@ def main():
     print(f"Layer 4 (outer triangles): 5 vertices")
     print(f"Total points: {len(colored_points)}")
     total_triangles = sum(len(series) for series in triangles)
-    print(f"Triangle series: {len(triangles)} (3 for direction 2, 9 for directions 1&3, 7 for others)")
+    print(
+        f"Triangle series: {len(triangles)} (3 for direction 2, 9 for directions 1&3, 7 for others)"
+    )
     print(f"Total triangles: {total_triangles}")
     print(f"Geometric lines: {len(lines)}")
 

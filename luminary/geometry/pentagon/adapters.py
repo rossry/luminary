@@ -175,6 +175,37 @@ def capture(
         for t, seg in zip(pvc_tri, pvc_lines)
     ]
 
+    # Fold onto the 3V sphere (spec §4.1.2 dual-authoritative): when the
+    # config carries points3d, every light gets a true 3D position — the
+    # barycentric image of its net position in its triangle's folded
+    # corners. The net XY stays the drawing/pattern plane; the fold fills
+    # X3/Y3/Z3 (and, derived, RHO/THETA_S/PHI_S).
+    fold_tris: Optional[List[Optional[Tuple]]] = None
+    g = net.config.geometry
+    if g.points3d is not None:
+        tri_indices = [tri for series in g.triangles for tri in series]
+        assert len(tri_indices) == len(net.triangles)
+        fold_tris = []
+        for tri in tri_indices:
+            p2d = [g.points[i] for i in tri]
+            p3d = [g.points3d[i] for i in tri]
+            if any(p is None for p in p3d):
+                fold_tris.append(None)
+                continue
+            (x0, y0), (x1, y1), (x2, y2) = [(p[0], p[1]) for p in p2d]
+            det = (y1 - y2) * (x0 - x2) + (x2 - x1) * (y0 - y2)
+            fold_tris.append((x0, y0, x1, y1, x2, y2, det, p3d))
+
+    def _fold(tri_index: int, px: float, py: float) -> Optional[List[float]]:
+        entry = fold_tris[tri_index] if fold_tris is not None else None
+        if entry is None:
+            return None
+        x0, y0, x1, y1, x2, y2, det, p3d = entry
+        l0 = ((y1 - y2) * (px - x2) + (x2 - x1) * (py - y2)) / det
+        l1 = ((y2 - y0) * (px - x2) + (x0 - x2) * (py - y2)) / det
+        l2 = 1.0 - l0 - l1
+        return [l0 * p3d[0][d] + l1 * p3d[1][d] + l2 * p3d[2][d] for d in range(3)]
+
     for tri_index, triangle in enumerate(net.triangles):
         panel_x, panel_y, shrink = panels[tri_index]
         for facet in triangle.get_facets():
@@ -219,6 +250,7 @@ def capture(
                             index=next_index[channel],
                             kind="active",
                             pos=[basis.x, basis.y],
+                            pos3=_fold(tri_index, basis.x, basis.y),
                             dir=direction,
                             extent=extent,
                             normal=direction,
@@ -235,7 +267,9 @@ def capture(
 
     return LightsGeometry.from_specs(
         specs,
-        space=SpaceSpec(authoritative=["xy"]),
+        space=SpaceSpec(
+            authoritative=["xy", "xyz"] if fold_tris is not None else ["xy"]
+        ),
         source={"type": "pentagon", "channels": channels},
         meta={
             "name": "pentagon-lights",

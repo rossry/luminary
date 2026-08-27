@@ -130,11 +130,13 @@ def test_4a33_is_4a35_minus_upper_arm_tips():
     per_triangle = lights35.n // 35
     assert lights33.n == lights35.n - 2 * per_triangle
 
-    # The removed tips were the topmost material: the highest remaining
-    # light sits strictly lower (SVG y-down: larger min-y = lower).
-    top35 = lights35.array[:, LightColumns.Y].min()
-    top33 = lights33.array[:, LightColumns.Y].min()
-    assert top33 > top35 + 10
+    # The removed tips are the extreme material of the short arms — which
+    # point DOWN in the flipped net frame (long arms up, per the
+    # construction schematic): the lowest remaining light sits strictly
+    # higher (SVG y-down: smaller max-y = higher).
+    bottom35 = lights35.array[:, LightColumns.Y].max()
+    bottom33 = lights33.array[:, LightColumns.Y].max()
+    assert bottom33 < bottom35 - 10
 
 
 def test_4a37_is_4a33_plus_lower_arm_extensions():
@@ -153,8 +155,8 @@ def test_4a37_is_4a33_plus_lower_arm_extensions():
     per_triangle = lights33.n // 33
     assert lights37.n == lights33.n + 4 * per_triangle
 
-    # The blunted top is untouched; the growth is pure wingspan
-    # (one lattice step per side).
+    # The extensions ride the long arms outward without rising above
+    # them; the growth is pure wingspan (one lattice step per side).
     top33 = lights33.array[:, LightColumns.Y].min()
     top37 = lights37.array[:, LightColumns.Y].min()
     assert abs(top37 - top33) < 1e-9
