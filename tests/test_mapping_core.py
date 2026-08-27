@@ -220,8 +220,7 @@ def test_completed_board_rings_on_both_surfaces(plan, net_lights):
         float(pattern.render(None, t)[ring, 0].max()) for t in np.arange(0, 7.0, 0.5)
     )
     assert peak > 0.4  # the ring visibly broadcasts on the wire
-    window = core._window_roles()
-    assert (window["roles"] == R.RING).sum() > 0
+    assert (core._window_roles() == R.RING).sum() > 0
 
 
 def test_finale_waves_black_then_spiral_wipe(plan, net_lights):
@@ -273,32 +272,33 @@ def test_finale_waves_black_then_spiral_wipe(plan, net_lights):
 
 
 def test_ring_waves_rotate_and_wheel_has_three_spokes():
-    # A ring of lights about a corner at radius 30, plus a phi ramp.
+    # A ring of lights about an anchor at radius 30, plus a phi ramp.
     n = 360
     ang = 2 * np.pi * np.arange(n) / n
     xy = 30.0 * np.stack([np.cos(ang), np.sin(ang)], axis=1)
     edges = np.array([[0.0, 0.0, 50.0, 0.0]])
     phi = np.linspace(0.0, np.radians(130.0), n)
+    ident = np.arange(n)
 
-    wheel = R.MappingPattern(
-        xy=xy,
-        roles=np.full(n, R.WHEEL_FULL),
-        edges=edges,
-        corner_xy=np.zeros((n, 2)),
-    )
-    out = wheel.render(None, 1.234)
-    # Hue is the plain angle about the corner: continuous, position-only.
+    def pattern(roles):
+        return R.MappingPattern(
+            roles=roles,
+            ref=ident,
+            net_xy=xy,
+            edges=edges,
+            net_anchor=np.zeros((n, 2)),
+            net_hue=np.zeros(n),
+            net_phi=phi,
+        )
+
+    out = pattern(np.full(n, R.WHEEL_FULL)).render(None, 1.234)
+    # Hue is the plain angle about the anchor: continuous, position-only.
     assert np.allclose(out[:, 2], np.degrees(ang) % 360.0, atol=1.5)
     # Three dark spokes: the intensity field repeats every 120 degrees.
     assert np.allclose(out[:, 0], np.roll(out[:, 0], n // 3), atol=1e-9)
     assert out[:, 0].min() < 0.2 < 0.55 < out[:, 0].max()
 
-    ring = R.MappingPattern(
-        xy=xy,
-        roles=np.full(n, R.RING),
-        edges=edges,
-        phi_s=phi,
-    )
+    ring = pattern(np.full(n, R.RING))
     a = ring.render(None, 2.0)
     b = ring.render(None, 2.0 + 7.0)  # same descent phase, next wave
     lit = (a[:, 1] > 0.2) & (b[:, 1] > 0.2)
@@ -306,3 +306,99 @@ def test_ring_waves_rotate_and_wheel_has_three_spokes():
     spin = (b[lit, 2] - a[lit, 2]) % 360.0
     # Every lit light rotated by the same seeded, nonzero angle.
     assert spin.std() < 1e-6 and 1.0 < spin.mean() < 359.0
+
+
+def test_beads_are_short_lived():
+    """A strut's bead lives about two seconds, then the strut goes dark
+    until its lane's next cycle — beads are events, not permanent
+    traffic."""
+    edges = np.array([[0.0, 0.0, 50.0, 0.0]])
+    xy = np.stack([np.linspace(0.0, 50.0, 40), np.zeros(40)], axis=1)
+    field = R.BeadField(xy, edges)
+    times = np.arange(0.0, 60.0, 0.05)
+    lit = np.array([field(t).max() > 0.02 for t in times])
+    # Two lanes, each alive <= ~2s per cycle and gated: well under half
+    # the time lit overall; a typical stretch is one bead's ~2s life,
+    # and even two overlapping lanes can't exceed twice that.
+    assert 0.02 < lit.mean() < 0.55
+    runs = np.diff(np.flatnonzero(np.diff(np.concatenate([[0], lit, [0]]))))[::2]
+    assert np.median(runs) * 0.05 <= R._BEAD_LIFE + 0.2
+    assert runs.max() * 0.05 <= 2 * R._BEAD_LIFE + 0.5
+
+
+def test_wire_broadcasts_identically_to_window(plan, net_lights):
+    """The parity contract, end to end: every wire light renders exactly
+    the window's value at its reference net light whenever the two
+    surfaces assign it the same role — and in the finale, where there
+    are no roles, the gathered equality holds for every light at every
+    phase."""
+    core = SessionCore(plan, net_lights, initial_state(plan, CONTROLLERS))
+
+    def check_matched(t):
+        wp, ep = core.window_engine.pattern, core.wire_engine.pattern
+        wo = wp.render(net_lights.array, t)
+        eo = ep.render(core.wire_engine.lights.array, t)
+        ref = core._wire_ref
+        match = wp._roles[ref] == ep._roles
+        assert match.any()
+        assert np.array_equal(eo[match], wo[ref][match])
+        return match
+
+    check_matched(3.7)  # ports stage
+    core.apply(Event.RIGHT)
+    check_matched(4.1)  # after a deselection
+    while core.state.stage == "ports":
+        core.apply(Event.ENTER)
+    match = check_matched(7.9)  # panels stage: solids, wheel, previews
+    # The active strip's index-based roles are the only place window and
+    # wire roles may differ (quarters and slivers land on different
+    # lights); everything else matches.
+    assert match.mean() > 0.8
+
+    core.tick(30.0)
+    while core.state.stage != "done":
+        core.apply(Event.ENTER)
+    wp, ep = core.window_engine.pattern, core.wire_engine.pattern
+    for t in (30.9, 30.0 + 2.5 * R.FINALE_WAVE_PERIOD, 30.0 + 6.2, 90.0):
+        wo = wp.render(net_lights.array, t)
+        eo = ep.render(core.wire_engine.lights.array, t)
+        assert np.array_equal(eo, wo[core._wire_ref])
+
+
+def test_serpentine_path_and_refs(plan, net_lights):
+    """The strip hypothesis follows the physical serpentine: it starts
+    AND ends at the six-red corner (the path returns), reaches the far
+    edge mid-strip, and its references cover the panel's capture lights;
+    cw is the reversed traversal. The wheel anchors at the board vertex,
+    so the aux panels continue board 2's wheel about vertex 9."""
+    core = SessionCore(plan, net_lights, initial_state(plan, CONTROLLERS))
+    p = plan.panels[plan.units[0]][0]
+    xy = core._strip_path_xy(p, 180, "ccw")
+    corner = np.asarray(p.corner_xy)
+    d_corner = np.linalg.norm(xy - corner, axis=1)
+    assert d_corner[0] < 5.0 and d_corner[-1] < 5.0  # returns to start
+    assert d_corner.max() > 40.0  # reaches the far edge
+    mid = np.argmax(d_corner)
+    assert 0.25 * 180 < mid < 0.75 * 180
+    # cw is the same path walked the other way.
+    cw = core._strip_path_xy(p, 180, "cw")
+    assert np.allclose(cw, xy[::-1])
+    refs = core.strip_refs(p, 180, "ccw")
+    panel_lights = set(np.flatnonzero(core._net_tri == p.tri_index))
+    assert set(refs) <= panel_lights
+    # Native density: an exact bijection onto the panel's lights (no
+    # dark skipped-light holes in the mockup); double density covers
+    # every light exactly twice.
+    assert len(refs) == 180 and set(refs) == panel_lights
+    refs360 = core.strip_refs(p, 360, "ccw")
+    assert set(refs360) == panel_lights
+    assert np.array_equal(core.strip_refs(p, 180, "cw"), refs[::-1])
+
+    # Aux panels: anchored at their board's vertex, not their corner.
+    aux = plan.by_face[(3, 4, 8)]
+    m = core._net_tri == aux.tri_index
+    anchor = core._net_anchor[m][0]
+    own = plan.panels[9][0]  # a native panel of board 2 (unit 9)
+    native = core._net_anchor[core._net_tri == own.tri_index][0]
+    assert np.allclose(anchor, native)  # same wheel center: vertex 9
+    assert not np.allclose(anchor, np.asarray(aux.corner_xy))

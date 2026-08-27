@@ -115,10 +115,13 @@ def capture(
 ) -> LightsGeometry:
     """One ACTIVE light per beam, with the beam polygon as its display shape.
 
-    Identity mapping is DEFERRED (review §19.6): until physical strip routing
-    is decided, channels go round-robin per facet and indices count up along
-    each channel. This function is the single place to change when the real
-    routing is known (spec §7.3.1).
+    Identity mapping is DEFERRED (review §19.6): channels go round-robin per
+    facet and indices count up along each channel. The physical strip path is
+    now specified (plan/mapping/DESCRIPTION.md "The strip path": from the
+    six-red corner — half-edge, radial in, radial out, finish the edge, times
+    three, back to the start); assigning real identities along it awaits the
+    per-board mapping YAMLs. This function is the single place to change when
+    that lands (spec §7.3.1).
     """
     specs: List[LightSpec] = []
     next_index = {ch: 0 for ch in range(channels)}

@@ -70,7 +70,14 @@ def test_pages_and_layout(core, plan):
         assert len(body["layout"]["viewBox"]) == 4
         assert body["plan"]["units"] == plan.units
         entry = body["plan"]["panels"][str(plan.units[0])][0]
-        assert {"face", "tri_index", "corner_vertex", "corner_xy", "arc"} <= set(entry)
+        assert {"face", "tri_index", "corner_vertex", "corner_xy", "refs"} <= set(entry)
+        # Serpentine references for the mockup: per density, one net
+        # light (a layout index) per hypothesis LED along the ccw path.
+        n_total = body["layout"]["counts"]["total"]
+        for density in ("180", "360"):
+            refs = entry["refs"][density]
+            assert len(refs) == int(density)
+            assert all(0 <= r < n_total for r in refs)
         assert body["state"]["stage"] == "ports"
         assert body["state"]["candidate_controller"] == CONTROLLERS[0]
         # A real mapping session has no scrambled demo build.

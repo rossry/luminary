@@ -9,16 +9,21 @@ channels):
   wire   — what the boards receive, rendered on the *hypothesis*
            geometry.
 
-The two views are an exact broadcast of one scene: `_unit_roles` decides
-each board's role once per state (beads / breathe / solid / active test
-/ ring), and both builders apply it — the window on the planned panels,
-the wire on the strips. Every probed controller is on the wire in every
-stage (a deselected board falls back to the beads backdrop instead of
-stranding its last frame; before mapping, the beads land scrambled on
-the physical build — by design). Placement is the only difference:
-recorded channels use their recorded density and winding, everything
-else uses the canonical hypothesis (channel j ↔ planned panel j, 360
-LEDs, ccw).
+The two views are an exact broadcast of one scene, twice over. First,
+`_unit_roles` decides each board's role once per state (beads / breathe
+/ solid / active test / ring), and both builders apply it — the window
+on the planned panels, the wire on the strips. Second, every rendered
+light carries a **reference net light** (`ref`): the wire's fields are
+never evaluated at hypothesis positions — render.MappingPattern
+computes every positional field on the net capture only and gathers it
+through `ref`, so the surfaces cannot diverge (the hypothesis changes
+which net lights a strip's indices reference, never the field values).
+Every probed controller is on the wire in every stage (a deselected
+board falls back to the beads backdrop instead of stranding its last
+frame; before mapping, the beads land scrambled on the physical build —
+by design). Recorded channels use their recorded density and winding;
+everything else uses the canonical hypothesis (channel j ↔ planned
+panel j, 360 LEDs, ccw).
 
 Adapters register frame sinks (serial writers, WebSocket broadcasters)
 and feed key events in; the core owns state transitions and engine
@@ -29,14 +34,15 @@ hooks — a topology-changing rebuild without a fresh SESSION would
 mis-size firmware strips). Late joiners and hypothesis changes are then
 the same case.
 
-Strip model note: within a panel the wire positions use the angular
-strip model — LED index i of n maps to the arc about the panel's
-six-red corner (winding-signed) at interior radius. This is an
-approximation of the physical serpentine that is exact in the two facts
-the wheel test verifies (sweep direction and arc coverage / density);
-the true per-LED path stays open under spec §19.6. Wire lights borrow
-PHI_S from the nearest net-capture light in their panel, so the mapped
-ring broadcasts identically on both surfaces.
+Strip model: the physical serpentine (plan/mapping/DESCRIPTION.md).
+From the six-red start corner the strip runs half-way down the first
+edge, in along that radial to the center and back out its other side,
+finishes the edge; then the same along the far edge and the third,
+returning to the start corner. LED i of n sits at arclength
+(i + 0.5)/n along that 12-leg path; a cw winding walks the same path
+the other way. Each hypothesis LED's `ref` is the nearest capture
+light in its panel — the capture's beams run along the same legs, so
+the reference is tight.
 """
 
 from __future__ import annotations
@@ -104,6 +110,26 @@ class SessionCore:
         self._net_phi = net_lights.array[:, LightColumns.PHI_S]
         hues = R.board_hues(len(plan.units))
         self._unit_hue = {u: float(hues[i]) for i, u in enumerate(plan.units)}
+        # The wheel anchors at each panel's BOARD vertex (net position
+        # of the unit), so aux and consolidated panels continue their
+        # board's wheel instead of starting their own about their
+        # physical corner. The strip path still starts at the corner.
+        point_vertex = self._net_geometry["fold"]["point_vertex"]
+        pts = self._net_geometry["points"]
+        unit_xy = {}
+        for point, vertex in enumerate(point_vertex):
+            if vertex in plan.units:
+                unit_xy[vertex] = (pts[point][0], pts[point][1])
+        assert set(unit_xy) == set(plan.units), "unit vertex missing from net"
+        nb = xy.shape[0]
+        self._net_anchor = np.zeros((nb, 2))
+        self._net_hue = np.zeros(nb)
+        for p in (p for plist in plan.panels.values() for p in plist):
+            m = self._net_tri == p.tri_index
+            self._net_anchor[m] = unit_xy[p.unit_vertex]
+            self._net_hue[m] = self._unit_hue[p.unit_vertex]
+        self._path_cache: Dict[int, Tuple[np.ndarray, np.ndarray]] = {}
+        self._frac_cache: Dict[int, Tuple[np.ndarray, np.ndarray]] = {}
         self._last_t = 0.0  # session clock, anchors the completion finale
         self._show: Optional[Pattern] = None
         self.window_sinks: List[FrameSink] = []
@@ -151,63 +177,95 @@ class SessionCore:
                     out[unit] = "solid"
         return out
 
-    # ---------------------------------------------------- panel helpers
+    # ------------------------------------------- the serpentine path
 
-    def _panel_arc(self, panel: PanelPlan) -> Tuple[float, float, float]:
-        """(a0, signed span, strip radius) of a panel's arc about its
-        six-red corner (mirrored by web.py's _panel_arcs)."""
+    def _panel_path(self, panel: PanelPlan) -> Tuple[np.ndarray, np.ndarray]:
+        """(points (13,2), cumulative arclength (13,)) of the panel's
+        physical strip path, ccw: start corner → half-edge → radial in
+        → radial out → finish edge, then the far edge, then the third,
+        back to the start corner."""
+        cached = self._path_cache.get(panel.tri_index)
+        if cached is not None:
+            return cached
         pts = self._net_geometry["points"]
         tris = [t for s in self._net_geometry["triangles"] for t in s]
         tri = tris[panel.tri_index]
         corner = np.asarray(panel.corner_xy)
-        others = [
-            np.asarray(pts[i][:2]) for i in tri if not np.allclose(pts[i][:2], corner)
-        ]
-        a0 = float(np.arctan2(*(others[0] - corner)[::-1]))
-        a1 = float(np.arctan2(*(others[1] - corner)[::-1]))
-        span = float(np.mod(a1 - a0 + np.pi, 2 * np.pi) - np.pi)
-        radius = 0.55 * min(float(np.linalg.norm(o - corner)) for o in others)
-        return a0, span, radius
+        vs = [np.asarray(pts[i][:2], dtype=np.float64) for i in tri]
+        k = next(i for i, v in enumerate(vs) if np.allclose(v, corner))
+        v1, va, vb = vs[k], vs[(k + 1) % 3], vs[(k + 2) % 3]
+        # ccw: walk the boundary counterclockwise in the net frame.
+        cross = float(np.cross(va - v1, vb - v1))
+        v2, v3 = (va, vb) if cross > 0 else (vb, va)
+        o = (v1 + v2 + v3) / 3.0
+        m12, m23, m31 = (v1 + v2) / 2, (v2 + v3) / 2, (v3 + v1) / 2
+        path = np.stack([v1, m12, o, m12, v2, m23, o, m23, v3, m31, o, m31, v1])
+        seg = np.linalg.norm(np.diff(path, axis=0), axis=1)
+        cum = np.concatenate([[0.0], np.cumsum(seg)])
+        self._path_cache[panel.tri_index] = (path, cum)
+        return path, cum
 
-    def _arc_frac(self, panel: PanelPlan, xy: np.ndarray) -> np.ndarray:
-        """Each position's fraction along the panel's arc from the a0
-        edge — the window-side mirror of hypothesis strip index / n."""
-        a0, span, _ = self._panel_arc(panel)
-        rel = xy - np.asarray(panel.corner_xy)
-        ang = np.arctan2(rel[:, 1], rel[:, 0])
-        d = np.mod(ang - a0 + np.pi, 2 * np.pi) - np.pi
-        frac: np.ndarray = np.clip(d / span, 0.0, 1.0)
-        return frac
-
-    def _strip_xy(self, panel: PanelPlan, density: int, winding: str) -> np.ndarray:
-        """Angular strip model: n positions arcing about the corner."""
-        a0, span, radius = self._panel_arc(panel)
-        corner = np.asarray(panel.corner_xy)
-        s = (np.arange(density) + 0.5) / density
+    def _strip_path_xy(
+        self, panel: PanelPlan, density: int, winding: str
+    ) -> np.ndarray:
+        """Hypothesis position of LED i of n: arclength (i+0.5)/n along
+        the serpentine; cw walks the same path the other way."""
+        path, cum = self._panel_path(panel)
+        total = float(cum[-1])
+        s = (np.arange(density) + 0.5) / density * total
         if winding == "cw":
-            s = s[::-1]
-        ang = a0 + span * s
-        arc: np.ndarray = corner[None, :] + radius * np.stack(
-            [np.cos(ang), np.sin(ang)], axis=1
-        )
+            s = total - s
+        seg_idx = np.clip(np.searchsorted(cum, s, side="right") - 1, 0, 11)
+        seg_len = np.maximum(cum[seg_idx + 1] - cum[seg_idx], 1e-9)
+        f = ((s - cum[seg_idx]) / seg_len)[:, None]
+        arc: np.ndarray = path[seg_idx] + f * (path[seg_idx + 1] - path[seg_idx])
         return arc
 
-    def _strip_phi(self, panel: PanelPlan, xy: np.ndarray) -> np.ndarray:
-        """PHI_S per strip light: nearest net-capture light in the same
-        panel (exact to LED pitch — plenty for the ring's 6° sigma)."""
-        m = self._net_tri == panel.tri_index
-        pts = self._net_xy[m]
-        phis = self._net_phi[m]
-        d = ((xy[:, None, :] - pts[None, :, :]) ** 2).sum(-1)
-        return np.asarray(phis[d.argmin(axis=1)])
+    def strip_refs(self, panel: PanelPlan, density: int, winding: str) -> np.ndarray:
+        """Reference net light per hypothesis LED — the single bridge
+        that lets every field render net-side (render.MappingPattern):
+        LED i of n is the light at the matching *rank* along the
+        serpentine (capture lights sorted by path fraction), so at the
+        panel's native density the mapping is an exact bijection and at
+        double density each light is referenced twice — no dark
+        skipped-light holes, robust to the strips' offset from the
+        centerline path."""
+        idx, frac = self._panel_path_frac(panel)
+        order = idx[np.argsort(frac, kind="stable")]
+        pos = np.floor((np.arange(density) + 0.5) / density * order.size)
+        refs = order[np.clip(pos.astype(np.int64), 0, order.size - 1)]
+        if winding == "cw":
+            refs = refs[::-1]
+        return np.asarray(refs)
+
+    def _panel_path_frac(self, panel: PanelPlan) -> Tuple[np.ndarray, np.ndarray]:
+        """(light indices, path fraction) for the panel's capture
+        lights: each light's fraction along the ccw serpentine — the
+        window-side mirror of hypothesis strip index / n."""
+        cached = self._frac_cache.get(panel.tri_index)
+        if cached is not None:
+            return cached
+        path, cum = self._panel_path(panel)
+        idx = np.flatnonzero(self._net_tri == panel.tri_index)
+        p = self._net_xy[idx]
+        a = path[:-1][None, :, :]
+        d = (path[1:] - path[:-1])[None, :, :]
+        len2 = np.maximum((d**2).sum(-1), 1e-9)
+        tproj = np.clip(((p[:, None, :] - a) * d).sum(-1) / len2, 0.0, 1.0)
+        foot = a + tproj[..., None] * d
+        dist = ((p[:, None, :] - foot) ** 2).sum(-1)
+        best = dist.argmin(axis=1)
+        rows = np.arange(idx.size)
+        s = cum[best] + tproj[rows, best] * np.sqrt(len2[0, best])
+        result = (idx, s / float(cum[-1]))
+        self._frac_cache[panel.tri_index] = result
+        return result
 
     # ----------------------------------------------------------- window
 
-    def _window_roles(self) -> Dict[str, np.ndarray]:
+    def _window_roles(self) -> np.ndarray:
         n = self._net_xy.shape[0]
         roles = np.full(n, R.BEADS, dtype=np.int64)
-        corner = np.zeros((n, 2))
-        hue = np.zeros(n)
         st, plan = self.state, self.plan
         unit_roles = self._unit_roles()
         constant = {
@@ -221,38 +279,37 @@ class SessionCore:
             board = st.boards[unit]
             for j, p in enumerate(plan.panels[unit]):
                 m = self._net_tri == p.tri_index
-                corner[m] = p.corner_xy
-                hue[m] = self._unit_hue[unit]
                 role = unit_roles[unit]
                 if role != "active":
                     roles[m] = constant[role]
                     continue
                 recorded = any(rec.face == p.face for rec in board.channels.values())
-                frac = self._arc_frac(p, self._net_xy[m])
+                idx, frac = self._panel_path_frac(p)
                 if j == st.panel_cursor:
                     # The strip under test: wheel on the first and last
-                    # quarters, deliberately dark between — a density
-                    # mismatch reads as only one half of the strip lit.
+                    # quarters of the strip path, deliberately dark
+                    # between — a density mismatch reads as only one
+                    # half of the strip lit.
                     ends = (frac <= _QUARTER) | (frac >= 1.0 - _QUARTER)
-                    roles[m] = np.where(ends, R.WHEEL_FULL, R.OFF)
+                    roles[idx] = np.where(ends, R.WHEEL_FULL, R.OFF)
                 elif recorded:
-                    roles[m] = R.WHEEL_DIM
+                    roles[idx] = R.WHEEL_DIM
                 else:
                     # Waiting panel: the first-30-LED preview sliver of
-                    # its intended wheel portion, dimmed like recorded strips.
+                    # its intended wheel portion, dimmed like recorded.
                     sliver = frac <= _PREVIEW_LEDS / _HYPO_DENSITY
-                    roles[m] = np.where(sliver, R.WHEEL_DIM, R.BEADS)
-        return {"roles": roles, "corner": corner, "hue": hue}
+                    roles[idx] = np.where(sliver, R.WHEEL_DIM, R.BEADS)
+        return roles
 
     def _window_pattern(self) -> R.MappingPattern:
-        parts = self._window_roles()
         return R.MappingPattern(
-            xy=self._net_xy,
-            roles=parts["roles"],
+            roles=self._window_roles(),
+            ref=np.arange(self._net_xy.shape[0]),
+            net_xy=self._net_xy,
             edges=self._edges,
-            corner_xy=parts["corner"],
-            hue=parts["hue"],
-            phi_s=self._net_phi,
+            net_anchor=self._net_anchor,
+            net_hue=self._net_hue,
+            net_phi=self._net_phi,
         )
 
     # ------------------------------------------------------------- wire
@@ -284,19 +341,18 @@ class SessionCore:
         unit_roles = self._unit_roles()
         specs: List[LightSpec] = []
         role_parts: List[np.ndarray] = []
-        corner_parts: List[np.ndarray] = []
-        hue_parts: List[np.ndarray] = []
-        phi_parts: List[np.ndarray] = []
+        ref_parts: List[np.ndarray] = []
 
         def add_strip(
             controller: int,
             channel: int,
-            xy: np.ndarray,
-            role: Union[int, np.ndarray],
             panel: PanelPlan,
+            density: int,
+            winding: str,
+            role: Union[int, np.ndarray],
         ) -> None:
-            n = xy.shape[0]
-            for i in range(n):
+            xy = self._strip_path_xy(panel, density, winding)
+            for i in range(density):
                 specs.append(
                     LightSpec(
                         controller=controller,
@@ -307,13 +363,11 @@ class SessionCore:
                     )
                 )
             role_parts.append(
-                np.full(n, role, dtype=np.int64)
+                np.full(density, role, dtype=np.int64)
                 if np.isscalar(role)
                 else np.asarray(role, dtype=np.int64)
             )
-            corner_parts.append(np.tile(np.asarray(panel.corner_xy), (n, 1)))
-            hue_parts.append(np.full(n, self._unit_hue[panel.unit_vertex]))
-            phi_parts.append(self._strip_phi(panel, xy))
+            ref_parts.append(self.strip_refs(panel, density, winding))
 
         for cid, unit in sorted(self._controller_units().items()):
             board = st.boards[unit]
@@ -323,34 +377,25 @@ class SessionCore:
             if role == "ring":
                 for ch, rec in board.channels.items():
                     p = plan.by_face[rec.face]
-                    add_strip(
-                        cid, ch, self._strip_xy(p, rec.density, rec.winding), R.RING, p
-                    )
+                    add_strip(cid, ch, p, rec.density, rec.winding, R.RING)
                 continue
 
             if role == "active":
                 for ch, rec in board.channels.items():
                     p = plan.by_face[rec.face]
-                    add_strip(
-                        cid,
-                        ch,
-                        self._strip_xy(p, rec.density, rec.winding),
-                        R.WHEEL_DIM,
-                        p,
-                    )
+                    add_strip(cid, ch, p, rec.density, rec.winding, R.WHEEL_DIM)
                 cursor_panel = panels[st.panel_cursor]
-                xy = self._strip_xy(
-                    cursor_panel, st.candidate_density, st.candidate_winding
-                )
-                idx = np.arange(xy.shape[0])
-                quarter = int(xy.shape[0] * _QUARTER)
-                ends = (idx < quarter) | (idx >= xy.shape[0] - quarter)
+                n = st.candidate_density
+                idx = np.arange(n)
+                quarter = int(n * _QUARTER)
+                ends = (idx < quarter) | (idx >= n - quarter)
                 add_strip(
                     cid,
                     st.candidate_channel,
-                    xy,
-                    np.where(ends, R.WHEEL_FULL, R.OFF),
                     cursor_panel,
+                    n,
+                    st.candidate_winding,
+                    np.where(ends, R.WHEEL_FULL, R.OFF),
                 )
                 recorded_faces = {rec.face for rec in board.channels.values()}
                 waiting = [
@@ -365,19 +410,15 @@ class SessionCore:
                 ]
                 for k, ch in enumerate(free):
                     if k < len(waiting):
-                        p = waiting[k]
-                        xy = self._strip_xy(p, _HYPO_DENSITY, "ccw")
                         preview = np.where(
                             np.arange(_HYPO_DENSITY) < _PREVIEW_LEDS,
                             R.WHEEL_DIM,
                             R.BEADS,
                         )
-                        add_strip(cid, ch, xy, preview, p)
+                        add_strip(cid, ch, waiting[k], _HYPO_DENSITY, "ccw", preview)
                     else:
                         p = panels[k % len(panels)]
-                        add_strip(
-                            cid, ch, self._strip_xy(p, _HYPO_DENSITY, "ccw"), R.BEADS, p
-                        )
+                        add_strip(cid, ch, p, _HYPO_DENSITY, "ccw", R.BEADS)
                 continue
 
             # beads / breathe / solid: all 8 channels stay fed —
@@ -389,11 +430,10 @@ class SessionCore:
                 known = board.channels.get(ch)
                 if known is not None:
                     p = plan.by_face[known.face]
-                    xy = self._strip_xy(p, known.density, known.winding)
+                    add_strip(cid, ch, p, known.density, known.winding, constant)
                 else:
                     p = panels[ch % len(panels)]
-                    xy = self._strip_xy(p, _HYPO_DENSITY, "ccw")
-                add_strip(cid, ch, xy, constant, p)
+                    add_strip(cid, ch, p, _HYPO_DENSITY, "ccw", constant)
 
         if not specs:
             return None
@@ -412,20 +452,18 @@ class SessionCore:
             )
         )
         self._wire_roles = np.concatenate(role_parts)[order]
-        self._wire_corner = np.concatenate(corner_parts)[order]
-        self._wire_hue = np.concatenate(hue_parts)[order]
-        self._wire_phi = np.concatenate(phi_parts)[order]
+        self._wire_ref = np.concatenate(ref_parts)[order]
         return lights
 
     def _wire_pattern(self, lights: LightsGeometry) -> R.MappingPattern:
-        xy = lights.array[:, [LightColumns.X, LightColumns.Y]]
         return R.MappingPattern(
-            xy=xy,
             roles=self._wire_roles,
+            ref=self._wire_ref,
+            net_xy=self._net_xy,
             edges=self._edges,
-            corner_xy=self._wire_corner,
-            hue=self._wire_hue,
-            phi_s=self._wire_phi,
+            net_anchor=self._net_anchor,
+            net_hue=self._net_hue,
+            net_phi=self._net_phi,
         )
 
     # -------------------------------------------------------- lifecycle
@@ -438,16 +476,21 @@ class SessionCore:
             self._show = default_registry().get("spiral")
         return self._show
 
+    def _finale(self, ref: np.ndarray) -> R.FinalePattern:
+        return R.FinalePattern(
+            show=self._show_pattern(),
+            net_lights=self._net_lights.array,
+            net_xy=self._net_xy,
+            net_phi=self._net_phi,
+            edges=self._edges,
+            ref=ref,
+            t0=self._last_t,
+        )
+
     def rebuild(self) -> None:
         done = self.state.stage == "done"
         window_pattern: Pattern = (
-            R.FinalePattern(
-                self._show_pattern(),
-                self._net_xy,
-                self._net_phi,
-                self._edges,
-                self._last_t,
-            )
+            self._finale(np.arange(self._net_xy.shape[0]))
             if done
             else self._window_pattern()
         )
@@ -456,14 +499,9 @@ class SessionCore:
         if wire_lights is None:
             self.wire_engine = None
             return
-        wire_pattern: Pattern
-        if done:
-            xy = wire_lights.array[:, [LightColumns.X, LightColumns.Y]]
-            wire_pattern = R.FinalePattern(
-                self._show_pattern(), xy, self._wire_phi, self._edges, self._last_t
-            )
-        else:
-            wire_pattern = self._wire_pattern(wire_lights)
+        wire_pattern: Pattern = (
+            self._finale(self._wire_ref) if done else self._wire_pattern(wire_lights)
+        )
         self.wire_engine = Engine(
             wire_lights,
             wire_pattern,
