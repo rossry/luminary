@@ -55,15 +55,33 @@ One state machine, surface-agnostic (see below). Keys: arrow keys and
 WASD are equivalent; enter, `p`, and space all confirm — so the whole
 flow works on an alpha-only keyboard with no special keys.
 
-The window and the wire are an **exact broadcast of one scene** — every
-board has one role at a time (beads / breathe / solid / active test /
-ring), applied to its planned panels on the window and to its strips on
-the wire; only placement differs (recorded strips use their recorded
-density and winding, everything else the canonical hypothesis: channel
-j ↔ planned panel j, 360 LEDs, ccw). Every probed controller is on the
-wire in every stage, so nothing physically plugged ever strands its
-last frame — before mapping, boards carry the beads backdrop, landing
-scrambled on the build by construction.
+The window and the wire are an **exact broadcast of one scene**, held
+two ways. First, every board has one role at a time (beads / breathe /
+solid / active test / ring), applied to its planned panels on the
+window and to its strips on the wire; only placement differs (recorded
+strips use their recorded density and winding, everything else the
+canonical hypothesis: channel j ↔ planned panel j, 360 LEDs, ccw).
+Second — and structurally — every rendered light carries a **reference
+net light**: all positional fields (beads, board hues, the wheel, the
+ring, the finale, even the post-mapping show) are evaluated *only* on
+the net capture and gathered through that reference, so there is no
+wire-side field evaluation that could diverge; the hypothesis changes
+which net lights a strip's indices reference, never the field values.
+The demo mockup paints decoded strips through the same references.
+Every probed controller is on the wire in every stage, so nothing
+physically plugged ever strands its last frame — before mapping,
+boards carry the beads backdrop, landing scrambled on the build by
+construction.
+
+**The strip path (physical, and the hypothesis).** A panel's strip
+starts at its six-red corner, runs half-way down the first edge, in
+along that radial to the center and back out its other side, finishes
+the edge; then the same on the far edge and on the third, returning to
+the start corner — twelve legs, matching the capture's beam runs
+(`[19, 11, 11, 19]` per facet). Hypothesis LED i of n sits at
+arclength (i + 0.5)/n along this path; a cw winding walks the same
+path the other way. This is the serpentine spec §19.6 was waiting on;
+identity capture should assign indices along it.
 
 Each board also owns an **identity color**: pleasant OKLCH hues spaced
 equally around the color wheel in plan order (moderate chroma — tags,
@@ -78,24 +96,25 @@ board switches to holding its color **steady** (no more breathing); a
 deselected candidate falls back to beads.
 
 **Stage B — panels, winding, density (per board).** The strip under
-test plays the orientation test: hue is the light's angle about the
-panel's six-red corner — one continuous wheel around the vertex, fixed
-by logical panel position (recording mappings never moves it) — under a
-three-spoke dark windmill sweeping clockwise around that vertex (three
-spokes = a third of the wait per panel). The active strip lights only
-its **first and last index quarters**, deliberately dark between, so a
-density mismatch in either direction reads as "only one half lit"
-rather than a subtle hue shift. ←/→ changes which channel carries the
-test until the right physical panel lights; ↑ toggles density
-(180/360), ↓ toggles winding (wrong winding shows the windmill sweeping
-the wrong way). A **single enter** confirms channel + density + winding
-together and advances; a confirmed panel holds its full-arc wheel
-portion at 30% of the active strip's brightness until the board
-completes. Meanwhile every *unmapped* strip on the active board lights
-its **first 30 LEDs** with its intended wheel portion at the same 30%
-(the flock of corner glows shows at a glance which physical panels
-belong to this board), and boards waiting their turn hold their steady
-identity color.
+test plays the orientation test: hue is the light's angle about its
+**board's vertex** — one continuous wheel per board, fixed by logical
+position (recording mappings never moves it); aux and consolidated
+panels continue their board's wheel rather than starting their own
+about their physical corner — under a three-spoke dark windmill
+sweeping slowly clockwise around that vertex (three spokes = a third
+of the wait per panel). The active strip lights only its **first and
+last index quarters**, deliberately dark between, so a density
+mismatch in either direction reads as "only one half lit" rather than
+a subtle hue shift. ←/→ changes which channel carries the test until
+the right physical panel lights; ↑ toggles density (180/360),
+↓ toggles winding (wrong winding shows the windmill sweeping the wrong
+way). A **single enter** confirms channel + density + winding together
+and advances; a confirmed panel holds its wheel portion at 20% of the
+active strip's brightness until the board completes. Meanwhile every
+*unmapped* strip on the active board lights its **first 30 LEDs** with
+its intended wheel portion at the same 20% (the flock of corner glows
+shows at a glance which physical panels belong to this board), and
+boards waiting their turn hold their steady identity color.
 
 **Stage C — mapped boards.** A fully mapped board flips to the "mapped"
 pattern *on both surfaces*: a horizontal ring of light, hue varying
@@ -117,13 +136,13 @@ a session resumed directly into the done stage replays it once from its
 own start.
 
 **Beads backdrop.** White beads that fade in, crawl the length of a
-strut (either direction), and fade out — independent seeded phases per
-strut and lane, staggered rather than synchronized — with a mirrored
-twin on the far side of the same strut: the twins only visually align
-once mapping is correct, which makes drift or error visible at a
-glance. Beads is also the firmware's default idle pattern before a host
-connects (see board storage below), so an unmapped, unhosted board
-looks intentional.
+strut (either direction), and fade out, all within about two seconds —
+independent seeded phases per strut and lane, staggered rather than
+synchronized — with a mirrored twin on the far side of the same strut:
+the twins only visually align once mapping is correct, which makes
+drift or error visible at a glance. Beads is also the firmware's
+default idle pattern before a host connects (see board storage below),
+so an unmapped, unhosted board looks intentional.
 
 ## Saved state
 
@@ -180,8 +199,9 @@ Entry point: one script (`python -m luminary.cli map`, flags
 
 The mapping parametrizes capture. Once a board's YAML exists, the
 pentagon capture assigns identity per panel from it: channel from the
-mapping, strip index 0 at the six-red corner, indices advancing in the
-recorded winding, 180 or 360 lights per the recorded density (the
+mapping, strip index 0 at the six-red corner, indices advancing along
+the serpentine strip path above in the recorded winding, 180 or 360
+lights per the recorded density (the
 `kinds`/`weights` machinery carries 360-LED panels as ACTIVE +
 INTERPOLATED if we choose to keep wire cost at 180/panel — decision at
 implementation time, measured, not assumed).

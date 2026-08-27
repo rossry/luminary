@@ -1,5 +1,8 @@
 # Luminary 2.1
 
+*In a hurry? [`QUICKSTART.md`](QUICKSTART.md) gets patterns playing in
+three commands.*
+
 Luminary drives a physical light installation for Next Year on Luna: a
 **scaffold** of structural lines carrying individually addressable LEDs,
 colored every frame by a **pattern** and streamed over a bit-efficient

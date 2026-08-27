@@ -6,12 +6,14 @@
  * BOTTOM: the same base-station window as mapping.html. Same keys, same
  * state machine, zero hardware.
  *
- * Mockup approximation (training aid, not a simulator): each physical
- * panel is painted per angular sector about its six-red corner — the mean
- * decoded sRGB of the wire strip's LEDs that land in that sector under the
- * panel's *physical* winding and density (the angular strip model of
- * session.py). Stream indices past the transmitted length are unfed LEDs
- * and contribute black; per-LED serpentine detail is intentionally lost.
+ * The mockup paints through the plan's serpentine strip references: for
+ * each physical strip, decoded LED i lands on the panel's reference net
+ * light for path position i under the panel's *physical* winding and
+ * density — the very same net-light bridge the wire renderer uses
+ * (SessionCore.strip_refs), so the mockup cannot diverge from the
+ * window's idea of the sphere. Stream indices past the transmitted
+ * length are unfed LEDs and contribute black; cells fed by two LEDs
+ * (a 360 strip over 180 reference lights) average them.
  */
 
 import {
@@ -21,35 +23,7 @@ import {
 import { LumiDecoder, FRAME_SESSION } from "./decoder.js";
 import { oklchToSrgb8 } from "./color.js";
 
-const SECTORS = 48; // angular buckets per panel; plenty for the band test
 const UNLIT = "#141419"; // an unfed panel is dark cloth, not a hole
-
-function sectorFills(strip, density, winding, K) {
-  const sums = new Float64Array(K * 3);
-  const counts = new Uint32Array(K);
-  const n = strip ? strip.length / 3 : 0;
-  const fills = new Array(K).fill(UNLIT);
-  for (let i = 0; i < density; i++) {
-    let f = (i + 0.5) / density; // arc fraction from the six-red corner
-    if (winding === "cw") f = 1 - f;
-    const k = Math.min(K - 1, Math.floor(f * K));
-    counts[k]++;
-    if (i < n) {
-      const [r, g, b] = oklchToSrgb8(strip[i * 3], strip[i * 3 + 1], strip[i * 3 + 2]);
-      sums[k * 3] += r;
-      sums[k * 3 + 1] += g;
-      sums[k * 3 + 2] += b;
-    } // else: no data for this LED → black
-  }
-  for (let k = 0; k < K; k++) {
-    if (!counts[k]) continue;
-    const r = Math.round(sums[k * 3] / counts[k]);
-    const g = Math.round(sums[k * 3 + 1] / counts[k]);
-    const b = Math.round(sums[k * 3 + 2] / counts[k]);
-    fills[k] = `rgb(${r},${g},${b})`;
-  }
-  return fills;
-}
 
 class BuildMockup {
   constructor(canvas) {
@@ -66,27 +40,12 @@ class BuildMockup {
     this.draws = built.draws;
     this.frameSegs = built.frame;
 
-    // Panel arc metadata by tri_index, from the plan JSON.
-    const meta = new Map();
+    // Serpentine references by tri_index, straight from the plan JSON
+    // (indices into layout.lights == draw indices).
+    const refs = new Map();
     for (const panels of Object.values(plan.panels)) {
-      for (const p of panels) {
-        meta.set(p.tri_index, { corner: p.corner_xy, a0: p.arc.a0, span: p.arc.span });
-      }
+      for (const p of panels) refs.set(p.tri_index, p.refs);
     }
-    // Group draws per panel; each draw's sector along the panel's arc is
-    // fixed by geometry (world coords — layout.lights carries them).
-    const wrap = (x) => Math.atan2(Math.sin(x), Math.cos(x));
-    this.panelDraws = new Map();
-    built.lightTri.forEach((tri, i) => {
-      const m = meta.get(tri);
-      if (!m) return;
-      const light = layout.lights[i];
-      const a = Math.atan2(light.y - m.corner[1], light.x - m.corner[0]);
-      const frac = Math.min(0.999, Math.max(0, wrap(a - m.a0) / m.span));
-      if (!this.panelDraws.has(tri)) this.panelDraws.set(tri, []);
-      this.panelDraws.get(tri).push({ draw: i, sector: Math.floor(frac * SECTORS) });
-    });
-
     // The scrambled wiring: which physical panel each (controller, channel)
     // actually drives, and how that panel is physically built.
     this.wiring = [];
@@ -94,7 +53,8 @@ class BuildMockup {
       for (const [ch, p] of Object.entries(board.channels)) {
         this.wiring.push({
           cid: Number(cid), ch: Number(ch),
-          tri: p.tri_index, winding: p.winding, density: p.density,
+          refs: refs.get(p.tri_index)[String(p.density)],
+          winding: p.winding, density: p.density,
         });
       }
     }
@@ -130,21 +90,41 @@ class BuildMockup {
   paint() {
     if (!this.draws) return;
     this.needsPaint = false;
-    const ctx = this.ctx;
+    const n = this.draws.length;
+    const sums = new Float64Array(n * 3);
+    const counts = new Uint32Array(n);
     for (const w of this.wiring) {
       let strip = null;
       try {
         strip = this.decoder.stripOKLCH(w.cid, w.ch);
       } catch {
         // this controller/channel has no stream yet → panel stays unlit
+        continue;
       }
-      const fills = sectorFills(strip, w.density, w.winding, SECTORS);
-      for (const { draw, sector } of this.panelDraws.get(w.tri) || []) {
-        const fill = fills[sector];
-        if (this.lastFill[draw] === fill) continue;
-        this.lastFill[draw] = fill;
-        fillDraw(ctx, this.draws[draw], fill);
+      const fed = strip.length / 3;
+      for (let i = 0; i < w.density; i++) {
+        const cell = w.winding === "cw" ? w.refs[w.density - 1 - i] : w.refs[i];
+        counts[cell]++;
+        if (i < fed) {
+          const [r, g, b] = oklchToSrgb8(
+            strip[i * 3], strip[i * 3 + 1], strip[i * 3 + 2]
+          );
+          sums[cell * 3] += r;
+          sums[cell * 3 + 1] += g;
+          sums[cell * 3 + 2] += b;
+        } // else: no data for this LED → black
       }
+    }
+    const ctx = this.ctx;
+    for (let cell = 0; cell < n; cell++) {
+      if (!counts[cell]) continue;
+      const r = Math.round(sums[cell * 3] / counts[cell]);
+      const g = Math.round(sums[cell * 3 + 1] / counts[cell]);
+      const b = Math.round(sums[cell * 3 + 2] / counts[cell]);
+      const fill = `rgb(${r},${g},${b})`;
+      if (this.lastFill[cell] === fill) continue;
+      this.lastFill[cell] = fill;
+      fillDraw(ctx, this.draws[cell], fill);
     }
   }
 }

@@ -224,8 +224,12 @@ density):
 ## 8. Deliberately deferred (with spec anchors)
 
 - **Pentagon `{controller, channel, index}` routing** (review §19.6):
-  round-robin placeholder in `pentagon/adapters.py::capture` — the single
-  place to change when physical strip routing is decided.
+  round-robin placeholder in `pentagon/adapters.py::capture`. The physical
+  strip path is now specified (plan/mapping/DESCRIPTION.md "The strip
+  path": six-red corner → half-edge → radial in/out → finish the edge,
+  three times around) and the mapping tool's wire hypothesis follows it;
+  assigning capture identities along it awaits the per-board mapping
+  YAMLs.
 - **Camera-scan capture** (§7.4, review §19.9): `from_scan.py` defines the
   `ScanBundle` contract; the CV solver is a later milestone.
 - **On-hardware firmware validation** (§13.6): the decoder core is

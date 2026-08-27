@@ -34,7 +34,7 @@ import json
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, AsyncIterator, Dict, List, Optional, Set, Tuple
+from typing import Any, AsyncIterator, Dict, List, Optional, Set
 
 import numpy as np
 import uvicorn
@@ -107,30 +107,15 @@ def state_snapshot(state: MappingState, plan: Plan) -> Dict[str, Any]:
     }
 
 
-def _panel_arcs(plan: Plan, geometry: Dict[str, Any]) -> Dict[int, Tuple[float, float]]:
-    """Per tri_index ``(a0, span)``: the signed angular arc of the strip
-    model about the six-red corner. Mirrors the angle math in
-    ``SessionCore._strip_xy`` (keep in sync) so the demo mockup places
-    strip index 0 exactly where the wire hypothesis does."""
-    pts = geometry["points"]
-    tris = [t for series in geometry["triangles"] for t in series]
-    out: Dict[int, Tuple[float, float]] = {}
-    for panel in plan.by_face.values():
-        tri = tris[panel.tri_index]
-        corner = np.asarray(panel.corner_xy)
-        others = [
-            np.asarray(pts[i][:2]) for i in tri if not np.allclose(pts[i][:2], corner)
-        ]
-        a0 = float(np.arctan2(*(others[0] - corner)[::-1]))
-        a1 = float(np.arctan2(*(others[1] - corner)[::-1]))
-        span = float(np.mod(a1 - a0 + np.pi, 2 * np.pi) - np.pi)
-        out[panel.tri_index] = (a0, span)
-    return out
-
-
-def plan_json(plan: Plan, geometry: Dict[str, Any]) -> Dict[str, Any]:
-    """The plan as JSON: units, per-unit panels, and each panel's strip arc."""
-    arcs = _panel_arcs(plan, geometry)
+def plan_json(core: SessionCore) -> Dict[str, Any]:
+    """The plan as JSON: units, per-unit panels, and each panel's
+    serpentine strip references — per density, the reference net light
+    (an index into the layout's lights, which are in the same row
+    order) for each hypothesis LED along the ccw path; cw is the same
+    list reversed. The demo mockup paints decoded strips through
+    exactly these references — the same bridge the wire renderer uses
+    (``SessionCore.strip_refs``), so the mockup cannot diverge either."""
+    plan = core.plan
     return {
         "net_name": plan.net_name,
         "units": list(plan.units),
@@ -142,9 +127,9 @@ def plan_json(plan: Plan, geometry: Dict[str, Any]) -> Dict[str, Any]:
                     "tri_index": p.tri_index,
                     "corner_vertex": p.corner_vertex,
                     "corner_xy": [float(p.corner_xy[0]), float(p.corner_xy[1])],
-                    "arc": {
-                        "a0": arcs[p.tri_index][0],
-                        "span": arcs[p.tri_index][1],
+                    "refs": {
+                        "180": core.strip_refs(p, 180, "ccw").tolist(),
+                        "360": core.strip_refs(p, 360, "ccw").tolist(),
                     },
                 }
                 for p in plan.panels[unit]
@@ -240,10 +225,7 @@ def create_mapping_app(
     station, ``"demo"`` for the mounted tutorial; both pages always stay
     reachable at ``/window`` and ``/demo``.
     """
-    geometry = json.loads((_CONFIGS / f"{core.plan.net_name}.json").read_text())[
-        "geometry"
-    ]
-    plan_doc = plan_json(core.plan, geometry)
+    plan_doc = plan_json(core)
     assert core.window_engine is not None  # rebuild() always constructs it
     layout_doc = projection.lights_layout(core.window_engine.lights)
 
