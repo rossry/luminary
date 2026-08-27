@@ -35,7 +35,7 @@
 | `luminary/render/svg.py` | §14.5 | Static SVG of scaffolds / lights (rendered once, never per frame) |
 | `luminary/server/app.py`, `store.py` | §15 | FastAPI adapter (all exit-condition endpoints) over a content-addressed file store |
 | `luminary/server/static/decoder.js`, `color.js`, `client.js`, `glow.js` | §14.2–§14.3 | Browser decoder (conformance sibling), color math, canvas client, WebGL2 realistic cloth render (§14.3.3) |
-| `luminary/cli.py` | §16 | `serve` / `play` / `capture` / `render` — every verb an adapter over the one engine |
+| `luminary/cli.py` | §16 | `serve` / `play` / `capture` / `render` / `map` — every verb an adapter over the one engine |
 | `firmware/scorpio/lib/lumicodec/` | §13 | Plain-C++17 decoder core + Q14 fixed-point color; host-compilable, no Arduino deps |
 | `firmware/scorpio/src/main.cpp` | §13 | Arduino sketch: serial in → NeoPXL8 out (not compilable without the Arduino toolchain) |
 | `firmware/golden/case1/` | §11.9 | Checked-in conformance corpus (see §3 below) |

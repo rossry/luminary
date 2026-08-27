@@ -13,9 +13,12 @@ channels):
 
 Adapters register frame sinks (serial writers, WebSocket broadcasters)
 and feed key events in; the core owns state transitions and engine
-rebuilds. A rebuild constructs fresh Engine instances, which restarts
-each consumer with SESSION + keyframe — late joiners and hypothesis
-changes are the same case.
+rebuilds. A rebuild constructs fresh Engine instances, whose first tick
+emits a keyframe; **re-sending SESSION frames after a rebuild is the
+adapter's job** (both the TUI and the web app do this from their state
+hooks — a topology-changing rebuild without a fresh SESSION would
+mis-size firmware strips). Late joiners and hypothesis changes are then
+the same case.
 
 Strip model note: within a panel the wire positions use the angular
 strip model — LED index i of n maps to the arc about the panel's
