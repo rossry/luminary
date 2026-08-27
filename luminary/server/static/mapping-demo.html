@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Luminary — Mapping tutorial</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6' fill='%23bf9f7f'/%3E%3C/svg%3E">
+  <style>
+    :root { color-scheme: dark; }
+    body {
+      margin: 0; background: #0a0a0d; color: #dcdce4;
+      font-family: system-ui, sans-serif; display: flex; flex-direction: column;
+      height: 100vh;
+    }
+    header {
+      display: flex; gap: .6rem; align-items: center; flex-wrap: wrap;
+      padding: .55rem .8rem; background: #16161c; border-bottom: 1px solid #26262e;
+    }
+    header h1 { font-size: 1rem; margin: 0 .6rem 0 0; font-weight: 600; }
+    #status { font-size: .8rem; color: #7fbf7f; }
+    #progress { margin-left: auto; font-variant-numeric: tabular-nums;
+                font-size: .8rem; color: #9a9aa8; }
+    #hud {
+      padding: .45rem .8rem; background: #121218; border-bottom: 1px solid #26262e;
+      font-size: .85rem; min-height: 1.2rem;
+    }
+    #hud .chip {
+      background: #22303b; color: #9fd0ff; border-radius: 999px;
+      padding: .1rem .55rem; font-size: .75rem; margin-right: .5rem;
+    }
+    #hud .chip.done { background: #22372a; color: #9fe0af; }
+    #hud .sep { color: #4a4a56; margin: 0 .5rem; }
+    #hud .dim { color: #8a8a98; }
+    #hud b { color: #ffd9a0; font-weight: 600; }
+    main {
+      flex: 1; min-height: 0; padding: .8rem;
+      display: flex; flex-direction: column; gap: .8rem;
+    }
+    .pane { flex: 1; min-height: 0; position: relative; }
+    .pane canvas { position: absolute; inset: 0; width: 100%; height: 100%;
+                   display: block; border-radius: 8px; }
+    .pane .label {
+      position: absolute; top: .45rem; left: .6rem; z-index: 1;
+      font-size: .72rem; letter-spacing: .04em; text-transform: uppercase;
+      color: #8a8a98; background: rgba(10,10,13,.65);
+      padding: .15rem .5rem; border-radius: 999px;
+    }
+    footer {
+      display: flex; gap: .5rem; align-items: center;
+      padding: .55rem .8rem; background: #16161c; border-top: 1px solid #26262e;
+    }
+    footer button {
+      background: #22222b; color: #dcdce4; border: 1px solid #34343e;
+      border-radius: 6px; padding: .35rem .8rem; font-size: .95rem; cursor: pointer;
+    }
+    footer button:hover { background: #2d2d38; }
+    footer button.confirm { background: #24322a; border-color: #3a5343; }
+    footer button.confirm:hover { background: #2d3f35; }
+    footer .legend { margin-left: auto; font-size: .78rem; color: #8a8a98; }
+    #overlay {
+      position: fixed; inset: 0; z-index: 10; display: flex;
+      align-items: center; justify-content: center;
+      background: rgba(8, 8, 11, .82); backdrop-filter: blur(2px);
+    }
+    #overlay .card {
+      max-width: 34rem; margin: 1rem; padding: 1.2rem 1.5rem;
+      background: #16161c; border: 1px solid #2c2c34; border-radius: 10px;
+    }
+    #overlay h2 { margin: 0 0 .6rem; font-size: 1.05rem; }
+    #overlay p { margin: .45rem 0; font-size: .88rem; line-height: 1.45; color: #c4c4d0; }
+    #overlay code { background: #22222b; padding: .05rem .35rem; border-radius: 4px; }
+    #overlay kbd {
+      background: #22222b; border: 1px solid #34343e; border-bottom-width: 2px;
+      border-radius: 4px; padding: 0 .35rem; font-size: .8rem;
+    }
+    #start {
+      margin-top: .8rem; background: #24322a; color: #dcdce4;
+      border: 1px solid #3a5343; border-radius: 6px;
+      padding: .45rem 1.2rem; font-size: .95rem; cursor: pointer;
+    }
+    #start:hover { background: #2d3f35; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Luminary · Mapping tutorial</h1>
+    <span id="status">connecting…</span>
+    <span id="progress"></span>
+  </header>
+  <div id="hud">waiting for state…</div>
+  <main>
+    <div class="pane">
+      <span class="label">the build — as plugged (scrambled)</span>
+      <canvas id="build-canvas"></canvas>
+    </div>
+    <div class="pane">
+      <span class="label">base-station window — the plan</span>
+      <canvas id="window-canvas"></canvas>
+    </div>
+  </main>
+  <footer>
+    <button data-event="left" title="previous (←/A)">◀</button>
+    <button data-event="up" title="toggle density (↑/W)">▲</button>
+    <button data-event="down" title="toggle winding (↓/S)">▼</button>
+    <button data-event="right" title="next (→/D)">▶</button>
+    <button data-event="enter" class="confirm" title="confirm (Enter)">⏎ confirm</button>
+    <span class="legend">arrows or WASD move · enter confirms</span>
+  </footer>
+  <div id="overlay">
+    <div class="card">
+      <h2 id="overlay-title">Map a scrambled sphere</h2>
+      <div id="overlay-body">
+        <p>The <b>top view</b> is the physical build: seven boards and 37
+        panels plugged in with no organization — mixed 180/360-LED
+        densities, random windings, unknown ports. The <b>bottom view</b>
+        is the base station's window: what the plan <i>intends</i>.</p>
+        <p><b>Stage A</b> — one planned board breathes below. Press
+        <kbd>←</kbd>/<kbd>→</kbd> until the matching cluster breathes
+        above, then <kbd>Enter</kbd> to lock that controller.</p>
+        <p><b>Stage B</b> — one planned panel shows the color-wheel test.
+        <kbd>←</kbd>/<kbd>→</kbd> pick the channel until the right panel
+        lights; <kbd>↑</kbd> toggles density (wrong = the wheel covers the
+        wrong arc); <kbd>↓</kbd> toggles winding (wrong = the dark band
+        sweeps the wrong way). One <kbd>Enter</kbd> records all three.</p>
+        <p>WASD works everywhere; mapped boards flip to the descending
+        ring when their last panel is confirmed.</p>
+      </div>
+      <button id="start">Start</button>
+    </div>
+  </div>
+  <script type="module" src="/static/mapping-demo.js"></script>
+</body>
+</html>
