@@ -23,15 +23,19 @@ Visual language (plan/mapping/DESCRIPTION.md):
                per strut and lane, never synchronized. Twins mirror
                across each strut.
   BREATHE      the board being placed breathes in its board color.
-  SOLID        a locked board holds its board color, steady.
+  SOLID        a board locked in stage A holds its color, steady, until
+               the ports stage completes; in stage B, waiting boards
+               are back on the beads backdrop.
   WHEEL        the orientation test: hue is the light's angle about its
-               BOARD's vertex — one continuous wheel per board, fixed by
-               logical position (recording a mapping never moves it);
-               aux and consolidated panels continue their board's wheel
-               rather than starting their own — under a three-spoke dark windmill
-               sweeping clockwise (net frame). Full brightness on the
-               strip under test; 20% brightness on recorded strips and
-               on the first-30-LED previews of unmapped strips.
+               board's HOME vertex — the corner the board's panels meet
+               at — one continuous wheel per board, fixed by logical
+               position (recording a mapping never moves it); the
+               data-aux door panels continue their board's wheel rather
+               than starting their own — under a three-spoke dark
+               windmill sweeping clockwise (net frame). Full brightness
+               on the strip under test; 20% brightness on recorded
+               strips and on the first-30-LED previews of unmapped
+               strips.
   OFF          deliberately unlit. The active strip plays the wheel on
                its first and last index quarters with OFF between, so a
                density mismatch in either direction reads as "only one
@@ -204,7 +208,7 @@ class MappingPattern(Pattern):
 
     def _wheel(self, t: float) -> Tuple[np.ndarray, np.ndarray]:
         """(intensity, hue) of the orientation test, on the net. Hue is
-        the net light's angle about its board's vertex — pure logical
+        the net light's angle about its board's home vertex — pure logical
         position, one continuous wheel per board — and the dark
         windmill's three spokes sweep clockwise in the net frame at
         _BAND_PERIOD."""

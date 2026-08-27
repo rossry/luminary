@@ -97,12 +97,14 @@ deselected candidate falls back to beads.
 
 **Stage B — panels, winding, density (per board).** The strip under
 test plays the orientation test: hue is the light's angle about its
-**board's vertex** — one continuous wheel per board, fixed by logical
-position (recording mappings never moves it); aux and consolidated
-panels continue their board's wheel rather than starting their own
-about their physical corner — under a three-spoke dark windmill
-sweeping slowly clockwise around that vertex (three spokes = a third
-of the wait per panel). The active strip lights only its **first and
+**board's home vertex** — the corner the board's panels meet at (a
+consolidated board's shared corner, e.g. unit 45's three triangles
+about vertex 34; a hexagon board's own center) — one continuous wheel
+per board, fixed by logical position (recording mappings never moves
+it); the data-aux door panels continue their board's wheel rather than
+starting their own about their physical corner — under a three-spoke
+dark windmill sweeping slowly clockwise around that vertex (three
+spokes = a third of the wait per panel). The active strip lights only its **first and
 last index quarters**, deliberately dark between, so a density
 mismatch in either direction reads as "only one half lit" rather than
 a subtle hue shift. ←/→ changes which channel carries the test until
@@ -113,8 +115,10 @@ and advances; a confirmed panel holds its wheel portion at 20% of the
 active strip's brightness until the board completes. Meanwhile every
 *unmapped* strip on the active board lights its **first 30 LEDs** with
 its intended wheel portion at the same 20% (the flock of corner glows
-shows at a glance which physical panels belong to this board), and
-boards waiting their turn hold their steady identity color.
+shows at a glance which physical panels belong to this board). Boards
+waiting their stage-B turn drop their stage-A identity color and
+return to the beads backdrop (still scrambled at the strip/channel and
+density level, by design).
 
 **Stage C — mapped boards.** A fully mapped board flips to the "mapped"
 pattern *on both surfaces*: a horizontal ring of light, hue varying

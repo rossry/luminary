@@ -49,6 +49,7 @@ the reference is tight.
 from __future__ import annotations
 
 import json
+from collections import Counter
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple
 
@@ -119,23 +120,26 @@ class SessionCore:
         self._net_phi = net_lights.array[:, LightColumns.PHI_S]
         hues = R.board_hues(len(plan.units))
         self._unit_hue = {u: float(hues[i]) for i, u in enumerate(plan.units)}
-        # The wheel anchors at each panel's BOARD vertex (net position
-        # of the unit), so aux and consolidated panels continue their
-        # board's wheel instead of starting their own about their
-        # physical corner. The strip path still starts at the corner.
-        point_vertex = self._net_geometry["fold"]["point_vertex"]
-        pts = self._net_geometry["points"]
-        unit_xy = {}
-        for point, vertex in enumerate(point_vertex):
-            if vertex in plan.units:
-                unit_xy[vertex] = (pts[point][0], pts[point][1])
-        assert set(unit_xy) == set(plan.units), "unit vertex missing from net"
+        # The wheel anchors at each board's HOME vertex: the corner its
+        # panels meet at (the most common six-red corner among them) —
+        # a consolidated board's panels all share their corner (unit
+        # 45's three meet at vertex 34), and a hexagon board's corner
+        # is its own vertex. Panels whose corner differs (the data-aux
+        # door faces) continue their board's wheel rather than starting
+        # their own. The strip path still starts at each panel's corner.
+        anchor_xy: Dict[int, Tuple[float, float]] = {}
+        for unit, plist in plan.panels.items():
+            counts = Counter(p.corner_vertex for p in plist)
+            home = min(counts, key=lambda v: (-counts[v], v))
+            anchor_xy[unit] = next(
+                p.corner_xy for p in plist if p.corner_vertex == home
+            )
         nb = xy.shape[0]
         self._net_anchor = np.zeros((nb, 2))
         self._net_hue = np.zeros(nb)
         for p in (p for plist in plan.panels.values() for p in plist):
             m = self._net_tri == p.tri_index
-            self._net_anchor[m] = unit_xy[p.unit_vertex]
+            self._net_anchor[m] = anchor_xy[p.unit_vertex]
             self._net_hue[m] = self._unit_hue[p.unit_vertex]
         self._path_cache: Dict[int, Tuple[np.ndarray, np.ndarray]] = {}
         self._frac_cache: Dict[int, Tuple[np.ndarray, np.ndarray]] = {}
@@ -202,7 +206,10 @@ class SessionCore:
                 elif i == st.board_cursor:
                     out[unit] = "active"
                 else:
-                    out[unit] = "solid"
+                    # Stage-A identity colors did their job; boards
+                    # waiting their stage-B turn return to the beads
+                    # backdrop (still scrambled strip/density-wise).
+                    out[unit] = "beads"
         return out
 
     # ------------------------------------------- the serpentine path

@@ -169,10 +169,11 @@ def test_wire_covers_every_controller_in_every_stage(plan, net_lights):
     while core.state.stage == "ports":
         core.apply(Event.ENTER)
     assert wire_cids() == set(CONTROLLERS)
-    # Locked-but-waiting boards hold their steady color, not breathing.
+    # Stage-A colors did their job: boards waiting their stage-B turn
+    # are back on the beads backdrop (still scrambled physically).
     later_cid = core.state.boards[plan.units[-1]].controller_id
     later = core.wire_engine.lights.ints(LightColumns.CONTROLLER) == later_cid
-    assert set(core._wire_roles[later]) == {R.SOLID}
+    assert set(core._wire_roles[later]) == {R.BEADS}
 
 
 def test_active_board_wire_details(plan, net_lights):
@@ -394,11 +395,21 @@ def test_serpentine_path_and_refs(plan, net_lights):
     assert set(refs360) == panel_lights
     assert np.array_equal(core.strip_refs(p, 180, "cw"), refs[::-1])
 
-    # Aux panels: anchored at their board's vertex, not their corner.
+    # Aux panels: anchored at their board's home vertex, not their own
+    # corner — they continue board 2's wheel about vertex 9.
     aux = plan.by_face[(3, 4, 8)]
     m = core._net_tri == aux.tri_index
     anchor = core._net_anchor[m][0]
-    own = plan.panels[9][0]  # a native panel of board 2 (unit 9)
+    own = next(p for p in plan.panels[9] if p.corner_vertex == 9)
     native = core._net_anchor[core._net_tri == own.tri_index][0]
     assert np.allclose(anchor, native)  # same wheel center: vertex 9
+    assert np.allclose(native, np.asarray(own.corner_xy))
     assert not np.allclose(anchor, np.asarray(aux.corner_xy))
+
+    # A consolidated board's wheel comes from the point its panels all
+    # meet at — unit 45's three triangles share corner vertex 34.
+    con = plan.panels[45]
+    assert {q.corner_vertex for q in con} == {34}
+    for q in con:
+        got = core._net_anchor[core._net_tri == q.tri_index][0]
+        assert np.allclose(got, np.asarray(q.corner_xy))
