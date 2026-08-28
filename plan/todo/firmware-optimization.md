@@ -86,6 +86,30 @@ worse: when the claim fails it retries every frame and thrashes the heap.
 Getting 8 slots at 360 px needs the slot to hold only the declared strip
 lengths rather than MAX_PER_STRIP, which is a layout change in staging.
 
+### DONE — stage only the outputs a board uses
+
+NeoPXL8 bit-plans all eight outputs every frame and skips a row whose bitmask
+is zero, but the board hands it all eight pins because it does not know its
+geometry until the SESSION lands. Masking the undeclared rows takes `show()`
+from 3.0 ms to 2.3 (6 outputs) or 1.3 (3 outputs), and the ceiling from ~68 to
+74 and 80 fps. Unlike colour conversion this is on the critical path, because
+staging writes the buffer the DMA reads.
+
+Done by subclassing to reach the protected `bitmask[]` -- no PIO or DMA
+re-init, which is the path that wedged the board during double buffering.
+`enableMask`, the other consumer, is SAMD-only.
+
+It does not raise the installation's rate, which its busiest board sets; it
+gives every lighter board headroom.
+
+### CLOSED — per-strip lengths cannot win DMA time
+
+All eight outputs are bit-planed into one buffer and clocked through a single
+PIO program in lockstep, so the transfer is bounded by the longest strip. A
+board wired 4x360 + 4x180 costs exactly what 8x360 costs. Splitting a 360-LED
+run across two outputs as two 180 chains is the wiring change that converts it
+into a 180 build and roughly doubles the ceiling.
+
 ### CLOSED — hardware interpolators are not worth doing
 
 INTERP0/INTERP1 would accelerate `cosInterp_q14` and the INTERPOLATED lerps,

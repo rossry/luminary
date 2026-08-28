@@ -91,9 +91,31 @@ they run on core1 or core0 concurrently with the DMA. Cutting conversion from
 fps: 4 ms of work bought 0.7 ms of frame time. Driving 8x90 through a 360
 build is no faster than 8x360 for the same reason.
 
-So the lever is `MAX_PER_STRIP`, set per board to that board's longest strip.
-Optimising the colour pipeline further buys nothing until the DMA shrinks;
-this is why the hardware interpolators were investigated and not adopted.
+`show()`'s share is proportional to the number of outputs actually **staged**,
+so a board is told which ones its geometry declares and stops bit-planing the
+rest:
+
+| Outputs used | `show()` | Ceiling |
+|---|---|---|
+| 8 of 8 | 3.0 ms | ~68 fps |
+| 6 of 8 | 2.3 ms | ~74 fps |
+| 3 of 8 | 1.3 ms | ~80 fps |
+
+This does not raise the *installation's* frame rate, which is set by its
+busiest board, but every lighter board gains that much headroom — margin for
+jitter rather than throughput.
+
+So the levers are `MAX_PER_STRIP`, set per board to that board's longest
+strip, and how many outputs each board serves. Optimising the colour pipeline
+further buys nothing until the DMA shrinks; this is why the hardware
+interpolators were investigated and not adopted.
+
+Per-strip lengths would not help: NeoPXL8 bit-plans all eight outputs into one
+buffer and clocks them through a single PIO program in lockstep, so the
+transfer is bounded by the longest strip. A board wired 4x360 + 4x180 costs
+exactly what 8x360 costs; the short strips have zeros clocked past their ends.
+Splitting a 360-LED run across two outputs as two 180 chains is what converts
+that into a 180 build, and roughly doubles the ceiling.
 
 ## Performance
 
