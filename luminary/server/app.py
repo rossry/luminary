@@ -280,6 +280,20 @@ def create_app(
 
     if broadcast_factory is not None:
 
+        @app.get("/api/preview/layout")
+        def preview_layout() -> JSONResponse:
+            """The running geometry's layout, straight from the session.
+
+            Not by store id: a broadcast can run a geometry that was never
+            stored -- the deployed capture built from the mapping records, or
+            the default production net -- and a preview that could only fetch
+            layouts by id would have nothing to draw.
+            """
+            session = getattr(app.state, "broadcast", None)
+            if session is None:
+                raise HTTPException(503, detail="stream not started")
+            return JSONResponse(projection.lights_layout(session.engine.lights))
+
         @app.get("/api/preview/info")
         def preview_info() -> Dict[str, Any]:
             session = getattr(app.state, "broadcast", None)

@@ -28,6 +28,7 @@ from luminary.comms.codec import CodecConfig
 if TYPE_CHECKING:
     from luminary.engine.engine import Engine
     from luminary.patterns.base import Pattern
+    from luminary.patterns.registry import PatternRegistry
     from luminary.geometry.lights import LightsGeometry
     from luminary.mapping.session import SessionCore
     from luminary.mapping.store import MappingStore
@@ -37,6 +38,74 @@ if TYPE_CHECKING:
 # honored verbatim; the default is var/, which ships in the repo
 # (var/.gitkeep), so no existence or fallback logic exists anywhere.
 from luminary.statedir import runtime_state_dir as _store_dir
+
+# What plays when nothing is named. `luminary play` with no arguments should
+# put lights on the sphere, so both of these have to answer without one.
+_DEFAULT_PATTERNS = ("aurora", "tidepool", "spiral")
+
+
+def _resolve_lights(
+    ref: Optional[str], store_dir: Path, config: str = "4A-33"
+) -> "LightsGeometry":
+    """A file, a store id, or -- with nothing named -- what is deployed.
+
+    The mapping records come first, because they describe the installation
+    that exists: the panels split across their real boards. The design capture
+    is the fallback, and it puts every light on controller 0 -- 5940 of them
+    for 4A-33, well past the firmware's 4096 ceiling, so a board handed it
+    refuses the SESSION and runs the test pattern. Defaulting to that would
+    mean `luminary play` shows running beads on a mapped sphere.
+    """
+    from luminary.stage.web import resolve_stage_lights
+
+    if ref is not None:
+        return resolve_stage_lights(ref, store_dir)
+    try:
+        from luminary.geometry.net import Net
+        from luminary.geometry.pentagon.mapped import capture_mapped
+        from luminary.mapping.plan import Plan
+        from luminary.mapping.store import MappingStore
+
+        plan = Plan.load(config)
+        records = MappingStore(_store_dir(None, "mapping")).load_records(plan)
+        if records:
+            configs = Path(__file__).resolve().parents[1] / "configs"
+            net = Net.from_json_file(configs / f"{config}.json")
+            # strict=False: mid-commissioning, drive what is mapped so far.
+            return capture_mapped(net, plan, records, strict=False)
+    except Exception:
+        pass  # nothing mapped, or not the pentagon net
+    return resolve_stage_lights(ref, store_dir)
+
+
+def _warn_oversized(lights: "LightsGeometry") -> None:
+    """A board refuses a SESSION over MAX_ACTIVE_LIGHTS and runs the test
+    pattern, which reads as a wiring fault rather than a geometry that does
+    not fit."""
+    for controller in lights.controllers:
+        active = len(lights.active_rows_for_controller(controller))
+        if active > 4096:
+            print(
+                f"warning: controller {controller} would get {active} active "
+                "lights, over the firmware's 4096 ceiling — it will refuse "
+                "the geometry and run its test pattern (running rainbow "
+                "beads). Map the installation, then `luminary geometry`.",
+                file=sys.stderr,
+            )
+
+
+def _default_pattern(registry: "PatternRegistry") -> "Pattern":
+    """A pattern to open on. Named ones first so the default is stable
+    across checkouts, then whatever loaded."""
+    for name in _DEFAULT_PATTERNS:
+        try:
+            return registry.get(name)
+        except (KeyError, ValueError):
+            continue
+    # registry.patterns is name -> Pattern; sorted so the fallback is stable.
+    if not registry.patterns:
+        raise SystemExit("no patterns loaded")
+    return registry.get(sorted(registry.patterns)[0])
 
 
 def _load_lights(ref: str, store_dir: Path) -> "LightsGeometry":
@@ -90,8 +159,11 @@ def cmd_play(args: argparse.Namespace) -> int:
     from luminary.engine.engine import Engine
     from luminary.patterns.registry import default_registry
 
-    lights = _load_lights(args.lights, _store_dir(args.store))
-    pattern = default_registry().get(args.pattern)
+    store_dir = _store_dir(args.store)
+    registry = default_registry()
+    lights = _resolve_lights(args.lights, store_dir)
+    _warn_oversized(lights)
+    pattern = registry.get(args.pattern) if args.pattern else _default_pattern(registry)
     config = CodecConfig(budget_bytes=args.budget)
     engine = Engine(lights, pattern, fps=args.fps, codec_config=config)
 
@@ -481,7 +553,7 @@ def _serve_broadcast(
 
     def factory(loop: "asyncio.AbstractEventLoop") -> BroadcastSession:
         return BroadcastSession(
-            engine, ports, loop=loop, baud=args.baud, lights_id=args.lights
+            engine, ports, loop=loop, baud=args.baud, lights_id=args.lights or ""
         )
 
     app = create_app(
@@ -717,8 +789,15 @@ def main(argv: Optional[list] = None) -> int:
         p.add_argument("--no-browser", action="store_true", help="Don't open a browser")
 
     play = sub.add_parser("play", help="One pattern to the boards and to a local page")
-    play.add_argument("--lights", required=True, help="Lights file or store id")
-    play.add_argument("--pattern", required=True)
+    play.add_argument(
+        "--lights",
+        default=None,
+        help="Lights file or store id (default: the production capture; pass "
+        "the id `luminary geometry` printed to drive what you mapped)",
+    )
+    play.add_argument(
+        "--pattern", default=None, help="Pattern name (default: the first available)"
+    )
     _broadcast_args(play)
     play.add_argument(
         "--dry-run",
@@ -839,8 +918,8 @@ def main(argv: Optional[list] = None) -> int:
 
     # `show` is `play` under its older name, kept so existing runbooks work.
     show = sub.add_parser("show", help="Alias for `play`")
-    show.add_argument("--lights", required=True, help="Lights file or store id")
-    show.add_argument("--pattern", required=True)
+    show.add_argument("--lights", default=None, help="Lights file or store id")
+    show.add_argument("--pattern", default=None)
     _broadcast_args(show)
     show.add_argument("--dry-run", action="store_true", help=argparse.SUPPRESS)
     show.add_argument("--duration", type=float, default=None, help=argparse.SUPPRESS)

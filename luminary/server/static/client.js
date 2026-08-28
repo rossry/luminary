@@ -118,13 +118,17 @@ class Client {
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
     const status = el("status");
     if (status) status.textContent = `${info.pattern} @ ${info.fps} fps`;
-    await this.attach(info.lights, `${proto}//${location.host}/api/preview`);
+    // Layout comes from the session, not by store id: the running geometry
+    // may never have been stored (a deployed capture, or the default net).
+    await this.attach(null, `${proto}//${location.host}/api/preview`);
   }
 
   async attach(lightsId, url) {
     if (this.ws) this.ws.close();
 
-    this.layout = await fetch(`/api/lights/${lightsId}/layout`).then((r) => r.json());
+    const layoutUrl =
+      lightsId === null ? "/api/preview/layout" : `/api/lights/${lightsId}/layout`;
+    this.layout = await fetch(layoutUrl).then((r) => r.json());
     this.buildDrawList();
     this.decoder = new LumiDecoder();
     this.bytes = 0;
