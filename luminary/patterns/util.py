@@ -71,6 +71,24 @@ def phi_theta(lights: np.ndarray) -> tuple:
     return phi, th
 
 
+def plane_xy(lights: np.ndarray) -> tuple:
+    """Drawing-plane coordinates centered on the layout, long axis ~[-1, 1].
+
+    Geometry-agnostic (works on any net or fold) and scale-free, so a
+    pattern tuned on one sphere reads the same on another.
+    """
+    px = lights[:, LightColumns.X]
+    py = lights[:, LightColumns.Y]
+    cx = 0.5 * (float(np.min(px)) + float(np.max(px)))
+    cy = 0.5 * (float(np.min(py)) + float(np.max(py)))
+    scale = max(
+        1e-6,
+        0.5 * (float(np.max(px)) - float(np.min(px))),
+        0.5 * (float(np.max(py)) - float(np.min(py))),
+    )
+    return (px - cx) / scale, (py - cy) / scale
+
+
 def wrap_hue(h: np.ndarray) -> np.ndarray:
     """Wrap hue degrees into [0, 360)."""
     out: np.ndarray = np.mod(h, 360.0)
