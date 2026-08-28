@@ -997,6 +997,7 @@ class Motif(Primitive):
     chroma = 0.05
     attack = 0.12
     decay = 0.85
+    phase_s = 0.0  # shift the cycle: the first note lands at phase_s
 
     def render(self, lights: np.ndarray, t: float) -> np.ndarray:
         n = lights.shape[0]
@@ -1006,7 +1007,7 @@ class Motif(Primitive):
         sigma = np.radians(self.pool_deg)
 
         step = self.note_frac * self.cycle_s / self.count
-        t_in = t % self.cycle_s
+        t_in = (t - self.phase_s) % self.cycle_s
         level = np.zeros(n)
         for i in range(self.count):
             az = np.radians((i * 137.508) % 360.0)
