@@ -228,6 +228,31 @@ def test_overnight_nests_the_repertoire():
     )
 
 
+def test_chapters_tree_and_loop_flag():
+    registry = default_registry()
+    over = registry.get("overnight")
+    noc = registry.get("nocturne")
+    assert over.loop is True  # configured to repeat
+    assert noc.loop is False
+
+    tree = over.chapters()
+    assert len(tree) == 8
+    first = tree[0]
+    assert first["pattern"] == "nocturne" and first["start"] == 0.0
+    # Nested conductors expand recursively, with starts offset into the
+    # OUTER timeline (rendering the outer show over [start, start+dur)
+    # IS the chapter — held bit-identical by the overnight nesting test).
+    subs = first["children"]
+    assert len(subs) == 7
+    assert subs[0]["start"] == 0.0
+    assert subs[2]["start"] == 900.0  # nocturne III inside chapter 1
+    assert all("title" in c and "notes" in c for c in subs)
+    assert "children" not in tree[1]  # a plain-pattern chapter is a leaf
+
+    rows = noc.schedule()
+    assert all("title" in r and "notes" in r for r in rows)
+
+
 def test_registry_finds_book_two_and_volumes():
     registry = default_registry()
     names = set(registry.patterns)
