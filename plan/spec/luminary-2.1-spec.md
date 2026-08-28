@@ -764,7 +764,7 @@ codes ≈ equal perceptual steps.
 7 of qH — `[L5|C4|H7]` = 16 bits (2 bytes) per light. Encode rounds
 (`field = (q+1)>>1`, clamped; hue wraps); decode reconstructs `q = field << 1`.
 A keyframe therefore lands within 1 LSB of full precision; the bottom bit is
-recovered by subsequent deltas.
+recovered by the same-tick DELTA frame (§11.7.3a).
 
 11.4.3 **Delta fields carry signed fine corrections** in sign+magnitude form:
 1+4 bits for L, 1+3 for C, 1+6 for H — `[sL|mL4|sC|mC3|sH|mH6]` = 16 bits
@@ -840,7 +840,25 @@ subsequent frames carry only colors.
 11.7.3 `KEYFRAME` sends every ACTIVE light's full quantized OKLCH (resets
 predictor state on both ends). Keyframes are sent on session start, on
 pattern/lights change (§10.4), on decoder resync request, and periodically every
-`keyframe_interval` ticks (default ≈ every 2–5 s) to bound drift. 11.7.4 `DELTA`
+`keyframe_interval` ticks (default ≈ every 2–5 s) to bound drift.
+
+11.7.3a **Same-tick heal** (amended 2026-08-28): on every KEYFRAME tick the
+encoder emits the KEYFRAME frame *followed, within the same tick, by a normal
+DELTA frame* — the standard error-ranked pass of §11.6 run against the
+just-snapped model — so the §11.4.2 rounding residue and the velocity reset
+heal in the same tick instead of bleeding across subsequent ones. Without
+this, every cadence keyframe dips roughly half the lights by one fine LSB
+for several frames: a synchronized, field-wide pulse at the keyframe cadence,
+invisible under fast content but glaring on slow, dark material (found live
+with book two's *Nocturne*: a ~2 s "heartbeat" shiver in the ember bed, and
+stars visibly sagging off their twinkle ramps at each keyframe as velocity
+reset). Decoders are unaffected — frames are already processed independently,
+so this is encoder emission policy only, and streams remain decodable by
+unmodified deployed decoders. On budget-capped links (§11.6, serial) the heal
+corrections simply compete under the normal ranking — being the largest
+errors, they go first — and may take an extra tick or two to complete.
+
+11.7.4 `DELTA`
 carries the budgeted corrections of §11.6 as `(skip run, [corrections])*`.
 
 11.7.5 Frame header fields: version, type, `controller`, `t` (float64 seconds,

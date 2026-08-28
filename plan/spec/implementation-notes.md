@@ -30,7 +30,7 @@
 | `luminary/patterns/repertoire.py` | §9.4 | Importable home of the substantial book-two voices (`SmallPlanet`, `Fireflies`, `Relay`) and show builders (`nocturne_movements`) — pattern files are exec-loaded, never importable, so art lives here exactly when another show composes it (§2.9) |
 | `luminary/comms/protocol.py` | §11.4, §11.7 | Wire constants: COBS+CRC16 framing, 13-byte header (f64 `t`), quantization, keyframe/delta word packing, varints, SESSION payloads |
 | `luminary/comms/predictor.py` | §11.5 | The normative integer dead-reckoning step — shared by encoder mirror and decoder so they cannot diverge |
-| `luminary/comms/codec.py` | §11.6–§11.8 | `Encoder` (error-ranked budgeted deltas, keyframe cadence, per-controller frames) and the reference `Decoder` |
+| `luminary/comms/codec.py` | §11.6–§11.8 | `Encoder` (error-ranked budgeted deltas, keyframe cadence, per-controller frames) and the reference `Decoder`. Keyframe ticks also emit the same-tick healing DELTA (§11.7.3a) — without it, the 2 s cadence visibly pulses slow dark content (found live with Nocturne); encoder-only, so deployed decoders are unaffected |
 | `luminary/engine/engine.py` | §10 | `lights + pattern + t → wire frames`; the single pipeline assembly point; `colors_srgb8` for static renders |
 | `luminary/drivers/serial_driver.py` | §12.2 | One process, one engine, port-per-controller; baud-derived budgets; HELLO/RESYNC |
 | `luminary/drivers/websocket_driver.py` | §12.3 | Same bytes over WS; JSON control inbound (resync / set_pattern / pause / resume) |

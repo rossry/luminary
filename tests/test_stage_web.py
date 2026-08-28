@@ -125,6 +125,8 @@ def test_ws_stream_session_then_frames(stage):
 
             core.tick()  # the join requested a keyframe
             assert decoder.decode(ws.receive_bytes())[0] == p.FRAME_KEYFRAME
+            # ...followed by the same-tick healing delta (spec §11.7.3a).
+            assert decoder.decode(ws.receive_bytes())[0] == p.FRAME_DELTA
             clock.advance(TICK)
             core.tick()
             assert decoder.decode(ws.receive_bytes())[0] == p.FRAME_DELTA
@@ -137,6 +139,7 @@ def test_ws_stream_session_then_frames(stage):
             clock.advance(TICK)
             core.tick()
             assert decoder.decode(ws.receive_bytes())[0] == p.FRAME_KEYFRAME
+            assert decoder.decode(ws.receive_bytes())[0] == p.FRAME_DELTA
 
             # Client resync request forces a keyframe (well before the
             # 2 s cadence could: the clock only advances ~1 s here).

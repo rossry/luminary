@@ -210,7 +210,9 @@ def test_gapless_advance_same_engine_no_session(tmp_path, registry, lights):
     clock.advance(0.4)
     core.tick()  # entry 0, keyframed (its start forced one)
     assert seen_t[-1] == pytest.approx(0.4)
-    assert decoder.decode(stream[-1])[0] == p.FRAME_KEYFRAME
+    # Keyframe plus its same-tick healing delta (spec §11.7.3a).
+    assert decoder.decode(stream[-2])[0] == p.FRAME_KEYFRAME
+    assert decoder.decode(stream[-1])[0] == p.FRAME_DELTA
 
     clock.advance(0.3)
     core.tick()
@@ -223,10 +225,17 @@ def test_gapless_advance_same_engine_no_session(tmp_path, registry, lights):
     assert snap["now"]["index"] == 1 and snap["now"]["pattern"] == "timed"
     assert snap["now"]["holding"] is False
     assert seen_t[-1] == pytest.approx(0.0)  # per-entry t: restarts at 0
-    # The whole stream: keyframe, delta, keyframe-on-advance — and never
-    # a mid-show SESSION (the geometry lives as long as the stage).
+    # The whole stream: keyframe (+ same-tick heal, §11.7.3a), delta,
+    # keyframe-on-advance (+ heal) — and never a mid-show SESSION (the
+    # geometry lives as long as the stage).
     types = _decode_all(engine, stream)
-    assert types == [p.FRAME_KEYFRAME, p.FRAME_DELTA, p.FRAME_KEYFRAME]
+    assert types == [
+        p.FRAME_KEYFRAME,
+        p.FRAME_DELTA,
+        p.FRAME_DELTA,
+        p.FRAME_KEYFRAME,
+        p.FRAME_DELTA,
+    ]
     assert p.FRAME_SESSION not in types
 
 
