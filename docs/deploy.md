@@ -107,6 +107,27 @@ as in Path 1. On Fly.io: `fly launch` accepts the Dockerfile as-is; add a
 volume for `/data/var` and put the app behind Fly's built-in
 authentication or a tailnet, not on a bare public URL.
 
+## Stage (play queue + audio)
+
+`serve` runs the stage at `/stage` by default (`--no-stage` to skip): the
+play queue that decides what the sphere is playing, persisted in
+`var/stage/queue.json`. Its ticker idles whenever no viewer is connected,
+no audio is playing, and the queue is exhausted, so it costs nothing to
+leave on. For synchronized audio, install a player on the box — stock
+Ubuntu ships none:
+
+```bash
+sudo apt install mpv        # or vlc / ffmpeg; auto-detected in that order
+```
+
+and drop files into `var/audio/` (`scp`, or however you move media). With
+no player installed the stage still runs; entries just play silent (the
+startup log says so once; `serve --audio-player CMD` overrides detection).
+The default stage geometry is the production `pentagon-4A-33` capture;
+`--stage-lights <store id | file>` substitutes another. A restart resumes
+the current queue entry from its beginning — there is no mid-file audio
+seek.
+
 ## Smoke test (either path)
 
 ```bash

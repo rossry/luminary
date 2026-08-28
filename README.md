@@ -80,6 +80,26 @@ against shared golden vectors (`firmware/golden/`).
 | `WS /api/play?lights=ID&pattern=NAME` | wire-protocol streaming |
 | `GET /demo/mapping` | the scrambled-build mapping tutorial, mounted here by `serve` (opt out: `--no-mapping-demo`); also standalone via `python -m luminary.mapping.web` |
 | `GET …/api/mapping/layout` · `WS …/api/mapping/{window,wire,control}` | the mapping app's own API (`luminary.mapping.web`, under whatever prefix it serves at): layout+plan+state JSON; wire-codec streams; key events. A live session's window page is `/window` — its own process, `python -m luminary.cli map --web` |
+| `GET /stage` · `GET/POST /api/queue` · `DELETE /api/queue/{i}` · `POST /api/queue/{move,skip,clear}` | the stage: viewer/control page and the play-queue API (tracklist + now-playing; mounted by `serve`, opt out: `--no-stage`) |
+| `WS /api/stage` · `GET /api/stage/layout` | the stage's wire-codec stream (SESSION on join, `{"type":"resync"}` back) and its canvas draw layout |
+| `GET /api/audio` | audio files available to queue entries (`var/audio/`) |
+
+## The stage (play queue)
+
+`serve` runs the **stage** at `/stage`: one engine over the production
+sphere geometry (`--stage-lights` overrides with a store id or lights
+file) playing a persisted tracklist, gaplessly — entries advance by
+pattern swap on the same engine, each pattern seeing t from its own
+entry's start, so long-form shows and audio cue sheets align at 0. An
+entry is `{pattern, duration, audio}`: `duration` null defers to the
+pattern's own `duration` attribute (else it plays until skipped);
+`audio` names a file in `var/audio/`, played by an auto-detected local
+player (`mpv`/`cvlc`/`ffplay`; `--audio-player CMD` overrides) that is
+started at the entry's t=0 and killed on skip/advance. An exhausted
+queue holds the last pattern, looping — the sphere never goes dark —
+and the whole tracklist survives restarts (`var/stage/queue.json`).
+The page is a thin adapter over `/api/queue`; every playback decision
+lives server-side in `luminary/stage/core.py`.
 
 ## Pattern development
 

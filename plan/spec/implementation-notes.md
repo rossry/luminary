@@ -41,6 +41,10 @@
 | `luminary/render/svg.py` | §14.5 | Static SVG of scaffolds / lights (rendered once, never per frame) |
 | `luminary/server/app.py`, `store.py` | §15 | FastAPI adapter (all exit-condition endpoints) over a content-addressed file store |
 | `luminary/server/static/decoder.js`, `color.js`, `client.js`, `glow.js` | §14.2–§14.3 | Browser decoder (conformance sibling), color math, canvas client, WebGL2 realistic cloth render (§14.3.3) |
+| `luminary/stage/core.py` | — | `StageCore`: the play-queue control plane — ONE engine over one geometry, tracklist + now-playing index, gapless `set_pattern` advance with per-entry t, duration from entry or the pattern's own `duration` attribute, hold-on-empty (loops the last pattern, never dark), `queue.json` (tmp+rename) under `<state dir>/stage/` |
+| `luminary/stage/audio.py` | — | Optional per-entry audio: player auto-detect (mpv → cvlc → ffplay; `--audio-player` overrides), one subprocess started at the entry's t=0 and terminated on skip/advance, files from `<state dir>/audio/` (bare filenames only) |
+| `luminary/stage/web.py` | — | Stage web adapter (`/stage`, `/api/queue`, `/api/audio`, `WS /api/stage` + layout): thin routes over `StageCore`, mapping-web-shaped per-socket sinks and fps ticker that idles when no sinks + no audio + queue exhausted; `--stage-lights` resolver (default: the pentagon-4A-33 capture) |
+| `luminary/server/static/stage.html`, `stage.js` | — | The stage page: canvas viewer (imports `StreamView`/`WireStream` from `mapping.js`) + queue panel; renders `/api/queue` state and sends commands, ~2 s poll — no client-side scheduling |
 | `luminary/cli.py` | §16 | `serve` / `play` / `capture` / `render` / `map` — every verb an adapter over the one engine |
 | `firmware/scorpio/lib/lumicodec/` | §13 | Plain-C++17 decoder core + Q14 fixed-point color; host-compilable, no Arduino deps |
 | `firmware/scorpio/src/main.cpp` | §13 | Arduino sketch: serial in → NeoPXL8 out (not compilable without the Arduino toolchain) |
