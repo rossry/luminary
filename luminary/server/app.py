@@ -1,6 +1,6 @@
 """FastAPI app: the exit-condition REST + WebSocket API (spec §15).
 
-A thin adapter: every endpoint translates HTTP/WS to store/registry/engine
+A thin adapter: every endpoint translates HTTP/WS to geometry/registry/engine
 calls and holds no rendering or codec logic (spec §15.1.1). The engine never
 imports this module.
 """
@@ -26,13 +26,13 @@ from luminary.geometry.lights import LightsGeometry, LightsGeometryError
 from luminary.geometry.scaffold import Scaffold, ScaffoldError
 from luminary.patterns.registry import PatternRegistry, default_registry
 from luminary.render import projection, svg
-from luminary.server.store import Store
+from luminary.server.geometry_store import GeometryStore
 
 _STATIC_DIR = Path(__file__).parent / "static"
 
 
 def create_app(
-    store_dir: Optional[Path] = None,
+    state_dir: Optional[Path] = None,
     registry: Optional[PatternRegistry] = None,
     uploads_dir: Optional[Path] = None,
     allow_pattern_upload: bool = True,
@@ -48,11 +48,11 @@ def create_app(
     shared deployments run without them and take patterns from the repo
     instead (docs/deploy.md). ``mapping_demo=True`` mounts the hardware-free
     mapping tutorial (``luminary.mapping.web``) at ``/demo/mapping``; its
-    mapping records persist under ``<store_dir>/mapping-demo/``.
+    mapping records persist under ``<state_dir>/mapping-demo/``.
     ``stage=True`` runs the play-queue control plane (``luminary.stage``) at
-    /stage + /api/queue over the ``stage_lights`` geometry (a store id or
+    /stage + /api/queue over the ``stage_lights`` geometry (a geometry id or
     file path; default: the production pentagon-4A-33 capture), with state
-    under ``<store_dir>/stage/`` and audio files from ``<store_dir>/audio/``
+    under ``<state_dir>/stage/`` and audio files from ``<state_dir>/audio/``
     (player auto-detected; ``audio_player`` overrides). ``stage_key``
     (default: env ``LUMINARY_STAGE_KEY``; an explicit argument wins) gates
     the stage's mutating endpoints behind an ``X-Stage-Key`` header —
@@ -64,10 +64,12 @@ def create_app(
     streaming to hardware, and ``/preview`` mirrors those exact bytes. It is a
     factory rather than a session because the session needs the loop uvicorn
     ends up running, which does not exist yet at app-build time."""
-    store_dir = Path(store_dir or "var")
-    uploads_dir = Path(uploads_dir or store_dir / "patterns-uploads")
+    from luminary.statedir import runtime_state_dir
+
+    state_dir = Path(state_dir) if state_dir is not None else runtime_state_dir()
+    uploads_dir = Path(uploads_dir or state_dir / "patterns-uploads")
     uploads_dir.mkdir(parents=True, exist_ok=True)
-    store = Store(store_dir)
+    docs = GeometryStore(state_dir)
     registry = registry or default_registry(
         [uploads_dir] if allow_pattern_upload else []
     )
@@ -77,7 +79,7 @@ def create_app(
         from luminary.mapping.web import create_demo_app
 
         demo_app = create_demo_app(
-            root_page="demo", store_dir=store_dir / "mapping-demo"
+            root_page="demo", state_dir=state_dir / "mapping-demo"
         )
 
     stage_core = None
@@ -88,7 +90,7 @@ def create_app(
 
         stage_key = stage_key or os.environ.get("LUMINARY_STAGE_KEY") or None
         stage_core = build_stage(
-            store_dir, registry, lights_ref=stage_lights, audio_player=audio_player
+            state_dir, registry, lights_ref=stage_lights, audio_player=audio_player
         )
 
     @asynccontextmanager
@@ -138,7 +140,7 @@ def create_app(
         # process can reach the core -- `luminary stage` appends a serial sink
         # to it, which is how the queue reaches the boards.
         app.state.stage = stage_core
-    app.state.store = store
+    app.state.geometry_docs = docs
     app.state.registry = registry
     app.state.uploads_dir = uploads_dir
     app.state.allow_pattern_upload = allow_pattern_upload
@@ -164,19 +166,19 @@ def create_app(
             Scaffold.load(doc)  # validate before persisting
         except (ScaffoldError, ValueError) as exc:
             raise HTTPException(422, detail=str(exc))
-        return {"id": store.save("scaffolds", doc)}
+        return {"id": docs.save("scaffolds", doc)}
 
     @app.get("/api/scaffolds")
     def list_scaffolds() -> list:
-        return store.list("scaffolds")
+        return docs.list("scaffolds")
 
     @app.get("/api/scaffolds/{doc_id}")
     def get_scaffold(doc_id: str) -> JSONResponse:
-        return JSONResponse(_get_or_404(store, "scaffolds", doc_id))
+        return JSONResponse(_get_or_404(docs, "scaffolds", doc_id))
 
     @app.get("/api/scaffolds/{doc_id}/view", response_class=HTMLResponse)
     def view_scaffold(doc_id: str) -> str:
-        scaffold = Scaffold.load(_get_or_404(store, "scaffolds", doc_id))
+        scaffold = Scaffold.load(_get_or_404(docs, "scaffolds", doc_id))
         return _view_page(f"Scaffold {doc_id}", svg.scaffold_svg(scaffold))
 
     # ------------------------------------------------------------------ lights
@@ -187,24 +189,24 @@ def create_app(
             LightsGeometry.load(doc)
         except (LightsGeometryError, ValueError) as exc:
             raise HTTPException(422, detail=str(exc))
-        return {"id": store.save("lights", doc)}
+        return {"id": docs.save("lights", doc)}
 
     @app.get("/api/lights")
     def list_lights() -> list:
-        return store.list("lights")
+        return docs.list("lights")
 
     @app.get("/api/lights/{doc_id}")
     def get_lights(doc_id: str) -> JSONResponse:
-        return JSONResponse(_get_or_404(store, "lights", doc_id))
+        return JSONResponse(_get_or_404(docs, "lights", doc_id))
 
     @app.get("/api/lights/{doc_id}/layout")
     def get_lights_layout(doc_id: str) -> JSONResponse:
-        lights = LightsGeometry.load(_get_or_404(store, "lights", doc_id))
+        lights = LightsGeometry.load(_get_or_404(docs, "lights", doc_id))
         return JSONResponse(projection.lights_layout(lights))
 
     @app.get("/api/lights/{doc_id}/view", response_class=HTMLResponse)
     def view_lights(doc_id: str) -> str:
-        lights = LightsGeometry.load(_get_or_404(store, "lights", doc_id))
+        lights = LightsGeometry.load(_get_or_404(docs, "lights", doc_id))
         return _view_page(f"Lights {doc_id}", svg.lights_svg(lights))
 
     @app.post("/api/lights/from-scaffold")
@@ -212,7 +214,7 @@ def create_app(
         scaffold_id = body.get("scaffold_id")
         if not isinstance(scaffold_id, str):
             raise HTTPException(422, detail="scaffold_id (string) is required")
-        scaffold = Scaffold.load(_get_or_404(store, "scaffolds", scaffold_id))
+        scaffold = Scaffold.load(_get_or_404(docs, "scaffolds", scaffold_id))
         try:
             params = CaptureParams.model_validate(body.get("params") or {})
             lights = capture(scaffold, params)
@@ -220,7 +222,7 @@ def create_app(
             raise HTTPException(422, detail=str(exc))
         doc = lights.to_file_dict()
         doc["source"]["scaffold"] = scaffold_id
-        return {"id": store.save("lights", doc)}
+        return {"id": docs.save("lights", doc)}
 
     # ---------------------------------------------------------------- patterns
 
@@ -263,7 +265,7 @@ def create_app(
         budget: Optional[int] = Query(None, ge=64),
     ) -> None:
         try:
-            geometry = LightsGeometry.load(store.get("lights", lights))
+            geometry = LightsGeometry.load(docs.get("lights", lights))
             selected = registry.get(pattern)
         except (KeyError, LightsGeometryError, ValueError):
             await websocket.close(code=4404)
@@ -286,7 +288,7 @@ def create_app(
         def preview_layout() -> JSONResponse:
             """The running geometry's layout, straight from the session.
 
-            Not by store id: a broadcast can run a geometry that was never
+            Not by geometry id: a broadcast can run a geometry that was never
             stored -- the deployed capture built from the mapping records, or
             the default production net -- and a preview that could only fetch
             layouts by id would have nothing to draw.
@@ -389,9 +391,9 @@ def create_app(
     return app
 
 
-def _get_or_404(store: Store, kind: str, doc_id: str) -> Dict[str, Any]:
+def _get_or_404(docs: GeometryStore, kind: str, doc_id: str) -> Dict[str, Any]:
     try:
-        return store.get(kind, doc_id)
+        return docs.get(kind, doc_id)
     except KeyError as exc:
         raise HTTPException(404, detail=str(exc))
 

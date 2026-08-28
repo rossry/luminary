@@ -42,7 +42,7 @@ def core(plan, net_lights):
 
 
 class StubStore:
-    """Duck-typed stand-in for the CLI's board store."""
+    """Duck-typed stand-in for the CLI's mapping records."""
 
     def __init__(self):
         self.calls = []
@@ -141,8 +141,8 @@ def test_wire_stream_resyncs_across_rebuild(core):
 
 
 def test_control_socket_applies_events_and_saves(core, plan):
-    store = StubStore()
-    app = create_mapping_app(core, store, run_ticker=False)
+    saved = StubStore()
+    app = create_mapping_app(core, saved, run_ticker=False)
     with TestClient(app) as client:
         with client.websocket_connect("/api/mapping/control") as ws1:
             first = json.loads(ws1.receive_text())["state"]
@@ -159,22 +159,22 @@ def test_control_socket_applies_events_and_saves(core, plan):
                 # ... and the push reaches every control socket.
                 assert json.loads(ws2.receive_text())["state"] == pushed
                 assert core.state is not before
-                # The duck-typed store saw exactly this state change.
-                assert len(store.calls) == 1
-                saved_state, saved_plan = store.calls[0]
+                # The duck-typed records saw exactly this state change.
+                assert len(saved.calls) == 1
+                saved_state, saved_plan = saved.calls[0]
                 assert saved_state is core.state and saved_plan is plan
 
                 # A no-op event (up means nothing in the ports stage) still
                 # confirms with a push, and does not save.
                 ws1.send_text(json.dumps({"event": "up"}))
                 assert json.loads(ws1.receive_text())["state"] == pushed
-                assert len(store.calls) == 1
+                assert len(saved.calls) == 1
 
 
 @pytest.fixture(scope="module")
 def demo_client(tmp_path_factory):
     app = create_demo_app(
-        run_ticker=False, store_dir=tmp_path_factory.mktemp("demo-store")
+        run_ticker=False, state_dir=tmp_path_factory.mktemp("demo-state")
     )
     with TestClient(app) as client:
         yield client, app
@@ -228,10 +228,10 @@ def test_demo_app_serves_streams(demo_client):
 
 def test_demo_persists_resumes_and_resets(tmp_path, plan):
     """The tutorial's mapping state lives ONLY where production's would:
-    a real MappingStore. A new server over the same store resumes like
+    a real MappingStore. A new server over the same records resumes like
     --continue; the reset control clears the records and starts over."""
-    store_dir = tmp_path / "mapping-demo"
-    app = create_demo_app(run_ticker=False, store_dir=store_dir)
+    state_dir = tmp_path / "mapping-demo"
+    app = create_demo_app(run_ticker=False, state_dir=state_dir)
     with TestClient(app) as client:
         with client.websocket_connect("/api/mapping/control") as ws:
             json.loads(ws.receive_text())
@@ -239,10 +239,10 @@ def test_demo_persists_resumes_and_resets(tmp_path, plan):
             pushed = json.loads(ws.receive_text())["state"]
             assert pushed["board_cursor"] == 1
     # The lock is on disk, production-shaped.
-    files = sorted(store_dir.glob("mapping-*.yaml"))
+    files = sorted(state_dir.glob("mapping-*.yaml"))
     assert len(files) == 1
 
-    resumed = create_demo_app(run_ticker=False, store_dir=store_dir)
+    resumed = create_demo_app(run_ticker=False, state_dir=state_dir)
     with TestClient(resumed) as client:
         state = client.get("/api/mapping/layout").json()["state"]
         assert state["board_cursor"] == 1  # resumed, not restarted
@@ -252,10 +252,10 @@ def test_demo_persists_resumes_and_resets(tmp_path, plan):
             fresh = json.loads(ws.receive_text())["state"]
             assert fresh["stage"] == "ports" and fresh["board_cursor"] == 0
             assert fresh["boards"][str(plan.units[0])]["controller_id"] is None
-    assert list(store_dir.glob("mapping-*.yaml")) == []
+    assert list(state_dir.glob("mapping-*.yaml")) == []
 
     # ... and a real (non-demo) session ignores reset entirely.
-    again = create_demo_app(run_ticker=False, store_dir=store_dir)
+    again = create_demo_app(run_ticker=False, state_dir=state_dir)
     core = again.state.core
     plain = create_mapping_app(core, run_ticker=False)  # no allow_reset
     with TestClient(plain) as client:
@@ -278,7 +278,7 @@ def test_main_server_mounts_demo(tmp_path):
     lifespan (mounted lifespans don't propagate on their own)."""
     from luminary.server.app import create_app
 
-    app = create_app(store_dir=tmp_path / "store", mapping_demo=True)
+    app = create_app(state_dir=tmp_path / "state", mapping_demo=True)
     with TestClient(app) as client:
         # The main pattern UI is untouched.
         assert "Luminary" in client.get("/").text
@@ -307,6 +307,6 @@ def test_main_server_mounts_demo(tmp_path):
 def test_main_server_demo_off_by_default(tmp_path):
     from luminary.server.app import create_app
 
-    app = create_app(store_dir=tmp_path / "store")
+    app = create_app(state_dir=tmp_path / "state")
     with TestClient(app) as client:
         assert client.get("/demo/mapping").status_code == 404

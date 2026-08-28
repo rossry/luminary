@@ -54,9 +54,9 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------- construction
 
 
-def resolve_stage_lights(ref: Optional[str], store_dir: Path) -> LightsGeometry:
+def resolve_stage_lights(ref: Optional[str], state_dir: Path) -> LightsGeometry:
     """The stage geometry from ``--stage-lights``: a file path, a
-    geometry-store id, or (default) the production ``pentagon-4A-33``
+    saved geometry id, or (default) the production ``pentagon-4A-33``
     capture — the same construction the demo seeder uses."""
     if ref is None:
         from luminary.geometry.net import Net
@@ -66,13 +66,13 @@ def resolve_stage_lights(ref: Optional[str], store_dir: Path) -> LightsGeometry:
     path = Path(ref)
     if path.exists():
         return LightsGeometry.load(path)
-    from luminary.server.store import Store
+    from luminary.server.geometry_store import GeometryStore
 
-    return LightsGeometry.load(Store(store_dir).get("lights", ref))
+    return LightsGeometry.load(GeometryStore(state_dir).get("lights", ref))
 
 
 def build_stage(
-    store_dir: Path,
+    state_dir: Path,
     registry: PatternRegistry,
     *,
     lights_ref: Optional[str] = None,
@@ -80,13 +80,13 @@ def build_stage(
     audio_player: Optional[str] = None,
 ) -> StageCore:
     """The serve-time stage: geometry per ``lights_ref``, state at
-    ``<store_dir>/stage/``, audio files at ``<store_dir>/audio/``."""
-    store_dir = Path(store_dir)
-    lights = resolve_stage_lights(lights_ref, store_dir)
-    audio_dir = store_dir / "audio"
+    ``<state_dir>/stage/``, audio files at ``<state_dir>/audio/``."""
+    state_dir = Path(state_dir)
+    lights = resolve_stage_lights(lights_ref, state_dir)
+    audio_dir = state_dir / "audio"
     audio_dir.mkdir(parents=True, exist_ok=True)
     audio = AudioPlayer(detect_player(audio_player), audio_dir)
-    return StageCore(lights, registry, store_dir / "stage", audio, fps=fps)
+    return StageCore(lights, registry, state_dir / "stage", audio, fps=fps)
 
 
 # --------------------------------------------------------------------- ticker

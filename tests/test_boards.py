@@ -243,7 +243,7 @@ def test_flash_takes_strip_length_from_the_mapping(tmp_path, monkeypatch):
         "luminary.mapping.plan.Plan.load", staticmethod(lambda c: _Plan())
     )
     monkeypatch.setattr(
-        "luminary.mapping.store.MappingStore.load_records", lambda self, plan: records
+        "luminary.mapping.records.MappingStore.load_records", lambda self, plan: records
     )
 
     longest = _mapped_strip_lengths(tmp_path, "4A-33")

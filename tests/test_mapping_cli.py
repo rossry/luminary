@@ -19,7 +19,7 @@ REPO = Path(__file__).resolve().parents[1]
 
 def _args(tmp_path, **overrides):
     base = dict(
-        store=str(tmp_path / "mapping"),
+        state_dir=str(tmp_path / "mapping"),
         config="4A-33",
         continue_=False,
         trust_boards=False,
@@ -53,26 +53,26 @@ def test_map_help_exits_zero():
 def test_build_mapping_session_without_hardware(tmp_path):
     from luminary.cli import build_mapping_session
 
-    core, store = build_mapping_session(_args(tmp_path))
+    core, saved = build_mapping_session(_args(tmp_path))
     assert core.state.stage == "ports"
     assert core.state.controllers == (1, 2, 3, 4, 5, 6, 7)
     assert core.fps == 30.0
     assert core.wire_sinks == []  # --controllers skips probing: no ports
-    assert store.directory == tmp_path / "mapping"
-    assert store.directory.is_dir()
+    assert saved.directory == tmp_path / "mapping"
+    assert saved.directory.is_dir()
     # Both engines stand ready: the window always, the wire because the
     # ports stage breathes the candidate board.
     assert core.window_engine is not None
     assert core.wire_engine is not None
 
 
-def test_build_continue_resumes_from_the_store(tmp_path):
+def test_build_continue_resumes_from_saved_records(tmp_path):
     from luminary.cli import build_mapping_session
 
-    core, store = build_mapping_session(_args(tmp_path))
+    core, saved = build_mapping_session(_args(tmp_path))
     for _ in range(3):
         core.apply(Event.ENTER)
-    store.save_state(core.state, core.plan)
+    saved.save_state(core.state, core.plan)
 
     resumed, _ = build_mapping_session(_args(tmp_path, continue_=True))
     assert resumed.state.stage == "ports"
@@ -80,20 +80,20 @@ def test_build_continue_resumes_from_the_store(tmp_path):
     assert resumed.state.boards == core.state.boards
 
 
-def test_store_dir_is_the_checkout_var_regardless_of_cwd(tmp_path, monkeypatch):
+def test_state_dir_is_the_checkout_var_regardless_of_cwd(tmp_path, monkeypatch):
     """Runtime state defaults to the CHECKOUT's var/ — which ships in
     the repo (var/.gitkeep) — anchored by __file__ like the pattern
     registry, so a service run from any working directory (systemd's
     default is /) still finds the operator's files. No existence or
-    legacy logic; an explicit --store wins verbatim."""
-    from luminary.cli import _store_dir
+    legacy logic; an explicit --state-dir wins verbatim."""
+    from luminary.cli import _state_dir
 
-    assert _store_dir(None) == REPO / "var"
-    assert _store_dir(None, "mapping") == REPO / "var" / "mapping"
+    assert _state_dir(None) == REPO / "var"
+    assert _state_dir(None, "mapping") == REPO / "var" / "mapping"
     monkeypatch.chdir(tmp_path)  # a wrong CWD must change nothing
-    assert _store_dir(None) == REPO / "var"
+    assert _state_dir(None) == REPO / "var"
     # An explicit path is the directory itself, sub or no sub.
-    assert _store_dir("elsewhere", "mapping") == Path("elsewhere")
+    assert _state_dir("elsewhere", "mapping") == Path("elsewhere")
     assert (REPO / "var" / ".gitkeep").exists()  # the checkout guarantee
 
 
@@ -116,7 +116,7 @@ def test_mapping_opens_the_window_by_default(tmp_path, monkeypatch):
 
     served = {}
 
-    def _fake_serve(core, store, host, port):
+    def _fake_serve(core, saved, host, port):
         served["host"], served["port"] = host, port
 
     monkeypatch.setattr("luminary.mapping.web.serve_mapping", _fake_serve)
@@ -143,3 +143,27 @@ def test_tui_is_still_reachable(tmp_path, monkeypatch):
 
     assert cmd_map(_args(tmp_path, tui=True)) == 0
     assert ran == {"yes": True}
+
+
+def test_the_word_store_never_returns():
+    """The dead pre-rename tree cost a festival evening: an old CLI
+    flag silently pointed the whole runtime at a phantom directory.
+    The bare word is banned from python sources — compounds
+    (GeometryStore, MappingStore, argparse's own action names) remain
+    legal; the standalone token, a module by that name, or the old
+    flag do not."""
+    import re
+
+    word = "".join("st or e".split())
+    bare = re.compile(r"(?<![A-Za-z_])" + word + r"(?![A-Za-z_])")
+    offenders = []
+    for path in sorted(REPO.glob("luminary/**/*.py")) + sorted(
+        REPO.glob("tests/**/*.py")
+    ):
+        if path.name == word + ".py":
+            offenders.append(f"{path}: module named {word}.py")
+            continue
+        for lineno, line in enumerate(path.read_text().splitlines(), 1):
+            if ("--" + word) in line or bare.search(line):
+                offenders.append(f"{path.relative_to(REPO)}:{lineno}: {line.strip()}")
+    assert not offenders, "the word came back:\n" + "\n".join(offenders[:20])

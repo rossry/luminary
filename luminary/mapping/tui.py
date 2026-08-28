@@ -2,7 +2,7 @@
 
 The surface stays thin (plan/mapping/DESCRIPTION.md "Surface-agnostic
 core"): keys become Events for the pure state machine, and every state
-change becomes a saved store, fresh SESSION frames for all sinks, and a
+change becomes a saved record, fresh SESSION frames for all sinks, and a
 redrawn line. This is an I/O adapter — the stateless conventions of the
 pattern layer deliberately do not apply here.
 
@@ -25,7 +25,7 @@ from typing import List, Optional, Tuple
 
 from luminary.mapping.session import SessionCore
 from luminary.mapping.state import Event, MappingState
-from luminary.mapping.store import MappingStore
+from luminary.mapping.records import MappingStore
 
 _PLAIN = {
     b"w": Event.UP,
@@ -99,13 +99,13 @@ def status_line(core: SessionCore) -> str:
     )
 
 
-def run_tui(core: SessionCore, store: MappingStore, fps: float) -> None:
+def run_tui(core: SessionCore, saved: MappingStore, fps: float) -> None:
     """Blocking key/tick loop; returns when the operator quits.
 
     ``fps`` paces ``core.tick`` (the CLI passes the value the core's
     engines were built with); ``t`` is seconds since the loop started —
     the engines expect a session-relative clock. Every state change
-    saves the store, restarts every sink with fresh SESSION frames (the
+    saves the records, restarts every sink with fresh SESSION frames (the
     rebuilt engines keyframe on their next tick), and redraws the line;
     the line is also refreshed once per second in case other output
     clobbered it.
@@ -122,7 +122,7 @@ def run_tui(core: SessionCore, store: MappingStore, fps: float) -> None:
         sys.stdout.flush()
 
     def persist(state: MappingState) -> None:
-        store.save_state(state, core.plan)
+        saved.save_state(state, core.plan)
 
     # Adapter-local hooks only — the core itself re-sends SESSION to
     # every sink on rebuild (SessionCore.resync_sinks).
@@ -131,7 +131,7 @@ def run_tui(core: SessionCore, store: MappingStore, fps: float) -> None:
 
     tty.setcbreak(fd)
     try:
-        store.save_state(core.state, core.plan)  # refresh port hints on resume
+        saved.save_state(core.state, core.plan)  # refresh port hints on resume
         core.resync_sinks()  # initial SESSION for sinks attached pre-loop
         redraw()
         interval = 1.0 / fps

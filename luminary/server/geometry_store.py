@@ -1,8 +1,8 @@
-"""Filesystem-backed geometry store (spec §15.6).
+"""Filesystem-backed geometry documents (spec §15.6).
 
 Documents are content-addressed: id = short SHA-1 of the canonical JSON, so
 identical saves dedupe. No database — inspectable, git-friendly files:
-``store/scaffolds/<id>.scaffold.json`` and ``store/lights/<id>.lights.json``.
+``<state>/scaffolds/<id>.scaffold.json`` and ``<state>/lights/<id>.lights.json``.
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ from typing import Any, Dict, List
 _KIND_SUFFIX = {"scaffolds": ".scaffold.json", "lights": ".lights.json"}
 
 
-class Store:
+class GeometryStore:
     def __init__(self, base_dir: Path) -> None:
         self.base_dir = Path(base_dir)
         for kind in _KIND_SUFFIX:
@@ -23,7 +23,7 @@ class Store:
 
     def _dir(self, kind: str) -> Path:
         if kind not in _KIND_SUFFIX:
-            raise ValueError(f"Unknown store kind {kind!r}")
+            raise ValueError(f"Unknown document kind {kind!r}")
         return self.base_dir / kind
 
     def save(self, kind: str, doc: Dict[str, Any]) -> str:

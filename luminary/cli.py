@@ -1,6 +1,6 @@
 """Unified CLI: every verb is an adapter over the one engine (spec §16).
 
-luminary serve   [--host --port --store]
+luminary serve   [--host --port --state-dir]
 luminary play    --lights F --pattern N [--serial P | --dry-run]
 luminary capture --scaffold F [--params F] -o OUT
 luminary render  --lights F --pattern N [-t S] -o OUT.svg
@@ -31,13 +31,13 @@ if TYPE_CHECKING:
     from luminary.patterns.registry import PatternRegistry
     from luminary.geometry.lights import LightsGeometry
     from luminary.mapping.session import SessionCore
-    from luminary.mapping.store import MappingStore
+    from luminary.mapping.records import MappingStore
 
 
-# One resolver for every entrypoint (luminary/statedir.py): --store is
+# One resolver for every entrypoint (luminary/statedir.py): --state-dir is
 # honored verbatim; the default is var/, which ships in the repo
 # (var/.gitkeep), so no existence or fallback logic exists anywhere.
-from luminary.statedir import runtime_state_dir as _store_dir
+from luminary.statedir import runtime_state_dir as _state_dir
 
 # What plays when nothing is named. `luminary play` with no arguments should
 # put lights on the sphere, so both of these have to answer without one.
@@ -45,9 +45,9 @@ _DEFAULT_PATTERNS = ("aurora", "tidepool", "spiral")
 
 
 def _resolve_lights(
-    ref: Optional[str], store_dir: Path, config: str = "4A-33"
+    ref: Optional[str], state_dir: Path, config: str = "4A-33"
 ) -> "LightsGeometry":
-    """A file, a store id, or -- with nothing named -- what is deployed.
+    """A file, a geometry id, or -- with nothing named -- what is deployed.
 
     The mapping records come first, because they describe the installation
     that exists: the panels split across their real boards. The design capture
@@ -59,15 +59,15 @@ def _resolve_lights(
     from luminary.stage.web import resolve_stage_lights
 
     if ref is not None:
-        return resolve_stage_lights(ref, store_dir)
+        return resolve_stage_lights(ref, state_dir)
     try:
         from luminary.geometry.net import Net
         from luminary.geometry.pentagon.mapped import capture_mapped
         from luminary.mapping.plan import Plan
-        from luminary.mapping.store import MappingStore
+        from luminary.mapping.records import MappingStore
 
         plan = Plan.load(config)
-        records = MappingStore(_store_dir(None, "mapping")).load_records(plan)
+        records = MappingStore(_state_dir(None, "mapping")).load_records(plan)
         if records:
             configs = Path(__file__).resolve().parents[1] / "configs"
             net = Net.from_json_file(configs / f"{config}.json")
@@ -75,7 +75,7 @@ def _resolve_lights(
             return capture_mapped(net, plan, records, strict=False)
     except Exception:
         pass  # nothing mapped, or not the pentagon net
-    return resolve_stage_lights(ref, store_dir)
+    return resolve_stage_lights(ref, state_dir)
 
 
 def _warn_oversized(lights: "LightsGeometry") -> None:
@@ -108,14 +108,14 @@ def _default_pattern(registry: "PatternRegistry") -> "Pattern":
     return registry.get(sorted(registry.patterns)[0])
 
 
-def _load_lights(ref: str, store_dir: Path) -> "LightsGeometry":
+def _load_lights(ref: str, state_dir: Path) -> "LightsGeometry":
     from luminary.geometry.lights import LightsGeometry
-    from luminary.server.store import Store
+    from luminary.server.geometry_store import GeometryStore
 
     path = Path(ref)
     if path.exists():
         return LightsGeometry.load(path)
-    return LightsGeometry.load(Store(store_dir).get("lights", ref))
+    return LightsGeometry.load(GeometryStore(state_dir).get("lights", ref))
 
 
 def cmd_serve(args: argparse.Namespace) -> int:
@@ -123,11 +123,11 @@ def cmd_serve(args: argparse.Namespace) -> int:
 
     from luminary.server.app import create_app
 
-    store_dir = _store_dir(args.store)
+    state_dir = _state_dir(args.state_dir)
     if args.seed_demo:
-        _seed(store_dir)
+        _seed(state_dir)
     app = create_app(
-        store_dir=store_dir,
+        state_dir=state_dir,
         allow_pattern_upload=not args.disable_pattern_upload,
         mapping_demo=not args.no_mapping_demo,
         stage=not args.no_stage,
@@ -139,15 +139,15 @@ def cmd_serve(args: argparse.Namespace) -> int:
     return 0
 
 
-def _seed(store_dir: Path) -> None:
-    from luminary.server.demo import seed_store
+def _seed(state_dir: Path) -> None:
+    from luminary.server.demo import seed_geometries
 
-    for entry in seed_store(store_dir):
+    for entry in seed_geometries(state_dir):
         print(f"seeded {entry['kind']:9s} {entry['id']}  {entry['name']}")
 
 
 def cmd_seed(args: argparse.Namespace) -> int:
-    _seed(_store_dir(args.store))
+    _seed(_state_dir(args.state_dir))
     return 0
 
 
@@ -159,9 +159,9 @@ def cmd_play(args: argparse.Namespace) -> int:
     from luminary.engine.engine import Engine
     from luminary.patterns.registry import default_registry
 
-    store_dir = _store_dir(args.store)
+    state_dir = _state_dir(args.state_dir)
     registry = default_registry()
-    lights = _resolve_lights(args.lights, store_dir)
+    lights = _resolve_lights(args.lights, state_dir)
     _warn_oversized(lights)
     pattern = registry.get(args.pattern) if args.pattern else _default_pattern(registry)
     config = CodecConfig(budget_bytes=args.budget)
@@ -278,7 +278,7 @@ def cmd_boards(args: argparse.Namespace) -> int:
     if args.no_register or not boards:
         return 1 if duplicates else 0
 
-    registry = BoardRegistry(_store_dir(args.store)).load()
+    registry = BoardRegistry(_state_dir(args.state_dir)).load()
     when = datetime.now(timezone.utc).isoformat(timespec="seconds")
     for c in boards:
         if c.controller is not None:
@@ -288,7 +288,7 @@ def cmd_boards(args: argparse.Namespace) -> int:
     return 1 if duplicates else 0
 
 
-def _mapped_strip_lengths(store_dir: Path, config: str) -> Dict[int, int]:
+def _mapped_strip_lengths(state_dir: Path, config: str) -> Dict[int, int]:
     """controller -> longest strip recorded for it, from the mapping.
 
     ``--max-per-strip`` sets the frame-rate ceiling and must be at least the
@@ -300,10 +300,10 @@ def _mapped_strip_lengths(store_dir: Path, config: str) -> Dict[int, int]:
     """
     try:
         from luminary.mapping.plan import Plan
-        from luminary.mapping.store import MappingStore
+        from luminary.mapping.records import MappingStore
 
         plan = Plan.load(config)
-        records = MappingStore(store_dir).load_records(plan)
+        records = MappingStore(state_dir).load_records(plan)
     except Exception:
         return {}
     longest: Dict[int, int] = {}
@@ -322,7 +322,7 @@ def cmd_flash(args: argparse.Namespace) -> int:
     from luminary.boards.flash import flash_board, targets_from
     from luminary.boards.registry import BoardRegistry
 
-    registry = BoardRegistry(_store_dir(args.store)).load()
+    registry = BoardRegistry(_state_dir(args.state_dir)).load()
     candidates = discovery.discover(timeout=args.timeout)
 
     if args.controller is not None:
@@ -338,7 +338,7 @@ def cmd_flash(args: argparse.Namespace) -> int:
         return 2
 
     live = discovery.boards_by_controller(candidates)
-    mapped = _mapped_strip_lengths(_store_dir(args.store, "mapping"), args.config)
+    mapped = _mapped_strip_lengths(_state_dir(args.state_dir, "mapping"), args.config)
     failures = 0
     for controller in targets:
         per_strip = args.max_per_strip
@@ -376,14 +376,14 @@ def cmd_stage(args: argparse.Namespace) -> int:
     from luminary.patterns.registry import default_registry
     from luminary.server.app import create_app
 
-    store_dir = _store_dir(args.store)
-    ports = _resolve_ports(args, store_dir)
+    state_dir = _state_dir(args.state_dir)
+    ports = _resolve_ports(args, state_dir)
     if ports is None:
         return 2
 
     registry = default_registry()
     app = create_app(
-        store_dir=store_dir,
+        state_dir=state_dir,
         registry=registry,
         allow_pattern_upload=False,
         stage=True,
@@ -424,7 +424,7 @@ def cmd_stage(args: argparse.Namespace) -> int:
 
 
 def _resolve_ports(
-    args: argparse.Namespace, store_dir: Path
+    args: argparse.Namespace, state_dir: Path
 ) -> Optional[Dict[int, str]]:
     """--serial, else the boards that answer, else the registry. None on
     nothing found (the caller reports and exits)."""
@@ -440,7 +440,7 @@ def _resolve_ports(
     if not ports:
         # Registry entries are hints; a board that does not answer now is not
         # going to take frames either, so this only helps a momentary blip.
-        ports = BoardRegistry(store_dir).load().ports()
+        ports = BoardRegistry(state_dir).load().ports()
     if not ports:
         print(
             "no boards found: run `luminary boards`, or pass --serial",
@@ -458,11 +458,11 @@ def cmd_geometry(args: argparse.Namespace) -> int:
         capture_mapped,
     )
     from luminary.mapping.plan import Plan
-    from luminary.mapping.store import MappingStore
+    from luminary.mapping.records import MappingStore
 
     plan = Plan.load(args.config)
-    store = MappingStore(_store_dir(args.store, "mapping"))
-    records = store.load_records(plan)
+    saved = MappingStore(_state_dir(args.state_dir, "mapping"))
+    records = saved.load_records(plan)
     configs = Path(__file__).resolve().parents[1] / "configs"
     net = Net.from_json_file(configs / f"{args.config}.json")
 
@@ -488,10 +488,12 @@ def cmd_geometry(args: argparse.Namespace) -> int:
         print(f"-> {args.output}")
         return 0
 
-    from luminary.server.store import Store
+    from luminary.server.geometry_store import GeometryStore
 
-    doc_id = Store(_store_dir(args.store)).save("lights", lights.to_file_dict())
-    print(f"-> store id {doc_id}   (luminary show --lights {doc_id} --pattern ...)")
+    doc_id = GeometryStore(_state_dir(args.state_dir)).save(
+        "lights", lights.to_file_dict()
+    )
+    print(f"-> geometry id {doc_id}   (luminary show --lights {doc_id} --pattern ...)")
     return 0
 
 
@@ -516,7 +518,7 @@ def _serve_broadcast(
     from luminary.drivers.broadcast import BroadcastSession
     from luminary.server.app import create_app
 
-    store_dir = _store_dir(args.store)
+    state_dir = _state_dir(args.state_dir)
 
     if args.serial:
         ports = _parse_ports(args.serial)
@@ -535,7 +537,7 @@ def _serve_broadcast(
         # the registry stores hints, never identities.
         ports = discovery.boards_by_controller(discovery.discover())
         if not ports:
-            ports = BoardRegistry(store_dir).load().ports()
+            ports = BoardRegistry(state_dir).load().ports()
         if not ports:
             print(
                 "no boards found: run `luminary boards`, or pass --serial",
@@ -557,7 +559,7 @@ def _serve_broadcast(
         )
 
     app = create_app(
-        store_dir=store_dir,
+        state_dir=state_dir,
         allow_pattern_upload=False,
         broadcast_factory=factory,
     )
@@ -596,7 +598,7 @@ def cmd_render(args: argparse.Namespace) -> int:
     from luminary.patterns.registry import default_registry
     from luminary.render.svg import lights_svg
 
-    lights = _load_lights(args.lights, _store_dir(args.store))
+    lights = _load_lights(args.lights, _state_dir(args.state_dir))
     pattern = default_registry().get(args.pattern)
     engine = Engine(lights, pattern)
     markup = lights_svg(lights, colors_srgb8=engine.colors_srgb8(args.time))
@@ -616,7 +618,7 @@ def build_mapping_session(
     from luminary.mapping.serial_sink import SerialSink, probe_controllers
     from luminary.mapping.session import SessionCore
     from luminary.mapping.state import initial_state, resume_state
-    from luminary.mapping.store import MappingStore, SerialBoards, trust_boards
+    from luminary.mapping.records import MappingStore, SerialBoards, trust_boards
 
     plan = Plan.load(args.config)
     configs = Path(__file__).resolve().parents[1] / "configs"
@@ -634,7 +636,7 @@ def build_mapping_session(
             # board that is not on the bus.
             from luminary.boards.registry import BoardRegistry
 
-            ports = BoardRegistry(_store_dir(args.store)).load().ports()
+            ports = BoardRegistry(_state_dir(args.state_dir)).load().ports()
         controllers = sorted(ports)
         if not controllers:
             raise SystemExit(
@@ -643,11 +645,11 @@ def build_mapping_session(
                 "--controllers 0,1,2) for a window-only run"
             )
 
-    store = MappingStore(_store_dir(args.store, "mapping"))
-    store.port_hints = dict(ports)
+    saved = MappingStore(_state_dir(args.state_dir, "mapping"))
+    saved.port_hints = dict(ports)
     if args.trust_boards:
-        trust_boards(store, SerialBoards(ports), plan)
-    records = store.load_records(plan)
+        trust_boards(saved, SerialBoards(ports), plan)
+    records = saved.load_records(plan)
     if args.continue_ or args.trust_boards:
         # --continue skips ahead to the first slot never recorded.
         state = resume_state(plan, controllers, records)
@@ -659,7 +661,7 @@ def build_mapping_session(
     core = SessionCore(plan, net_lights, state, fps=args.fps)
     if ports:
         core.wire_sinks.append(SerialSink(ports))
-    return core, store
+    return core, saved
 
 
 def cmd_map(args: argparse.Namespace) -> int:
@@ -680,7 +682,7 @@ def cmd_map(args: argparse.Namespace) -> int:
                 file=sys.stderr,
             )
     try:
-        core, store = build_mapping_session(args)
+        core, saved = build_mapping_session(args)
     except NotImplementedError as exc:
         print(exc, file=sys.stderr)  # --trust-boards before the firmware transport
         return 2
@@ -700,7 +702,7 @@ def cmd_map(args: argparse.Namespace) -> int:
                 import webbrowser
 
                 threading.Timer(1.0, lambda: webbrowser.open(url)).start()
-            serve_web(core, store, args.host, args.port)
+            serve_web(core, saved, args.host, args.port)
         else:
             try:
                 from luminary.mapping.tui import run_tui
@@ -710,7 +712,7 @@ def cmd_map(args: argparse.Namespace) -> int:
                     file=sys.stderr,
                 )
                 return 2
-            run_tui(core, store, args.fps)
+            run_tui(core, saved, args.fps)
         return 0
     finally:
         for sink in core.wire_sinks:
@@ -722,7 +724,9 @@ def cmd_map(args: argparse.Namespace) -> int:
 def main(argv: Optional[list] = None) -> int:
     parser = argparse.ArgumentParser(prog="luminary", description=__doc__)
     parser.add_argument(
-        "--store", default=None, help="Runtime state directory (default: var)"
+        "--state-dir",
+        default=None,
+        help="Runtime state directory (default: the checkout var/)",
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -732,7 +736,7 @@ def main(argv: Optional[list] = None) -> int:
     serve.add_argument(
         "--seed-demo",
         action="store_true",
-        help="Load the demo geometries into the store first (idempotent)",
+        help="Load the demo geometries first (idempotent)",
     )
     serve.add_argument(
         "--disable-pattern-upload",
@@ -753,7 +757,7 @@ def main(argv: Optional[list] = None) -> int:
     serve.add_argument(
         "--stage-lights",
         default=None,
-        help="Stage lights geometry: store id or file path "
+        help="Stage lights geometry: geometry id or file path "
         "(default: the production pentagon-4A-33 capture)",
     )
     serve.add_argument(
@@ -770,9 +774,7 @@ def main(argv: Optional[list] = None) -> int:
     )
     serve.set_defaults(func=cmd_serve)
 
-    seed = sub.add_parser(
-        "seed", help="Load demo geometries into the store (idempotent)"
-    )
+    seed = sub.add_parser("seed", help="Load demo geometries (idempotent)")
     seed.set_defaults(func=cmd_seed)
 
     def _broadcast_args(p: argparse.ArgumentParser) -> None:
@@ -792,7 +794,7 @@ def main(argv: Optional[list] = None) -> int:
     play.add_argument(
         "--lights",
         default=None,
-        help="Lights file or store id (default: the production capture; pass "
+        help="Lights file or geometry id (default: the production capture; pass "
         "the id `luminary geometry` printed to drive what you mapped)",
     )
     play.add_argument(
@@ -820,7 +822,9 @@ def main(argv: Optional[list] = None) -> int:
         "map", help="Interactive deployment mapping (plan/mapping/DESCRIPTION.md)"
     )
     mapping.add_argument(
-        "--store", default=None, help="Mapping YAML directory (default: var/mapping)"
+        "--state-dir",
+        default=None,
+        help="Mapping YAML directory (default: <state>/mapping)",
     )
     mapping.add_argument(
         "--config",
@@ -918,7 +922,7 @@ def main(argv: Optional[list] = None) -> int:
 
     # `show` is `play` under its older name, kept so existing runbooks work.
     show = sub.add_parser("show", help="Alias for `play`")
-    show.add_argument("--lights", default=None, help="Lights file or store id")
+    show.add_argument("--lights", default=None, help="Lights file or geometry id")
     show.add_argument("--pattern", default=None)
     _broadcast_args(show)
     show.add_argument("--dry-run", action="store_true", help=argparse.SUPPRESS)
@@ -929,7 +933,7 @@ def main(argv: Optional[list] = None) -> int:
         "stage", help="The play queue, on the boards and on a local page"
     )
     stage.add_argument(
-        "--lights", default=None, help="Lights file or store id (default: 4A-33)"
+        "--lights", default=None, help="Lights file or geometry id (default: 4A-33)"
     )
     _broadcast_args(stage)
     stage.add_argument("--audio-player", default=None, help="Override the player")
@@ -953,12 +957,15 @@ def main(argv: Optional[list] = None) -> int:
         "360-LED strip costs 180 lights on the wire and the board fills in",
     )
     geometry.add_argument(
-        "-o", "--output", default=None, help="Write a file instead of the store"
+        "-o",
+        "--output",
+        default=None,
+        help="Write a file instead of saving a geometry id",
     )
     geometry.set_defaults(func=cmd_geometry)
 
     render = sub.add_parser("render", help="Static SVG of a pattern at time t")
-    render.add_argument("--lights", required=True, help="Lights file or store id")
+    render.add_argument("--lights", required=True, help="Lights file or geometry id")
     render.add_argument("--pattern", required=True)
     render.add_argument("-t", "--time", type=float, default=0.0)
     render.add_argument("-o", "--output", required=True)

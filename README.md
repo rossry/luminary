@@ -164,7 +164,7 @@ against shared golden vectors (`firmware/golden/`).
 ## The stage (play queue)
 
 `serve` runs the **stage** at `/stage`: one engine over the production
-sphere geometry (`--stage-lights` overrides with a store id or lights
+sphere geometry (`--stage-lights` overrides with a geometry id or lights
 file) playing a persisted tracklist, gaplessly — entries advance by
 pattern swap on the same engine, each pattern seeing t from its own
 entry's start, so long-form shows and audio cue sheets align at 0. An

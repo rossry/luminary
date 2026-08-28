@@ -1,6 +1,6 @@
 """Where runtime state lives — one resolver for every entrypoint.
 
-The runtime state root is the checkout's ``var/`` (geometry store,
+The runtime state root is the checkout's ``var/`` (geometry documents,
 pattern uploads, ``var/audio/``, ``var/mapping/``, ``var/mapping-demo/``,
 ``var/stage/``). The directory ships in the repo (``var/.gitkeep``), so
 every checkout has it and no existence or fallback logic is needed
@@ -10,8 +10,6 @@ service unit with no ``WorkingDirectory=`` must not silently read and
 populate ``/var`` while the operator's files sit in the checkout. Both
 the CLI and the standalone mapping web entrypoint resolve through this
 module, so the default location cannot drift between surfaces.
-(``store/`` is the dead pre-rename tree: nothing reads it — delete it,
-and re-seed demo geometries with ``luminary.cli seed`` if wanted.)
 """
 
 from __future__ import annotations
