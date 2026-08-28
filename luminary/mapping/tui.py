@@ -99,7 +99,7 @@ def status_line(core: SessionCore) -> str:
     )
 
 
-def run_tui(core: SessionCore, saved: MappingStore, fps: float) -> None:
+def run_tui(core: SessionCore, records: MappingStore, fps: float) -> None:
     """Blocking key/tick loop; returns when the operator quits.
 
     ``fps`` paces ``core.tick`` (the CLI passes the value the core's
@@ -115,14 +115,14 @@ def run_tui(core: SessionCore, saved: MappingStore, fps: float) -> None:
             "run_tui needs a terminal; use --web for the browser surface"
         )
     fd = sys.stdin.fileno()
-    saved = termios.tcgetattr(fd)
+    tty_attrs = termios.tcgetattr(fd)
 
     def redraw() -> None:
         sys.stdout.write("\r\x1b[2K" + status_line(core))
         sys.stdout.flush()
 
     def persist(state: MappingState) -> None:
-        saved.save_state(state, core.plan)
+        records.save_state(state, core.plan)
 
     # Adapter-local hooks only — the core itself re-sends SESSION to
     # every sink on rebuild (SessionCore.resync_sinks).
@@ -131,7 +131,7 @@ def run_tui(core: SessionCore, saved: MappingStore, fps: float) -> None:
 
     tty.setcbreak(fd)
     try:
-        saved.save_state(core.state, core.plan)  # refresh port hints on resume
+        records.save_state(core.state, core.plan)  # refresh port hints on resume
         core.resync_sinks()  # initial SESSION for sinks attached pre-loop
         redraw()
         interval = 1.0 / fps
@@ -160,6 +160,6 @@ def run_tui(core: SessionCore, saved: MappingStore, fps: float) -> None:
                 redraw()
                 last_redraw = now
     finally:
-        termios.tcsetattr(fd, termios.TCSADRAIN, saved)
+        termios.tcsetattr(fd, termios.TCSADRAIN, tty_attrs)
         sys.stdout.write("\n")
         sys.stdout.flush()
