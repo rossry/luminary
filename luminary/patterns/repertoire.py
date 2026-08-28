@@ -41,6 +41,7 @@ from luminary.patterns.palettes import (
 )
 from luminary.patterns.primitives import (
     AuroraVeils,
+    Blackout,
     Candles,
     Embers,
     NoiseGlow,
@@ -615,13 +616,19 @@ def nocturne_movements() -> List[Movement]:
         Movement(
             Candles(
                 anchors=SEATS,
+                anchor_spread=0.16,
+                anchor_jitter_deg=2.5,
                 fill_from=0.0,
                 fill_to=1.0,
                 arc_s=130.0,
                 fill_gamma=0.75,
+                edge=0.015,
                 spot_to=9.5,
                 pos_to=1.0,
                 flutter=0.16,
+                vary=1.0,
+                ignite_flare=0.55,
+                die_frac=0.08,
                 snuff_at=138.0,
                 snuff_s=13.0,
                 floor_pos=0.05,
@@ -631,13 +638,16 @@ def nocturne_movements() -> List[Movement]:
             title="candles",
             audio="requiem-static-king.mp3",
             notes=(
-                "An answer: flames at the sculpture's own bones — the "
-                "four hexagon hearts, the center-front, the arm tips — "
-                "then everywhere, fast, each flame panting on its own "
-                "clock. It swells to a roaring wave of fire; then one "
-                "sighing breath spreads from the crown and takes every "
-                "flame with it, each leaning bright as it goes, and the "
-                "dark it leaves is full of stars."
+                "An answer: flames catching at the sculpture's own "
+                "bones — the hexagon hearts, the center-front, the arm "
+                "tips — unevenly, each flaring as it lights, none on "
+                "anyone's schedule. No two alike: brighter and dimmer, "
+                "wide and small, guttering and recovering; a few go out "
+                "early and stay out. The rest swell to a roaring wave "
+                "of fire — then one sighing breath spreads from the "
+                "crown and takes every flame, some leaning a beat "
+                "longer than others, and the dark it leaves is full of "
+                "stars."
             ),
         ),
         Movement(
@@ -649,19 +659,33 @@ def nocturne_movements() -> List[Movement]:
                 tint=1.0,
                 flutter=0.10,
                 fall_delay=16.0,
-                fall_span=181.0,
+                fall_span=174.0,
+                end_black_at=189.0,
+                end_black_s=26.0,
             ),
-            211.0,
+            191.0,
             fade=16.0,
             title="starfall",
             audio="eluvium.mp3",
             notes=(
                 "The same stars as before — the sky remembers its own. "
-                "Then one is chosen: it swells, and falls, streaking off "
-                "the stage. Then a few. Then a wave of them, raining "
-                "off the sphere; then a trickle; then the handful of "
-                "fixed stars that will not fall, holding. If you make a "
-                "wish, make it early."
+                "Then one is chosen: it swells and falls, streaking away "
+                "in its own direction, gold ones gold and blue ones "
+                "blue, burning out as they go. Then another, and "
+                "another — one single swell, strongest just before the "
+                "end, the sky itself draining away beneath them — until "
+                "the last star falls on black. If you make a wish, you "
+                "have the whole shower."
+            ),
+        ),
+        Movement(
+            Blackout(),
+            20.0,
+            fade=0.0,
+            title="blackout",
+            notes=(
+                "Twenty seconds of nothing at all. Hold it — the night "
+                "is over when the dark says so, not the lights."
             ),
         ),
     ]
