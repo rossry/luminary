@@ -132,6 +132,10 @@ def create_app(
         from luminary.stage.web import register_stage
 
         register_stage(app, stage_core, stage_key=stage_key)
+        # Exposed the way the broadcast session is, so a caller that owns the
+        # process can reach the core -- `luminary stage` appends a serial sink
+        # to it, which is how the queue reaches the boards.
+        app.state.stage = stage_core
     app.state.store = store
     app.state.registry = registry
     app.state.uploads_dir = uploads_dir

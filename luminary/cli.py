@@ -27,6 +27,7 @@ from luminary.comms.codec import CodecConfig
 
 if TYPE_CHECKING:
     from luminary.engine.engine import Engine
+    from luminary.patterns.base import Pattern
     from luminary.geometry.lights import LightsGeometry
     from luminary.mapping.session import SessionCore
     from luminary.mapping.store import MappingStore
@@ -82,6 +83,10 @@ def cmd_seed(args: argparse.Namespace) -> int:
 
 
 def cmd_play(args: argparse.Namespace) -> int:
+    """One pattern to the boards and to a page, from one engine.
+
+    `show` is the same command under its older name.
+    """
     from luminary.engine.engine import Engine
     from luminary.patterns.registry import default_registry
 
@@ -90,15 +95,8 @@ def cmd_play(args: argparse.Namespace) -> int:
     config = CodecConfig(budget_bytes=args.budget)
     engine = Engine(lights, pattern, fps=args.fps, codec_config=config)
 
-    if args.serial:
-        from luminary.drivers.serial_driver import SerialDriver
-
-        ports = _parse_ports(args.serial)
-        driver = SerialDriver(engine, ports, baud=args.baud)
-        print(f"Streaming {pattern.name!r} to {ports} at {args.fps} fps")
-        driver.run(duration=args.duration)
-        _print_stats(engine)
-        return 0
+    if not args.dry_run:
+        return _serve_broadcast(args, engine, pattern, lights)
 
     # Dry run: exercise the full render+encode pipeline, report codec stats.
     duration = args.duration or 5.0
@@ -293,6 +291,93 @@ def cmd_flash(args: argparse.Namespace) -> int:
     return 1 if failures else 0
 
 
+def cmd_stage(args: argparse.Namespace) -> int:
+    """The play queue, on the boards and on a local page.
+
+    Same control plane the main server mounts at /stage, with the boards on
+    the wire as well -- one engine, so what the page shows is what the
+    hardware got.
+    """
+    import uvicorn
+
+    from luminary.drivers.stage_sink import StageSerialSink
+    from luminary.patterns.registry import default_registry
+    from luminary.server.app import create_app
+
+    store_dir = _store_dir(args.store)
+    ports = _resolve_ports(args, store_dir)
+    if ports is None:
+        return 2
+
+    registry = default_registry()
+    app = create_app(
+        store_dir=store_dir,
+        registry=registry,
+        allow_pattern_upload=False,
+        stage=True,
+        stage_lights=args.lights,
+        audio_player=args.audio_player,
+    )
+    core = app.state.stage
+
+    sink = StageSerialSink(core.engine, ports, baud=args.baud)
+    try:
+        sink.open()
+    except Exception as exc:
+        print(f"could not open {ports}: {exc}", file=sys.stderr)
+        return 2
+    # The stage renders on its own ticker and hands frames to its sinks; this
+    # one carries them to the boards.
+    core.sinks.append(sink)
+
+    url = f"http://{args.host}:{args.port}/stage"
+    print(f"stage on {sorted(ports)} at {args.fps} fps\n{url}", flush=True)
+    if not args.no_browser:
+        import threading
+        import webbrowser
+
+        threading.Timer(1.0, lambda: webbrowser.open(url)).start()
+    try:
+        uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
+    finally:
+        core.sinks.remove(sink)
+        sink.close()
+        stats = sink.stats()
+        print(
+            f"wire: {stats['acks']} acks, median {stats['ack_median_ms']} ms, "
+            f"{stats['dropped_to_window']} frames dropped to the window, "
+            f"{stats['disconnects']} disconnects"
+        )
+    return 0
+
+
+def _resolve_ports(
+    args: argparse.Namespace, store_dir: Path
+) -> Optional[Dict[int, str]]:
+    """--serial, else the boards that answer, else the registry. None on
+    nothing found (the caller reports and exits)."""
+    from luminary.boards import discovery
+    from luminary.boards.registry import BoardRegistry
+
+    if args.serial:
+        parsed = _parse_ports(args.serial)
+        if isinstance(parsed, str):
+            return {0: parsed}
+        return parsed
+    ports = discovery.boards_by_controller(discovery.discover())
+    if not ports:
+        # Registry entries are hints; a board that does not answer now is not
+        # going to take frames either, so this only helps a momentary blip.
+        ports = BoardRegistry(store_dir).load().ports()
+    if not ports:
+        print(
+            "no boards found: run `luminary boards`, or pass --serial",
+            file=sys.stderr,
+        )
+        return None
+    return ports
+
+
 def cmd_geometry(args: argparse.Namespace) -> int:
     """Mapping records -> the geometry the installation actually has."""
     from luminary.geometry.net import Net
@@ -338,8 +423,18 @@ def cmd_geometry(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_show(args: argparse.Namespace) -> int:
-    """Stream to the boards and mirror the same bytes to a preview page."""
+def _serve_broadcast(
+    args: argparse.Namespace,
+    engine: "Engine",
+    pattern: "Pattern",
+    lights: "LightsGeometry",
+) -> int:
+    """Stream one engine to the boards and mirror it to a local page.
+
+    The page is not a second render: it decodes the same wire bytes the
+    hardware got, so it is evidence of what the installation is doing rather
+    than a picture of what it ought to be doing.
+    """
     import asyncio
 
     import uvicorn
@@ -347,19 +442,9 @@ def cmd_show(args: argparse.Namespace) -> int:
     from luminary.boards import discovery
     from luminary.boards.registry import BoardRegistry
     from luminary.drivers.broadcast import BroadcastSession
-    from luminary.engine.engine import Engine
-    from luminary.patterns.registry import default_registry
     from luminary.server.app import create_app
 
     store_dir = _store_dir(args.store)
-    lights = _load_lights(args.lights, store_dir)
-    pattern = default_registry().get(args.pattern)
-    engine = Engine(
-        lights,
-        pattern,
-        fps=args.fps,
-        codec_config=CodecConfig(budget_bytes=args.budget),
-    )
 
     if args.serial:
         ports = _parse_ports(args.serial)
@@ -395,20 +480,26 @@ def cmd_show(args: argparse.Namespace) -> int:
         )
 
     def factory(loop: "asyncio.AbstractEventLoop") -> BroadcastSession:
-        session = BroadcastSession(
+        return BroadcastSession(
             engine, ports, loop=loop, baud=args.baud, lights_id=args.lights
         )
-        return session
 
     app = create_app(
         store_dir=store_dir,
         allow_pattern_upload=False,
         broadcast_factory=factory,
     )
+    url = f"http://{args.host}:{args.port}/preview"
     print(
-        f"streaming {pattern.name!r} to {ports} at {args.fps} fps\n"
-        f"preview: http://{args.host}:{args.port}/preview"
+        f"streaming {pattern.name!r} to {ports} at {args.fps} fps\n{url}",
+        flush=True,
     )
+    if not args.no_browser:
+        # After uvicorn is listening, not before: uvicorn.run blocks.
+        import threading
+        import webbrowser
+
+        threading.Timer(1.0, lambda: webbrowser.open(url)).start()
     uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
     return 0
 
@@ -612,14 +703,32 @@ def main(argv: Optional[list] = None) -> int:
     )
     seed.set_defaults(func=cmd_seed)
 
-    play = sub.add_parser("play", help="Stream a pattern (serial or dry run)")
+    def _broadcast_args(p: argparse.ArgumentParser) -> None:
+        """Flags shared by every verb that drives boards and a page."""
+        p.add_argument(
+            "--serial",
+            help="Port, or controller=port[,...]; default: registered boards",
+        )
+        p.add_argument("--baud", type=int, default=2_000_000)
+        p.add_argument("--fps", type=float, default=30.0)
+        p.add_argument("--budget", type=int, default=None)
+        p.add_argument("--host", default="127.0.0.1")
+        p.add_argument("--port", type=int, default=8080)
+        p.add_argument("--no-browser", action="store_true", help="Don't open a browser")
+
+    play = sub.add_parser("play", help="One pattern to the boards and to a local page")
     play.add_argument("--lights", required=True, help="Lights file or store id")
     play.add_argument("--pattern", required=True)
-    play.add_argument("--serial", help="Port, or controller=port[,...] pairs")
-    play.add_argument("--baud", type=int, default=2_000_000)
-    play.add_argument("--fps", type=float, default=30.0)
-    play.add_argument("--budget", type=int, default=None)
-    play.add_argument("--duration", type=float, default=None, help="Seconds")
+    _broadcast_args(play)
+    play.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Touch no hardware: run the render+encode pipeline and report "
+        "codec stats. For profiling.",
+    )
+    play.add_argument(
+        "--duration", type=float, default=None, help="Seconds (--dry-run)"
+    )
     play.set_defaults(func=cmd_play)
 
     cap = sub.add_parser("capture", help="Scaffold -> lights geometry (spec §7.2)")
@@ -728,20 +837,24 @@ def main(argv: Optional[list] = None) -> int:
     flash.add_argument("--timeout", type=float, default=1.5, help="Probe seconds")
     flash.set_defaults(func=cmd_flash)
 
-    show = sub.add_parser(
-        "show", help="Stream to the boards and mirror it to a preview page"
-    )
+    # `show` is `play` under its older name, kept so existing runbooks work.
+    show = sub.add_parser("show", help="Alias for `play`")
     show.add_argument("--lights", required=True, help="Lights file or store id")
     show.add_argument("--pattern", required=True)
-    show.add_argument(
-        "--serial", help="Port, or controller=port[,...]; default: registered boards"
+    _broadcast_args(show)
+    show.add_argument("--dry-run", action="store_true", help=argparse.SUPPRESS)
+    show.add_argument("--duration", type=float, default=None, help=argparse.SUPPRESS)
+    show.set_defaults(func=cmd_play)
+
+    stage = sub.add_parser(
+        "stage", help="The play queue, on the boards and on a local page"
     )
-    show.add_argument("--baud", type=int, default=2_000_000)
-    show.add_argument("--fps", type=float, default=30.0)
-    show.add_argument("--budget", type=int, default=None)
-    show.add_argument("--host", default="127.0.0.1")
-    show.add_argument("--port", type=int, default=8080)
-    show.set_defaults(func=cmd_show)
+    stage.add_argument(
+        "--lights", default=None, help="Lights file or store id (default: 4A-33)"
+    )
+    _broadcast_args(stage)
+    stage.add_argument("--audio-player", default=None, help="Override the player")
+    stage.set_defaults(func=cmd_stage)
 
     geometry = sub.add_parser(
         "geometry", help="Build the deployed geometry from the mapping records"

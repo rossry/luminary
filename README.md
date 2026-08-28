@@ -63,12 +63,16 @@ boards, flash them, map them, then stream to all of them with a live preview:
 luminary boards                     # verify + register what's on USB
 luminary flash                     # build, flash, prove it came back
 luminary map                        # interactive deployment mapping
-luminary show --lights pentagon-4A-33 --pattern aurora
+luminary play --lights pentagon-4A-33 --pattern aurora   # one pattern
+luminary stage                                          # the play queue
 ```
 
-`show` streams to the boards and mirrors the same wire bytes to
-`/preview` — one engine, so the preview is evidence of what the hardware
-received rather than a second render.
+Both stream to the boards and open a local page carrying the same wire bytes
+— one engine, so the page is evidence of what the hardware received rather
+than a second render. `play` runs one pattern; `stage` runs the queue, with
+the control plane the main server mounts at `/stage`. `--dry-run` on `play`
+touches no hardware and reports codec stats. `show` is `play` under its older
+name.
 
 Step-by-step, from a fresh checkout: [`QUICKSTART.md`](QUICKSTART.md).
 

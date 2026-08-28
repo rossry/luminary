@@ -12,10 +12,11 @@ luminary flash      # build, flash, confirm each one answers
 luminary map        # opens a window; arrows + enter, it explains itself
 luminary flash      # again — now it knows each board's strip length
 luminary geometry   # mapping records -> real geometry; prints an id
-luminary show --lights <id> --pattern aurora
+luminary play --lights <id> --pattern aurora
 ```
 
-Preview: <http://localhost:8080/preview>
+Opens a page showing exactly what the boards got.
+`luminary stage` runs the play queue the same way.
 
 If something is wrong, `luminary boards -v` says what and why.
 Limits, tuning, and the rest: [README.md](README.md).

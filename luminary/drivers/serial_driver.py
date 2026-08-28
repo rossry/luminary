@@ -438,6 +438,28 @@ class SerialDriver:
         while time.monotonic() < deadline:
             pass
 
+    # Public surface for callers that own their own clock -- the stage runs
+    # its own ticker, so it drives these instead of run().
+
+    def poll(self) -> None:
+        """Collect ACKs and retry downed controllers. Cheap; call per tick."""
+        self._poll_inbound()
+        self._try_reconnect()
+
+    def window_full(self) -> bool:
+        """True when every controller is at its acknowledgement limit.
+
+        A caller that renders anyway and drops the result desynchronizes the
+        encoder: it models the decoder's state, so a frame that was generated
+        and not sent leaves the two disagreeing and every later DELTA wrong.
+        Skip the render, or force a keyframe (spec §11.7.6).
+        """
+        return self._window_full()
+
+    def send(self, frame: bytes) -> None:
+        """Route one already-framed wire frame to its controller."""
+        self._route(frame)
+
     def request_stop(self) -> None:
         """Ask a running :meth:`run` to finish its tick and return.
 
