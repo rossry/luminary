@@ -68,6 +68,33 @@ work*). On the shipped single-buffered firmware the overdrive has now run
 clean five consecutive times, ~105 s and ~150k frames total, with the board
 alive after each.
 
+## What actually bounds the frame rate
+
+`show()` plus the strip DMA, and nothing else. Both scale with
+`LUMINARY_MAX_PER_STRIP`, and everything else hides underneath them.
+
+Measured at 200 MHz with the render on core1:
+
+| Build | `show()` | Ceiling |
+|---|---|---|
+| `MAX_PER_STRIP=360` | 3.0 ms | **~71 fps** |
+| `MAX_PER_STRIP=180` | 1.5 ms | **~136 fps** |
+
+Frame time is `show() + DMA`: 3.0 + 10.8 = 13.8 ms against 14.1 measured at
+360, and 1.5 + 5.4 = 6.9 ms against 7.3 at 180. Both halve with the flag
+because `show()` bit-planes and the DMA clocks out `MAX_PER_STRIP` pixels on
+all eight outputs whatever the geometry declares.
+
+Colour conversion, the predictor and decode are **off the critical path** —
+they run on core1 or core0 concurrently with the DMA. Cutting conversion from
+5324 to 1335 us (8 channels down to 2) moved the frame rate only 67.8 -> 71.3
+fps: 4 ms of work bought 0.7 ms of frame time. Driving 8x90 through a 360
+build is no faster than 8x360 for the same reason.
+
+So the lever is `MAX_PER_STRIP`, set per board to that board's longest strip.
+Optimising the colour pipeline further buys nothing until the DMA shrinks;
+this is why the hardware interpolators were investigated and not adopted.
+
 ## Performance
 
 **30 fps is met with headroom to spare**, end to end through `SerialDriver`,

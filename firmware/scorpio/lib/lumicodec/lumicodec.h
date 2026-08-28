@@ -13,6 +13,18 @@
 #include <cstdint>
 #include <vector>
 
+// The per-pixel colour path runs from RAM, not flash. An RP2040 executes from
+// external flash through a 16 KB XIP cache, so a loop this hot pays fetch
+// stalls that have nothing to do with its arithmetic. Off-target (the host
+// conformance build) this is nothing.
+#ifdef ARDUINO
+// .time_critical.* is the pico-sdk linker convention for code copied into RAM
+// at boot.
+#define LUMI_RAMFUNC __attribute__((section(".time_critical.lumicodec")))
+#else
+#define LUMI_RAMFUNC
+#endif
+
 namespace lumicodec {
 
 constexpr uint8_t PROTOCOL_VERSION = 1;
