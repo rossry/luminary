@@ -14,4 +14,10 @@ class Veils(AuroraVeils):
     name = "veils"
     description = "Auroral curtains draped from the apex, seamless in azimuth"
 
+    notes = (
+        "Auroral curtains hung from the apex, seamless in azimuth — "
+        "harmonics swaying against each other, green cores, violet "
+        "fringes."
+    )
+
     speed = 0.9

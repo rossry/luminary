@@ -13,6 +13,12 @@ class Starlight(Starfield):
     name = "starlight"
     description = "A quiet field of warm stars over indigo airglow"
 
+    notes = (
+        "A quiet field of warm stars over indigo airglow. The brightest "
+        "are the oldest; the young ones flicker. Nothing to wait for — "
+        "arrived, and holding."
+    )
+
     density = 0.032
     twinkle_s = 7.0
     star_hue = 80.0
