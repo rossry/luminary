@@ -38,6 +38,12 @@ class Event(Enum):
     UP = "up"
     DOWN = "down"
     ENTER = "enter"
+    # "this one is not here" -- a board that was not built, a panel not yet
+    # hung. Distinct from unmapped: the sequence does not come back to it, and
+    # the deployed geometry simply has no lights for it, rather than refusing
+    # to build. Any directional key clears it, since choosing a controller or
+    # channel is the operator saying it exists after all.
+    SKIP = "skip"
 
 
 @dataclass(frozen=True)
@@ -52,6 +58,10 @@ class BoardRecord:
     unit_vertex: int
     controller_id: Optional[int] = None  # locked in the ports stage
     channels: Dict[int, ChannelRecord] = field(default_factory=dict)
+    # Recorded absent: this board is not on the sphere for this run.
+    absent: bool = False
+    # Panels recorded absent on a board that is otherwise present.
+    absent_faces: Tuple[Face, ...] = ()
     # Density per channel, independent of which panel is on it: the strip
     # plugged into a channel has the LED density it has, and that does not
     # change when the operator assigns a different panel to it. Seeded from
@@ -85,6 +95,9 @@ class MappingState:
 
     def board(self, plan: Plan) -> BoardRecord:
         return self.boards[plan.units[self.board_cursor]]
+
+    def panel_absent(self, plan: Plan, unit: int, panel: "Face") -> bool:
+        return panel in self.boards[unit].absent_faces
 
     def unassigned_controllers(self) -> List[int]:
         taken = {b.controller_id for b in self.boards.values()}
@@ -163,7 +176,9 @@ def _land(state: MappingState, plan: Plan) -> MappingState:
         for i, v in enumerate(plan.units):
             if state.review and i < state.board_cursor:
                 continue
-            if state.review or state.boards[v].controller_id is None:
+            if state.review or (
+                state.boards[v].controller_id is None and not state.boards[v].absent
+            ):
                 saved = state.boards[v].controller_id
                 free = state.unassigned_controllers()
                 candidate = saved if saved is not None else (free[0] if free else None)
@@ -174,7 +189,11 @@ def _land(state: MappingState, plan: Plan) -> MappingState:
             if state.review and i < state.board_cursor:
                 continue
             board = state.boards[v]
+            if board.absent and not state.review:
+                continue  # the whole board is not here; its panels are moot
             for j, panel in enumerate(plan.panels[v]):
+                if panel.face in board.absent_faces and not state.review:
+                    continue
                 if state.review and i == state.board_cursor and j < state.panel_cursor:
                     continue
                 saved_channel = next(
@@ -211,18 +230,31 @@ def _cycle(options: List[int], current: Optional[int], delta: int) -> Optional[i
 
 def step(state: MappingState, plan: Plan, event: Event) -> MappingState:
     if state.stage == "ports":
+        unit = plan.units[state.board_cursor]
         free = state.unassigned_controllers()
+        if event is Event.SKIP:
+            boards = dict(state.boards)
+            boards[unit] = replace(boards[unit], controller_id=None, absent=True)
+            advanced = replace(
+                state, boards=boards, board_cursor=state.board_cursor + 1
+            )
+            return _land(
+                advanced if state.review else replace(state, boards=boards), plan
+            )
         if event is Event.LEFT or event is Event.RIGHT:
             delta = -1 if event is Event.LEFT else 1
+            boards = dict(state.boards)
+            if boards[unit].absent:
+                boards[unit] = replace(boards[unit], absent=False)  # it is here
             return replace(
                 state,
+                boards=boards,
                 candidate_controller=_cycle(free, state.candidate_controller, delta),
             )
         if event is Event.ENTER and state.candidate_controller is not None:
-            unit = plan.units[state.board_cursor]
             boards = dict(state.boards)
             boards[unit] = replace(
-                boards[unit], controller_id=state.candidate_controller
+                boards[unit], controller_id=state.candidate_controller, absent=False
             )
             advanced = (
                 replace(state, boards=boards, board_cursor=state.board_cursor + 1)
@@ -233,6 +265,27 @@ def step(state: MappingState, plan: Plan, event: Event) -> MappingState:
         return state
 
     if state.stage == "panels":
+        if event is Event.SKIP:
+            unit = plan.units[state.board_cursor]
+            panel = plan.panels[unit][state.panel_cursor]
+            boards = dict(state.boards)
+            board = boards[unit]
+            # Absent means no lights, so any channel it held is released too.
+            channels = {
+                ch: rec for ch, rec in board.channels.items() if rec.face != panel.face
+            }
+            faces = tuple(sorted(set(board.absent_faces) | {panel.face}))
+            boards[unit] = replace(board, channels=channels, absent_faces=faces)
+            moved = replace(state, boards=boards)
+            if state.review:
+                panels = plan.panels[unit]
+                if state.panel_cursor + 1 < len(panels):
+                    moved = replace(moved, panel_cursor=state.panel_cursor + 1)
+                else:
+                    moved = replace(
+                        moved, board_cursor=state.board_cursor + 1, panel_cursor=0
+                    )
+            return _land(moved, plan)
         if event is Event.LEFT or event is Event.RIGHT:
             delta = -1 if event is Event.LEFT else 1
             nxt = _cycle(state.free_channels(plan), state.candidate_channel, delta)
@@ -274,6 +327,7 @@ def step(state: MappingState, plan: Plan, event: Event) -> MappingState:
                 winding=state.candidate_winding,
                 density=state.candidate_density,
             )
+            faces = tuple(f for f in boards[unit].absent_faces if f != panel.face)
             densities = dict(boards[unit].densities)
             densities[state.candidate_channel] = state.candidate_density
             boards[unit] = replace(boards[unit], channels=channels, densities=densities)

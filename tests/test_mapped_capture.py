@@ -333,3 +333,50 @@ def test_interpolated_strips_still_load_and_validate(plan, net, net_lights, tmp_
         != reloaded.array[reloaded.control_mask][0, LightColumns.KIND]
     )
     assert interp.sum() > 0
+
+
+def test_an_absent_board_contributes_no_lights(plan, net, net_lights):
+    """Pressing x during mapping means "not here": the geometry builds
+    without it rather than refusing, and its lights simply do not exist."""
+    boards = _full_mapping(plan)
+    missing = plan.units[0]
+    boards[missing] = BoardRecord(
+        unit_vertex=missing, controller_id=None, channels={}, absent=True
+    )
+
+    lights = capture_mapped(net, plan, boards, net_lights=net_lights)
+
+    assert lights.controllers == [1, 2, 3, 4, 5]
+    assert lights.n == net_lights.n - 180 * len(plan.panels[missing])
+
+
+def test_an_absent_panel_contributes_no_lights(plan, net, net_lights):
+    boards = _full_mapping(plan)
+    unit = plan.units[0]
+    gone = plan.panels[unit][0].face
+    channels = {
+        ch: rec for ch, rec in boards[unit].channels.items() if rec.face != gone
+    }
+    boards[unit] = BoardRecord(
+        unit_vertex=unit,
+        controller_id=boards[unit].controller_id,
+        channels=channels,
+        absent_faces=(gone,),
+    )
+
+    lights = capture_mapped(net, plan, boards, net_lights=net_lights)
+
+    assert lights.n == net_lights.n - 180
+    assert 0 in lights.controllers, "the rest of the board still drives"
+
+
+def test_a_gap_that_was_never_decided_is_still_refused(plan, net, net_lights):
+    """Absent is a decision; unmapped is not. Only the former builds."""
+    boards = _full_mapping(plan)
+    unit = plan.units[0]
+    channels = dict(boards[unit].channels)
+    channels.pop(max(channels))
+    boards[unit] = BoardRecord(unit, boards[unit].controller_id, channels)
+
+    with pytest.raises(MappingIncompleteError, match="panels mapped"):
+        capture_mapped(net, plan, boards, net_lights=net_lights)

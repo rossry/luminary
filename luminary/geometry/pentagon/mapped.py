@@ -133,10 +133,16 @@ def capture_mapped(
     seen: Dict[int, int] = {}
     for unit in plan.units:
         record = boards.get(unit)
+        # Recorded absent is a decision, not a gap: the board is not on the
+        # sphere for this run, so it contributes no lights and strict mode has
+        # nothing to complain about.
+        if record is not None and record.absent:
+            continue
         if record is None or record.controller_id is None:
             if strict:
                 raise MappingIncompleteError(
-                    f"unit {unit} has no controller locked; run `luminary map`"
+                    f"unit {unit} has no controller locked; run `luminary map` "
+                    "(or press x there to record it absent)"
                 )
             continue
         controller = record.controller_id
@@ -147,11 +153,14 @@ def capture_mapped(
             )
         seen[controller] = unit
 
-        expected = len(plan.panels[unit])
+        expected = len(
+            [p for p in plan.panels[unit] if p.face not in record.absent_faces]
+        )
         if strict and len(record.channels) != expected:
             raise MappingIncompleteError(
                 f"unit {unit} (controller {controller}) has "
-                f"{len(record.channels)}/{expected} panels mapped"
+                f"{len(record.channels)}/{expected} panels mapped "
+                "(press x while mapping to record one absent)"
             )
 
         for channel, channel_record in sorted(record.channels.items()):

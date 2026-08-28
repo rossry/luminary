@@ -125,6 +125,8 @@ class MappingStore:
         doc: dict = {
             "schema": SCHEMA,
             "board": block,
+            "absent": board.absent,
+            "absent_faces": [list(face) for face in board.absent_faces],
             "channels": {
                 ch: {
                     "face": list(rec.face),
@@ -229,6 +231,12 @@ def _parse_board_yaml(data: bytes, plan: Plan) -> Tuple[int, BoardRecord]:
         # Density is a property of the strip in the channel, so it is seeded
         # per channel on load and survives a panel being moved elsewhere.
         densities={ch: rec.density for ch, rec in channels.items()},
+        # Recorded absent is not the same as unmapped: the sequence must not
+        # come back to it and the geometry must not refuse to build over it.
+        absent=bool(doc.get("absent", False)),
+        absent_faces=tuple(
+            sorted(tuple(sorted(f)) for f in (doc.get("absent_faces") or []))
+        ),
     )
     return controller_id, record
 

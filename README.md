@@ -82,6 +82,11 @@ all-180 board is worth roughly double the frame rate.
 Add `--interpolate` to `geometry` if a board carries several 360-LED strips:
 each then costs 180 lights on the wire and the board reconstructs the rest.
 
+Boards or panels that are not on the sphere yet: press **x** while mapping to
+record one absent. The sequence moves on and does not come back to it, and
+`geometry` builds without it rather than refusing — as opposed to an unmapped
+panel, which it still refuses, because that is a gap rather than a decision.
+
 ### When a board misbehaves
 
 `luminary boards -v` lists every device on USB and why it was accepted or

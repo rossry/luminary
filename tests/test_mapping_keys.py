@@ -33,6 +33,8 @@ CANON = {
     "enter": "enter",
     "p": "enter",
     " ": "enter",
+    # "not here": a board that was not built, a panel not yet hung.
+    "x": "skip",
 }
 
 

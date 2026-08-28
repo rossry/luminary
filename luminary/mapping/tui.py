@@ -36,6 +36,7 @@ _PLAIN = {
     b"\n": Event.ENTER,
     b"p": Event.ENTER,  # alpha-keyboard confirm
     b" ": Event.ENTER,
+    b"x": Event.SKIP,
 }
 _CSI = {b"A": Event.UP, b"B": Event.DOWN, b"C": Event.RIGHT, b"D": Event.LEFT}
 
@@ -93,6 +94,7 @@ def status_line(core: SessionCore) -> str:
         f"panel {state.panel_cursor + 1}/{len(plan.panels[unit])} · "
         f"ch {state.candidate_channel} · {state.candidate_density}/panel · "
         f"{state.candidate_winding} · ad channel, w density, s winding, "
+        f"x not-here, "
         "enter/p confirms, q quits"
     )
 
