@@ -86,10 +86,54 @@ worse: when the claim fails it retries every frame and thrashes the heap.
 Getting 8 slots at 360 px needs the slot to hold only the declared strip
 lengths rather than MAX_PER_STRIP, which is a layout change in staging.
 
-### 3. Hardware interpolators (INTERP0/INTERP1)
+### DONE — stage only the outputs a board uses
 
-Two `cosInterp_q14` calls per pixel are exactly what the RP2040's interpolator
-blocks do. Colour conversion is still the largest single phase.
+NeoPXL8 bit-plans all eight outputs every frame and skips a row whose bitmask
+is zero, but the board hands it all eight pins because it does not know its
+geometry until the SESSION lands. Masking the undeclared rows takes `show()`
+from 3.0 ms to 2.3 (6 outputs) or 1.3 (3 outputs), and the ceiling from ~68 to
+74 and 80 fps. Unlike colour conversion this is on the critical path, because
+staging writes the buffer the DMA reads.
+
+Done by subclassing to reach the protected `bitmask[]` -- no PIO or DMA
+re-init, which is the path that wedged the board during double buffering.
+`enableMask`, the other consumer, is SAMD-only.
+
+It does not raise the installation's rate, which its busiest board sets; it
+gives every lighter board headroom.
+
+### CLOSED — per-strip lengths cannot win DMA time
+
+All eight outputs are bit-planed into one buffer and clocked through a single
+PIO program in lockstep, so the transfer is bounded by the longest strip. A
+board wired 4x360 + 4x180 costs exactly what 8x360 costs. Splitting a 360-LED
+run across two outputs as two 180 chains is the wiring change that converts it
+into a 180 build and roughly doubles the ceiling.
+
+### CLOSED — hardware interpolators are not worth doing
+
+INTERP0/INTERP1 would accelerate `cosInterp_q14` and the INTERPOLATED lerps,
+which are inside colour conversion — and conversion is **off the critical
+path**. Cutting it from 5324 to 1335 us moved the frame rate 67.8 -> 71.3 fps:
+4 ms of work bought 0.7 ms of frame time, because the rest hides under the
+DMA.
+
+The ceiling is `show()` + DMA, both proportional to `MAX_PER_STRIP`:
+
+| Build | `show()` | Ceiling |
+|---|---|---|
+| 360 | 3.0 ms | ~71 fps |
+| 180 | 1.5 ms | ~136 fps |
+
+Raising it means shrinking `MAX_PER_STRIP` (per board, to its longest strip),
+or overlapping `show()`'s bit-planing with the DMA — which is NeoPXL8 double
+buffering, previously measured as no gain and a wedged board. Revisit the
+interpolators only if that overlap lands and conversion becomes critical.
+
+Also tried and marginal: moving the per-pixel path into RAM with a
+`.time_critical` section. Conversion 5429 -> 5321 us, ~2%, no frame-rate
+change -- the 16 KB XIP cache was already holding the loop. Kept, since it
+costs 656 bytes and would matter if the DMA ever shrank.
 
 ### DONE — repaint gate
 

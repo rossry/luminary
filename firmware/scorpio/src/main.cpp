@@ -43,7 +43,40 @@ static const uint16_t MAX_PER_STRIP = LUMINARY_MAX_PER_STRIP;
 #ifndef LUMINARY_COLOR_ORDER
 #define LUMINARY_COLOR_ORDER NEO_GRB
 #endif
-static Adafruit_NeoPXL8 pixels(MAX_PER_STRIP, PINS, LUMINARY_COLOR_ORDER);
+// NeoPXL8 bit-plans all eight outputs into one shared buffer every frame, and
+// skips a row whose bitmask is zero. We hand it all eight pins because the
+// board does not know its geometry until the SESSION arrives -- so by default
+// it pays to bit-plane eight rows even when the geometry declares three.
+//
+// That cost is on the critical path (unlike colour conversion, which hides
+// under the DMA), because staging writes the buffer the DMA reads. Masking the
+// unused rows removes it. It touches only stage()'s row loop -- no PIO or DMA
+// re-init, which is the path that wedged the board during the double-buffering
+// experiment. enableMask, the other bitmask consumer, is SAMD-only.
+class LuminaryPixels : public Adafruit_NeoPXL8 {
+ public:
+  using Adafruit_NeoPXL8::Adafruit_NeoPXL8;
+
+  // Call once after begin(), when the library has assigned the real masks.
+  void rememberOutputs() {
+    for (uint8_t i = 0; i < 8; i++) configured_[i] = bitmask[i];
+  }
+
+  // Bit i set = output i carries a strip. Others stop being staged.
+  void setActiveOutputs(uint8_t active) {
+    for (uint8_t i = 0; i < 8; i++) {
+      bitmask[i] = (active & (1u << i)) ? configured_[i] : 0;
+    }
+  }
+
+ private:
+  uint8_t configured_[8] = {0};
+};
+
+static LuminaryPixels pixels(MAX_PER_STRIP, PINS, LUMINARY_COLOR_ORDER);
+// Which outputs the current SESSION declares; 0xFF until one lands, so the
+// onboard test pattern still lights every strip.
+static uint8_t activeOutputs = 0xFF;
 static lumicodec::Decoder decoder;
 static uint8_t rgbBuffer[MAX_PER_STRIP * 3];
 // Play-out queue of staged frames (spec 13.10). Staging is decoupled from
@@ -181,6 +214,7 @@ void setup() {
   // enabled where the same test had run clean without. Not re-enabled
   // without a repeat of that overdrive test.
   pixels.begin();
+  pixels.rememberOutputs();
   pixels.show();  // all off
   size_t helloLen = lumicodec::buildHello(LUMINARY_CONTROLLER_ID, outFrame);
   Serial.write(outFrame, helloLen);
@@ -370,6 +404,20 @@ void loop() {
                       ? 0
                       : (uint16_t)(256 - (elapsed * 256) / FADE_MS);
     }
+    // Follow the geometry: a board serving three panels should not pay to
+    // stage eight rows. The test pattern wants them all.
+    uint8_t declared = 0;
+    if (!testMode && decoder.hasSession()) {
+      for (uint8_t ch = 0; ch < 8; ch++) {
+        if (decoder.stripLength(ch)) declared |= (uint8_t)(1u << ch);
+      }
+    }
+    if (!declared) declared = 0xFF;
+    if (declared != activeOutputs) {
+      activeOutputs = declared;
+      pixels.setActiveOutputs(declared);
+    }
+
     if (!testMode) {
       const size_t words = decoder.snapshotWords();
       if (qSnapshot.size() != words) qSnapshot.assign(words, 0);

@@ -399,7 +399,7 @@ inline uint8_t gammaEncode(int32_t linear_q14, uint8_t scale1, uint8_t scale2) {
 }
 }  // namespace
 
-void oklchQ14ToRgb8(int32_t l_q14, int32_t c_q14, int32_t h_88,
+void LUMI_RAMFUNC oklchQ14ToRgb8(int32_t l_q14, int32_t c_q14, int32_t h_88,
                     uint8_t brightness, const uint8_t correction[3],
                     uint8_t out[3]) {
   // buildTables() is NOT called here: this runs once per pixel, and every
@@ -432,8 +432,9 @@ uint16_t Decoder::stripRGB(uint8_t id, uint8_t* rgb, uint16_t maxPixels) const {
   return stripRGBFrom(q_.data(), id, rgb, maxPixels);
 }
 
-uint16_t Decoder::stripRGBFrom(const int32_t* q, uint8_t id, uint8_t* rgb,
-                               uint16_t maxPixels) const {
+uint16_t LUMI_RAMFUNC Decoder::stripRGBFrom(const int32_t* q, uint8_t id,
+                                            uint8_t* rgb,
+                                            uint16_t maxPixels) const {
   const ChannelState* ch = channel(id);
   if (ch == nullptr) return 0;
   buildTables();
@@ -473,8 +474,14 @@ uint16_t Decoder::stripRGBFrom(const int32_t* q, uint8_t id, uint8_t* rgb,
     int32_t lB = g_lq14_of_ql[q[nextSlot * 3]];
     int32_t cA = g_cq14_of_qc[q[prevSlot * 3 + 1]];
     int32_t cB = g_cq14_of_qc[q[nextSlot * 3 + 1]];
-    int32_t l_q14 = lA + static_cast<int32_t>((static_cast<int64_t>(lB - lA) * w) >> 8);
-    int32_t c_q14 = cA + static_cast<int32_t>((static_cast<int64_t>(cB - cA) * w) >> 8);
+    // int32: the differences are bounded by the quantised range (|lB-lA| <=
+    // 16384, |cB-cA| <= 6554) and w is 0..255, so the products peak near
+    // 4.2e6 against int32's 2.15e9 -- 500x margin. These were int64, which on
+    // a Cortex-M0+ means two __aeabi_lmul calls per interpolated pixel: the
+    // same pathology the LMS->RGB stage was fixed for, missed here because
+    // this path only runs on strips denser than the net.
+    int32_t l_q14 = lA + (((lB - lA) * w) >> 8);
+    int32_t c_q14 = cA + (((cB - cA) * w) >> 8);
     // OKLCH shortest-arc hue in 8.8 fixed point (spec §13.5.1).
     int32_t hA = q[prevSlot * 3 + 2];
     int32_t dH = hueWrapDiff(q[nextSlot * 3 + 2], hA);
