@@ -288,3 +288,48 @@ def test_small_planet_day_night_and_cities():
     bright_no = float(np.max(no_cities.render(lights, t)[dark_mask, 0]))
     bright_with = float(np.max(with_cities.render(lights, t)[dark_mask, 0]))
     assert bright_with > bright_no + 0.1
+
+
+# ---------------------------------------------------- composed: fireflies
+
+
+def test_fireflies_synchrony_breathes():
+    from luminary.patterns.registry import default_registry
+
+    flies = default_registry().get("fireflies")
+    assert flies._coherence(0.0) == 0.0
+    assert flies._coherence(flies.sync_period / 2.0) == 1.0
+
+    lights = make_lights(n=900, seed=5)
+    chaos_t, unison_t = 21.3, 21.3 + flies.sync_period / 2.0
+
+    def slot_profile(t0):
+        means, peaks = [], []
+        for dt in np.arange(0.0, flies.interval_s, 0.26):
+            out = flies.render(lights, t0 + dt)
+            assert np.all(np.isfinite(out))
+            assert np.all(out[:, 0] <= 1.0) and np.all(out[:, 1] < 0.4)
+            means.append(float(np.mean(out[:, 0])))
+            peaks.append(float(np.max(out[:, 0])))
+        return means, peaks
+
+    chaos_means, chaos_peaks = slot_profile(chaos_t)
+    unison_means, _ = slot_profile(unison_t)
+
+    # In chaos, flashes are scattered: the meadow-wide mean barely moves.
+    # In unison, everyone flashes together: the mean visibly pulses.
+    chaos_swing = max(chaos_means) / min(chaos_means)
+    unison_swing = max(unison_means) / min(unison_means)
+    assert chaos_swing < 1.8
+    assert unison_swing > 2.0
+    assert max(chaos_peaks) > 0.3  # individual flashes still read as events
+
+    # A flash is a local pool, not a wash: even at the collective peak,
+    # most of the meadow stays dark.
+    brightest = flies.render(lights, unison_t + float(np.argmax(unison_means)) * 0.26)
+    assert float(np.mean(brightest[:, 0] > 0.3)) < 0.3
+
+    # Stateless across interleaved times.
+    a = flies.render(lights, 33.3)
+    flies.render(lights, 500.0)
+    assert np.array_equal(flies.render(lights, 33.3), a)
