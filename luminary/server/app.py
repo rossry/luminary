@@ -7,7 +7,7 @@ imports this module.
 
 from __future__ import annotations
 
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 from pathlib import Path
 from typing import Any, AsyncIterator, Dict, Optional
 
@@ -34,13 +34,21 @@ def create_app(
     uploads_dir: Optional[Path] = None,
     allow_pattern_upload: bool = True,
     mapping_demo: bool = False,
+    stage: bool = False,
+    stage_lights: Optional[str] = None,
+    audio_player: Optional[str] = None,
 ) -> FastAPI:
     """Build the app. ``allow_pattern_upload=False`` hard-disables
     POST /api/patterns (403) — uploads execute in-process (spec §15.5.2), so
     shared deployments run without them and take patterns from the repo
     instead (docs/deploy.md). ``mapping_demo=True`` mounts the hardware-free
     mapping tutorial (``luminary.mapping.web``) at ``/demo/mapping``; its
-    mapping records persist under ``<store_dir>/mapping-demo/``."""
+    mapping records persist under ``<store_dir>/mapping-demo/``.
+    ``stage=True`` runs the play-queue control plane (``luminary.stage``) at
+    /stage + /api/queue over the ``stage_lights`` geometry (a store id or
+    file path; default: the production pentagon-4A-33 capture), with state
+    under ``<store_dir>/stage/`` and audio files from ``<store_dir>/audio/``
+    (player auto-detected; ``audio_player`` overrides)."""
     store_dir = Path(store_dir or "var")
     uploads_dir = Path(uploads_dir or store_dir / "patterns-uploads")
     uploads_dir.mkdir(parents=True, exist_ok=True)
@@ -49,6 +57,7 @@ def create_app(
         [uploads_dir] if allow_pattern_upload else []
     )
 
+    demo_app: Optional[FastAPI] = None
     if mapping_demo:
         from luminary.mapping.web import create_demo_app
 
@@ -56,18 +65,37 @@ def create_app(
             root_page="demo", store_dir=store_dir / "mapping-demo"
         )
 
-        @asynccontextmanager
-        async def _demo_lifespan(_app: FastAPI) -> AsyncIterator[None]:
-            # Starlette does not run mounted apps' lifespans; enter the
-            # demo's explicitly so its frame ticker starts and stops with
-            # this server.
-            async with demo_app.router.lifespan_context(demo_app):
-                yield
+    stage_core = None
+    if stage:
+        from luminary.stage.web import build_stage
 
-        app = FastAPI(title="Luminary", version="2.1", lifespan=_demo_lifespan)
+        stage_core = build_stage(
+            store_dir, registry, lights_ref=stage_lights, audio_player=audio_player
+        )
+
+    @asynccontextmanager
+    async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
+        # Starlette does not run mounted apps' lifespans, and this app may
+        # carry several long-lived tickers; enter each explicitly so they
+        # start and stop with this server.
+        async with AsyncExitStack() as stack:
+            if demo_app is not None:
+                await stack.enter_async_context(
+                    demo_app.router.lifespan_context(demo_app)
+                )
+            if stage_core is not None:
+                from luminary.stage.web import stage_lifespan
+
+                await stack.enter_async_context(stage_lifespan(stage_core))
+            yield
+
+    app = FastAPI(title="Luminary", version="2.1", lifespan=_lifespan)
+    if demo_app is not None:
         app.mount("/demo/mapping", demo_app, name="mapping-demo")
-    else:
-        app = FastAPI(title="Luminary", version="2.1")
+    if stage_core is not None:
+        from luminary.stage.web import register_stage
+
+        register_stage(app, stage_core)
     app.state.store = store
     app.state.registry = registry
     app.state.uploads_dir = uploads_dir
