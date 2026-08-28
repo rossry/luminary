@@ -45,6 +45,7 @@ static lumicodec::Decoder decoder;
 static uint8_t rgbBuffer[MAX_PER_STRIP * 3];
 static uint8_t serialBuffer[512];
 static uint8_t outFrame[64];
+static uint8_t statsFrame[64];
 static bool dirty = false;
 static uint32_t lastShowMs = 0;
 static uint32_t lastHelloMs = 0;
@@ -59,6 +60,19 @@ static const uint32_t SILENCE_TIMEOUT_MS = 60000;
 static uint32_t lastFrameMs = 0;
 static uint32_t framesSeen = 0;
 static uint16_t fadeScale = 256;  // 256 = full brightness, 0 = black
+
+// Per-phase instrumentation (spec 13.7). Accumulated in microseconds and
+// reported once a second as a STATS frame, so optimisation work is measured
+// on the board rather than inferred from ACK round trips -- those fold
+// decode, render and DMA into one number and cannot say which moved.
+static uint32_t statFrames = 0;
+static uint32_t statDecodeUs = 0;
+static uint32_t statConvertUs = 0;
+static uint32_t statStageUs = 0;
+static uint32_t statShowUs = 0;
+static uint32_t statLoopMaxUs = 0;
+static uint32_t lastStatsMs = 0;
+static const uint32_t STATS_INTERVAL_MS = 1000;
 
 // Never block on outbound. USB-CDC writes can stall when the host stops
 // reading while keeping the port open (a frozen server); a blocked write
@@ -94,12 +108,18 @@ void setup() {
 
 void loop() {
   rp2040.wdt_reset();
+  const uint32_t loopStart = micros();
   int available = Serial.available();
   while (available > 0) {
     int toRead = min(available, (int)sizeof(serialBuffer));
     int got = Serial.readBytes(serialBuffer, toRead);
     if (got <= 0) break;
+    // Time the decode itself, not the loop's idle spinning: this block runs
+    // far more often than a frame is shown, so anything measured from the
+    // top of loop() would fold waiting-for-bytes into the decode bucket.
+    const uint32_t decodeStart = micros();
     if (decoder.feed(serialBuffer, got) > 0) dirty = true;
+    statDecodeUs += micros() - decodeStart;
     available -= got;
   }
 
@@ -169,8 +189,11 @@ void loop() {
         length = MAX_PER_STRIP;
         lumicodec::testPatternRGB(channel, rgbBuffer, length, now);
       } else {
+        const uint32_t convertStart = micros();
         length = decoder.stripRGB(channel, rgbBuffer, MAX_PER_STRIP);
+        statConvertUs += micros() - convertStart;
       }
+      const uint32_t stageStart = micros();
       // Write the pixel buffer directly rather than one setPixelColor()
       // call per pixel -- at 8x360 that was 2880 calls per frame of offset
       // math and bounds checks. The base class stores raw bytes in strip
@@ -190,8 +213,12 @@ void loop() {
         out[B_OFF] = (uint8_t)((rgbBuffer[i * 3 + 2] * scale) >> 8);
         out += 3;
       }
+      statStageUs += micros() - stageStart;
     }
+    const uint32_t showStart = micros();
     pixels.show();
+    statShowUs += micros() - showStart;
+    statFrames++;
   }
 
   // Flow control (spec §11.7.6). Acknowledge after the repaint, so an ACK
@@ -205,6 +232,23 @@ void loop() {
     size_t len = lumicodec::buildAck(LUMINARY_CONTROLLER_ID, decoder.lastT(),
                                      outFrame);
     writeIfRoom(outFrame, len);
+  }
+
+  const uint32_t loopUs = micros() - loopStart;
+  if (loopUs > statLoopMaxUs) statLoopMaxUs = loopUs;
+  if (now - lastStatsMs >= STATS_INTERVAL_MS) {
+    lastStatsMs = now;
+    const uint32_t fields[8] = {
+        statFrames,       statDecodeUs,  lumicodec::g_predictUs,
+        statConvertUs,    statStageUs,   statShowUs,
+        statLoopMaxUs,    (uint32_t)decoder.nActive(),
+    };
+    size_t len = lumicodec::buildStats(LUMINARY_CONTROLLER_ID, fields, 8,
+                                       statsFrame);
+    if (len) writeIfRoom(statsFrame, len);
+    statFrames = statDecodeUs = statConvertUs = 0;
+    statStageUs = statShowUs = statLoopMaxUs = 0;
+    lumicodec::g_predictUs = 0;
   }
 }
 

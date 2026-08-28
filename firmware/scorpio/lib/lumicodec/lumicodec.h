@@ -22,6 +22,10 @@ constexpr uint8_t FRAME_DELTA = 2;
 constexpr uint8_t FRAME_HELLO = 3;
 constexpr uint8_t FRAME_RESYNC = 4;
 constexpr uint8_t FRAME_ACK = 5;
+// Board -> host diagnostics (spec 13.7). Off the render path entirely, so it
+// is outside the three-decoder conformance rule -- the JS and C++ decoders
+// only ever decode host -> board frames.
+constexpr uint8_t FRAME_STATS = 6;
 
 constexpr uint8_t KIND_ACTIVE = 0;
 constexpr uint8_t KIND_INTERPOLATED = 1;
@@ -104,6 +108,13 @@ class Decoder {
   std::vector<uint8_t> pending_;  // bytes of the current COBS chunk
   std::vector<ChannelState> channels_;
   std::vector<uint8_t> channelIds_;
+  // int32, though the state is only 19 bits per light and the velocity fits
+  // int16. Narrowing these to 9 bytes per light was tried and measured
+  // WORSE -- predictor 2407 -> 2531 us, colour conversion 4995 -> 5235 us,
+  // 48.8 -> 47.1 fps at 8x360. ARMv6-M has no free narrow access: every
+  // byte/halfword load needs an extension instruction, and these loops are
+  // instruction-bound, not memory-bound. The 24-bytes-per-light cost only
+  // matters against MAX_ACTIVE_LIGHTS, and the busiest real board uses 1440.
   std::vector<int32_t> q_;
   std::vector<int32_t> v_;
   size_t nActive_ = 0;
@@ -149,5 +160,14 @@ size_t buildResync(uint8_t controller, uint8_t out[64]);
 // has no payload. Acknowledging t retires every frame at or before it, which
 // is what makes a dropped ACK self-correcting rather than cumulative drift.
 size_t buildAck(uint8_t controller, double t, uint8_t out[64]);
+
+// Per-phase microsecond accumulators, little-endian uint32 in the order
+// firmware/tools/phases.py expects. `out` needs 64 bytes.
+size_t buildStats(uint8_t controller, const uint32_t* fields, uint8_t nFields,
+                  uint8_t* out);
+
+// Microseconds spent in the O(nActive) predictor loop since the counter was
+// last cleared. Instrumentation only; compiled out off-target.
+extern uint32_t g_predictUs;
 
 }  // namespace lumicodec

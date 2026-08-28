@@ -1,5 +1,11 @@
 #include "lumicodec.h"
 
+#ifdef ARDUINO
+// micros() for the predictor-loop instrumentation (spec 13.7). This file also
+// compiles host-side for the conformance tests, where there is no Arduino.
+#include <Arduino.h>
+#endif
+
 #include <cmath>
 #include <cstring>
 
@@ -248,6 +254,9 @@ bool Decoder::applyDelta(const uint8_t* payload, size_t len) {
   if (off != len) return false;
 
   // The normative frame step (spec §11.5.4): coast, correct, blend velocity.
+#ifdef ARDUINO
+  const uint32_t predictStart = micros();
+#endif
   size_t opCursor = 0;
   for (size_t i = 0; i < nActive_; i++) {
     int32_t qL = q_[i * 3], qC = q_[i * 3 + 1], qH = q_[i * 3 + 2];
@@ -270,6 +279,9 @@ bool Decoder::applyDelta(const uint8_t* payload, size_t len) {
     q_[i * 3 + 1] = pC;
     q_[i * 3 + 2] = pH;
   }
+#ifdef ARDUINO
+  g_predictUs += micros() - predictStart;
+#endif
   return true;
 }
 
@@ -299,9 +311,17 @@ bool g_tablesReady = false;
 constexpr int32_t M_L2LMS[9] = {16384, 6494,  3536,
                                 16384, -1730, -1046,
                                 16384, -1466, -21160};
-constexpr int32_t M_LMS2RGB[9] = {66793, -54194, 3784,
-                                  -20782, 42758, -5592,
-                                  -69,   -11525, 27978};
+// Q13, not Q14. At Q14 the row sum peaks near 2.04e9 against int32's 2.147e9
+// -- only 5% margin, so the accumulator had to be int64, and a Cortex-M0+ has
+// no 64-bit multiply: every one of the nine products became an __aeabi_lmul
+// call, ~20 instructions each, 9 per pixel. Halving the coefficients puts the
+// peak at 1.02e9, which is int32 with 2x room, and the accumulator becomes
+// nine single-cycle MULS. The cost is one bit of coefficient precision --
+// a relative error near 1.5e-5 on a value that ends up as 8-bit sRGB, far
+// inside the +-2/255 the host conformance test allows.
+constexpr int32_t M_LMS2RGB_Q13[9] = {33397, -27097, 1892,
+                                      -10391, 21379, -2796,
+                                      -35,   -5763,  13989};
 
 // M_PI is a POSIX/GNU extension, not standard C++: it is absent under a
 // strict -std=c++17 host build (e.g. MinGW-w64, MSVC). Define it locally so
@@ -358,9 +378,12 @@ inline int32_t cosInterp_q14(int32_t h_88) {
 //
 // None can overflow, so results are bit-identical to the int64 form -- which
 // the golden-vector conformance test (spec 11.9) verifies directly. The
-// LMS->RGB accumulator in oklchQ14ToRgb8 is deliberately NOT converted: its
-// worst case reaches ~2.04e9 against a 2.15e9 limit, too little margin to
-// call safe.
+// LMS->RGB accumulator was the one exception, at ~2.04e9 against a 2.15e9
+// limit; it is now int32 too, by carrying that matrix at Q13 instead of Q14
+// (see M_LMS2RGB_Q13). That one is NOT bit-identical -- it trades a bit of
+// coefficient precision for nine single-cycle multiplies in place of nine
+// __aeabi_lmul calls -- so it is held to the conformance test's +-2/255 RGB
+// tolerance rather than to exactness.
 inline int32_t cube_q14(int32_t x) {
   int32_t xx = static_cast<int32_t>((x * x) >> 14);
   return static_cast<int32_t>((xx * x) >> 14);
@@ -379,7 +402,8 @@ inline uint8_t gammaEncode(int32_t linear_q14, uint8_t scale1, uint8_t scale2) {
 void oklchQ14ToRgb8(int32_t l_q14, int32_t c_q14, int32_t h_88,
                     uint8_t brightness, const uint8_t correction[3],
                     uint8_t out[3]) {
-  buildTables();
+  // buildTables() is NOT called here: this runs once per pixel, and every
+  // caller builds the tables before its loop.
   int32_t cosH = cosInterp_q14(h_88);
   int32_t sinH = cosInterp_q14(((64 << 8) - h_88) & 0xFFFF);  // sin x = cos(64-x)
   // c_q14 <= 6554 and |cos| <= 16384, so the product peaks near 2^26.7 --
@@ -396,13 +420,11 @@ void oklchQ14ToRgb8(int32_t l_q14, int32_t c_q14, int32_t h_88,
     lms[i] = cube_q14(acc >> 14);
   }
   for (int i = 0; i < 3; i++) {
-    // Stays 64-bit: this one peaks near 2.04e9, too close to the int32
-    // limit to be provably safe.
-    int64_t acc = static_cast<int64_t>(M_LMS2RGB[i * 3]) * lms[0] +
-                  static_cast<int64_t>(M_LMS2RGB[i * 3 + 1]) * lms[1] +
-                  static_cast<int64_t>(M_LMS2RGB[i * 3 + 2]) * lms[2];
-    out[i] = gammaEncode(static_cast<int32_t>(acc >> 14), brightness,
-                         correction[i]);
+    // int32 throughout: see the note on M_LMS2RGB_Q13.
+    const int32_t acc = M_LMS2RGB_Q13[i * 3] * lms[0] +
+                        M_LMS2RGB_Q13[i * 3 + 1] * lms[1] +
+                        M_LMS2RGB_Q13[i * 3 + 2] * lms[2];
+    out[i] = gammaEncode(acc >> 13, brightness, correction[i]);
   }
 }
 
@@ -496,6 +518,8 @@ void testPatternRGB(uint8_t channel, uint8_t* rgb, uint16_t nPixels,
 
 // ---------------------------------------------------------- outbound frames
 
+uint32_t g_predictUs = 0;
+
 static size_t buildFrame(uint8_t type, uint8_t controller, double t,
                          uint8_t out[64]) {
   uint8_t raw[HEADER_SIZE + 2];
@@ -523,6 +547,34 @@ size_t buildResync(uint8_t controller, uint8_t out[64]) {
 
 size_t buildAck(uint8_t controller, double t, uint8_t out[64]) {
   return buildFrame(FRAME_ACK, controller, t, out);
+}
+
+size_t buildStats(uint8_t controller, const uint32_t* fields, uint8_t nFields,
+                  uint8_t* out) {
+  const size_t payloadLen = static_cast<size_t>(nFields) * 4;
+  uint8_t raw[HEADER_SIZE + 40 + 2];
+  if (payloadLen > 40) return 0;
+  raw[0] = PROTOCOL_VERSION;
+  raw[1] = FRAME_STATS;
+  raw[2] = controller;
+  double t = 0.0;
+  std::memcpy(raw + 3, &t, sizeof(double));
+  raw[11] = static_cast<uint8_t>(payloadLen & 0xFF);
+  raw[12] = static_cast<uint8_t>(payloadLen >> 8);
+  for (uint8_t i = 0; i < nFields; i++) {
+    const uint32_t v = fields[i];
+    raw[HEADER_SIZE + i * 4 + 0] = static_cast<uint8_t>(v & 0xFF);
+    raw[HEADER_SIZE + i * 4 + 1] = static_cast<uint8_t>((v >> 8) & 0xFF);
+    raw[HEADER_SIZE + i * 4 + 2] = static_cast<uint8_t>((v >> 16) & 0xFF);
+    raw[HEADER_SIZE + i * 4 + 3] = static_cast<uint8_t>((v >> 24) & 0xFF);
+  }
+  const size_t rawLen = HEADER_SIZE + payloadLen + 2;
+  uint16_t crc = crc16(raw, HEADER_SIZE + payloadLen);
+  raw[HEADER_SIZE + payloadLen] = static_cast<uint8_t>(crc & 0xFF);
+  raw[HEADER_SIZE + payloadLen + 1] = static_cast<uint8_t>(crc >> 8);
+  size_t encoded = cobsEncode(raw, rawLen, out);
+  out[encoded] = 0;
+  return encoded + 1;
 }
 
 }  // namespace lumicodec
