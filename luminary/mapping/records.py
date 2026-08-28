@@ -346,7 +346,7 @@ class SerialBoards:
 
 
 def trust_boards(
-    store: MappingStore, board_store: BoardStore, plan: Plan
+    records: MappingStore, boards: BoardStore, plan: Plan
 ) -> Dict[int, Optional[Path]]:
     """``--trust-boards``: the sphere's copies replace the local files.
 
@@ -357,8 +357,8 @@ def trust_boards(
     a stored mapping is skipped — absence is not evidence.
     """
     replaced: Dict[int, Optional[Path]] = {}
-    for controller_id in board_store.controllers():
-        data = board_store.read_mapping(controller_id)
+    for controller_id in boards.controllers():
+        data = boards.read_mapping(controller_id)
         if data is None:
             continue
         declared, _ = _parse_board_yaml(data, plan)
@@ -367,8 +367,8 @@ def trust_boards(
                 f"board {controller_id} serves a mapping declaring "
                 f"controller {declared}"
             )
-        local = store.path_for(controller_id)
+        local = records.path_for(controller_id)
         backup = dated_backup(local) if local.exists() else None
-        store._write_verified(local, data)
+        records._write_verified(local, data)
         replaced[controller_id] = backup
     return replaced

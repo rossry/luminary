@@ -17,7 +17,7 @@ verify.
 
 With upload disabled the remaining write surface is geometry JSON only
 (Pydantic-validated data, no code paths). Access control is still worth
-having — anyone who can reach the box can fill the store's disk — so
+having — anyone who can reach the box can fill the state disk — so
 prefer one of:
 
 - **Tailscale / WireGuard (recommended):** bind to the tailnet address and
@@ -42,7 +42,7 @@ sudo -u luminary /opt/luminary/venv/bin/pip install -r requirements.txt
 
 # one-time: demo geometries so the UI isn't empty (idempotent)
 sudo -u luminary /opt/luminary/venv/bin/luminary seed \
-    --store /opt/luminary/var
+    --state-dir /opt/luminary/var
 ```
 
 `/etc/systemd/system/luminary.service`:
@@ -56,7 +56,7 @@ After=network.target
 User=luminary
 WorkingDirectory=/opt/luminary/app
 ExecStart=/opt/luminary/venv/bin/luminary \
-    --store /opt/luminary/var serve --host 127.0.0.1 --port 8080 \
+    --state-dir /opt/luminary/var serve --host 127.0.0.1 --port 8080 \
     --disable-pattern-upload
 Restart=on-failure
 
@@ -124,7 +124,7 @@ and drop files into `var/audio/` (`scp`, or however you move media). With
 no player installed the stage still runs; entries just play silent (the
 startup log says so once; `serve --audio-player CMD` overrides detection).
 The default stage geometry is the production `pentagon-4A-33` capture;
-`--stage-lights <store id | file>` substitutes another. A restart resumes
+`--stage-lights <geometry id | file>` substitutes another. A restart resumes
 the current queue entry from its beginning — there is no mid-file audio
 seek.
 
@@ -140,15 +140,17 @@ B/light·frame readout confirms the wire codec is doing its job.
 
 ## Operational notes
 
-- **State** is only `var/` — the geometry store, pattern uploads, and
-  the mapping YAMLs (`var/mapping/`, and the tutorial's
+- **State** is only the checkout's `var/` — geometry documents,
+  pattern uploads, stage state and audio (`var/stage/`, `var/audio/`),
+  and the mapping YAMLs (`var/mapping/`, and the tutorial's
   `var/mapping-demo/`). The directory ships in the repo
   (`var/.gitkeep`); its contents are gitignored. Back it up or
   volume-mount it; everything else is stateless and rebuilt from the
-  repo. (A pre-rename `store/` tree is dead: nothing reads it — delete
-  it, and rerun `luminary.cli seed` if you want the demo geometries
-  back. The only irreplaceable content is hand-saved geometries and,
-  once mapping has run, the mapping YAMLs.)
+  repo. The default is anchored to the checkout, so no flag is needed;
+  a unit passing the old removed flag will refuse to start — drop it,
+  and move anything that landed under its directory into `var/`. The
+  only irreplaceable content is hand-saved geometries and, once
+  mapping has run, the mapping YAMLs.
 - **CPU:** render+encode measures ~0.8 ms/frame for 2,048 lights
   (implementation-notes §7); each connected viewer runs its own engine, so
   budget roughly one core per handful of simultaneous viewers at 30 fps.

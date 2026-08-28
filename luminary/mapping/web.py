@@ -212,7 +212,7 @@ class _Disconnect(Exception):
 
 def create_mapping_app(
     core: SessionCore,
-    store: Any = None,
+    saved: Any = None,
     *,
     demo_truth: Optional[Dict[str, Any]] = None,
     run_ticker: bool = True,
@@ -221,14 +221,14 @@ def create_mapping_app(
 ) -> FastAPI:
     """Build the mapping web app around a running :class:`SessionCore`.
 
-    ``store`` is duck-typed (the CLI's board store, or None): when present,
-    ``store.save_state(core.state, core.plan)`` runs on every state change.
+    ``saved`` is duck-typed (the CLI's mapping records, or None): when present,
+    ``saved.save_state(core.state, core.plan)`` runs on every state change.
     ``demo_truth`` enables ``/api/mapping/demo-truth`` for the tutorial.
     ``run_ticker=False`` skips the frame clock (tests drive ``core.tick``).
     ``root_page`` picks what ``/`` serves — ``"window"`` for a base
     station, ``"demo"`` for the mounted tutorial; both pages always stay
     reachable at ``/window`` and ``/demo``. ``allow_reset`` arms the
-    control event ``reset`` (start the mapping over: clear the store's
+    control event ``reset`` (start the mapping over: clear the saved
     records, back to a fresh ports stage) — the tutorial only; a real
     session must never lose its records to a stray click.
     """
@@ -253,8 +253,8 @@ def create_mapping_app(
         # Adapter-local work only: the core already re-sent SESSION to
         # every sink (SessionCore.resync_sinks). Persist, then refresh
         # every HUD.
-        if store is not None:
-            store.save_state(core.state, core.plan)
+        if saved is not None:
+            saved.save_state(core.state, core.plan)
         _push_state_all()
 
     core.on_state_change.append(_on_state_change)
@@ -426,11 +426,11 @@ def create_mapping_app(
                 name = str(body.get("event"))
                 if name == "reset":
                     # Start over (tutorial only): the records leave the
-                    # store the same way they entered it, and the fresh
+                    # files the same way they entered them, and the fresh
                     # state broadcasts through the usual change hooks.
                     if allow_reset:
-                        if store is not None:
-                            store.clear_records()
+                        if saved is not None:
+                            saved.clear_records()
                         core.reset_state(
                             initial_state(core.plan, list(core.state.controllers))
                         )
@@ -477,18 +477,18 @@ async def _run_pair(send_coro: Any, receive_coro: Any) -> None:
 
 def serve_mapping(
     core: SessionCore,
-    store: Any,
+    saved: Any,
     host: str = "127.0.0.1",
     port: int = 8090,
 ) -> None:
     """Serve the mirror window for a live mapping session (blocking)."""
-    uvicorn.run(create_mapping_app(core, store), host=host, port=port)
+    uvicorn.run(create_mapping_app(core, saved), host=host, port=port)
 
 
 def create_demo_app(
     seed: str = "mapping-demo",
     *,
-    store_dir: Path,
+    state_dir: Path,
     run_ticker: bool = True,
     root_page: str = "window",
 ) -> FastAPI:
@@ -496,9 +496,9 @@ def create_demo_app(
     no hardware and no CLI involved.
 
     The demo's mapping state lives ONLY where a production session's
-    would: a real :class:`MappingStore` at ``store_dir`` (required — a
-    storeless demo would be a second, unprincipled persistence path).
-    The session resumes from the store's records exactly like
+    would: a real :class:`MappingStore` at ``state_dir`` (required — a
+    recordless demo would be a second, unprincipled persistence path).
+    The session resumes from the saved records exactly like
     ``map --continue``, so a restarted server picks up where the last
     operator left off; the page's ↺ restart control clears the records
     and starts the sequence over. The scrambled truth is seeded, so it
@@ -506,21 +506,21 @@ def create_demo_app(
     """
     from luminary.geometry.net import Net
     from luminary.geometry.pentagon import capture
-    from luminary.mapping.store import MappingStore
+    from luminary.mapping.records import MappingStore
 
     plan = Plan.load()
     net_lights = capture(Net.from_json_file(_CONFIGS / f"{plan.net_name}.json"))
     truth = build_demo_truth(plan, seed)
-    store = MappingStore(Path(store_dir))
+    saved = MappingStore(Path(state_dir))
     state = resume_state(
         plan,
         controllers=list(truth["controllers"]),
-        boards=store.load_records(plan),
+        boards=saved.load_records(plan),
     )
     core = SessionCore(plan, net_lights, state)
     return create_mapping_app(
         core,
-        store=store,
+        saved=saved,
         demo_truth=truth,
         run_ticker=run_ticker,
         root_page=root_page,
@@ -531,15 +531,15 @@ def create_demo_app(
 def serve_demo(
     host: str = "127.0.0.1",
     port: int = 8090,
-    store_dir: Optional[Path] = None,
+    state_dir: Optional[Path] = None,
 ) -> None:
     """Serve the hardware-free tutorial (blocking): / mirrors the window,
     /demo is the scrambled-build training page. State resolves through
     the one runtime-state resolver (luminary.statedir)."""
     from luminary.statedir import runtime_state_dir
 
-    resolved = store_dir or runtime_state_dir(None, "mapping-demo")
-    uvicorn.run(create_demo_app(store_dir=resolved), host=host, port=port)
+    resolved = state_dir or runtime_state_dir(None, "mapping-demo")
+    uvicorn.run(create_demo_app(state_dir=resolved), host=host, port=port)
 
 
 if __name__ == "__main__":  # pragma: no cover — `python -m luminary.mapping.web`

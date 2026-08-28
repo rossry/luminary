@@ -161,13 +161,13 @@ def test_create_app_mounts_stage(tmp_path, lights):  # noqa: F811
     """The serve path: create_app(stage=True) with --stage-lights as a
     file path serves the page + static module, runs the ticker under the
     composed lifespan (SESSION then a live keyframe with no manual
-    tick), takes queue commands, and persists under <store>/stage/."""
+    tick), takes queue commands, and persists under <state>/stage/."""
     from luminary.server.app import create_app
 
     lights_path = tmp_path / "tiny.lights.json"
     lights.save(lights_path)
     app = create_app(
-        store_dir=tmp_path / "store", stage=True, stage_lights=str(lights_path)
+        state_dir=tmp_path / "state", stage=True, stage_lights=str(lights_path)
     )
     with TestClient(app) as client:
         page = client.get("/stage")
@@ -194,7 +194,7 @@ def test_create_app_mounts_stage(tmp_path, lights):  # noqa: F811
             "/api/queue", json={"pattern": "spiral", "duration": 60}
         ).json()
         assert snap["now"]["holding"] is False
-        assert (tmp_path / "store" / "stage" / "queue.json").is_file()
+        assert (tmp_path / "state" / "stage" / "queue.json").is_file()
 
         # The rest of the server is untouched.
         assert client.get("/api/health").json()["status"] == "ok"
@@ -203,7 +203,7 @@ def test_create_app_mounts_stage(tmp_path, lights):  # noqa: F811
 def test_create_app_stage_off_by_default(tmp_path):
     from luminary.server.app import create_app
 
-    app = create_app(store_dir=tmp_path / "store")
+    app = create_app(state_dir=tmp_path / "state")
     with TestClient(app) as client:
         assert client.get("/stage").status_code == 404
         assert client.get("/api/queue").status_code == 404
@@ -333,7 +333,7 @@ def test_create_app_stage_key_env_fallback(tmp_path, lights, monkeypatch):  # no
     lights.save(lights_path)
     monkeypatch.setenv("LUMINARY_STAGE_KEY", "envkey")
     app = create_app(
-        store_dir=tmp_path / "store", stage=True, stage_lights=str(lights_path)
+        state_dir=tmp_path / "state", stage=True, stage_lights=str(lights_path)
     )
     with TestClient(app) as client:
         assert client.post("/api/queue/skip").status_code == 403
@@ -345,7 +345,7 @@ def test_create_app_stage_key_env_fallback(tmp_path, lights, monkeypatch):  # no
         )
 
     app = create_app(
-        store_dir=tmp_path / "store2",
+        state_dir=tmp_path / "state2",
         stage=True,
         stage_lights=str(lights_path),
         stage_key="flagkey",  # the explicit flag beats the env

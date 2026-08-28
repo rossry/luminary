@@ -40,12 +40,12 @@
 | `luminary/boards/discovery.py` | §13.3, §16.2.6 | **The single source of "is this a Scorpio"**: application-mode VID:PID *and* the RESYNC identity probe, both required. Also classifies BOOTSEL, unopenable (permissions), and enumerated-but-silent, and reports controller-id collisions. `firmware/tools/whoami.py` and `mapping/serial_sink.py` both delegate here |
 | `luminary/boards/registry.py` | §16.2.6 | `var/boards.yaml`, keyed on controller id — the port is a hint, re-probed at startup, never an identity (same rule as the mapping records) |
 | `luminary/boards/flash.py` | §13.6, §16.2.7 | Build per controller id (flags via `PLATFORMIO_BUILD_FLAGS`; `pio run` has no `--build-flag`), 1200 bps touch into the bootloader, UF2 copy, then re-probe to prove the board answers with the id it was built for |
-| `luminary/mapping/store.py` | `plan/mapping/DESCRIPTION.md` "Saved state" | One YAML per board (`mapping-<controller_id>.yaml`, schema `luminary.mapping/1`): write→fsync→readback→`.bak` discipline, `--continue` progress markers (dropped when a board completes), dated backups, and `--trust-boards` over the `BoardStore` protocol (`SerialBoards` raises toward the board-storage firmware handoff) |
+| `luminary/mapping/records.py` | `plan/mapping/DESCRIPTION.md` "Saved state" | One YAML per board (`mapping-<controller_id>.yaml`, schema `luminary.mapping/1`): write→fsync→readback→`.bak` discipline, `--continue` progress markers (dropped when a board completes), dated backups, and `--trust-boards` over the `BoardStore` protocol (`SerialBoards` raises toward the board-storage firmware handoff) |
 | `luminary/mapping/serial_sink.py` | `plan/mapping/DESCRIPTION.md` | Delegates the RESYNC identity probe to `luminary/boards/discovery.py` (one copy, shared with `luminary boards` and `firmware/tools/whoami.py`) and provides the wire-frame sink routing frames by header controller byte; degrades to window-only with no pyserial/ports |
 | `luminary/mapping/tui.py` | `plan/mapping/DESCRIPTION.md` "Surface-agnostic core" | Terminal adapter: cbreak arrows/WASD/enter → Events, one status line, monotonic tick loop, save + SESSION refresh on every state change |
 | `luminary/render/projection.py` | §14.4 | Shared world→2D layout for SVG **and** canvas (one projection rule) |
 | `luminary/render/svg.py` | §14.5 | Static SVG of scaffolds / lights (rendered once, never per frame) |
-| `luminary/server/app.py`, `store.py` | §15 | FastAPI adapter (all exit-condition endpoints) over a content-addressed file store |
+| `luminary/server/app.py`, `geometry_store.py` | §15 | FastAPI adapter (all exit-condition endpoints) over content-addressed geometry documents |
 | `luminary/server/static/decoder.js`, `color.js`, `client.js`, `glow.js` | §14.2–§14.3 | Browser decoder (conformance sibling), color math, canvas client, WebGL2 realistic cloth render (§14.3.3) |
 | `luminary/stage/core.py` | — | `StageCore`: the play-queue control plane — ONE engine over one geometry, tracklist + repeats cycle + now-playing index, gapless `set_pattern` advance with per-entry t = elapsed + `offset`; head-of-queue chapter expansion (a `chapters()` composition becomes `comp/chapter` entries, nested one level lazily) with seamless adjacent-chapter advance (same pattern object, `next.offset == prev.offset + prev.duration`: no keyframe, timeline continuous — skips/jumps re-keyframe); duration from entry, the pattern's own `duration` attribute, or one `total` pass for `loop=True` instances; run-out takes the repeats round-robin (tokens `{pattern, title, audio}`), else hold-on-empty (loops the last pattern, never dark); `queue.json` v2 (tmp+rename, v1 loads with defaults) under `<state dir>/stage/` |
 | `luminary/stage/audio.py` | — | Optional per-entry audio: player auto-detect (mpv → cvlc → ffplay; `--audio-player` overrides), one subprocess started at the entry's t=0 and terminated on skip/advance, files from `<state dir>/audio/` (bare filenames only) |
@@ -200,9 +200,9 @@ under the 33 ms frame budget.
 
 ## 6. Runtime layout
 
-- `store/` (gitignored): the server's content-addressed geometry store —
-  `scaffolds/<id>.scaffold.json`, `lights/<id>.lights.json`,
-  `patterns-uploads/`. Ships empty; ids are short SHA-1 content hashes, so
+- `var/` (contents gitignored): the server's content-addressed geometry
+  documents — `scaffolds/<id>.scaffold.json`, `lights/<id>.lights.json`,
+  `patterns-uploads/` — plus stage state and audio. Ships empty; ids are short SHA-1 content hashes, so
   identical saves dedupe. Stage demo data with `luminary.cli seed` (or
   `serve --seed-demo`) — idempotent by content hash — or via the API
   (`POST /api/scaffolds`, `POST /api/lights/from-scaffold`).

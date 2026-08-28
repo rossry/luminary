@@ -45,7 +45,7 @@ class Uploaded(Pattern):
 
 @pytest.fixture()
 def client(tmp_path):
-    app = create_app(store_dir=tmp_path / "store")
+    app = create_app(state_dir=tmp_path / "state")
     with TestClient(app) as test_client:
         yield test_client
 
