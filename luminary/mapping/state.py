@@ -189,9 +189,16 @@ def _land(state: MappingState, plan: Plan) -> MappingState:
             if state.review and i < state.board_cursor:
                 continue
             board = state.boards[v]
-            if board.absent and not state.review:
-                continue  # the whole board is not here; its panels are moot
+            # A board that is not here has no strips to map, in either mode:
+            # its panels are moot until stage A says the board exists. Review
+            # still walks the board itself, so un-skipping it there brings its
+            # panels back into the sequence.
+            if board.absent:
+                continue
             for j, panel in enumerate(plan.panels[v]):
+                # An absent panel is still walked in review, so it can be
+                # un-skipped if it has since been hung; enter there re-confirms
+                # it absent rather than resurrecting it.
                 if panel.face in board.absent_faces and not state.review:
                     continue
                 if state.review and i == state.board_cursor and j < state.panel_cursor:
@@ -315,6 +322,21 @@ def step(state: MappingState, plan: Plan, event: Event) -> MappingState:
         if event is Event.ENTER:
             unit = plan.units[state.board_cursor]
             panel = plan.panels[unit][state.panel_cursor]
+            if panel.face in state.boards[unit].absent_faces:
+                # Re-confirming an absent panel leaves it absent. Holding enter
+                # through a review must not resurrect the panels you skipped.
+                moved = state
+                if state.review:
+                    panels = plan.panels[unit]
+                    if state.panel_cursor + 1 < len(panels):
+                        moved = replace(state, panel_cursor=state.panel_cursor + 1)
+                    else:
+                        moved = replace(
+                            state,
+                            board_cursor=state.board_cursor + 1,
+                            panel_cursor=0,
+                        )
+                return _land(moved, plan)
             boards = dict(state.boards)
             channels = dict(boards[unit].channels)
             # A panel that moved to a different channel must not leave a copy

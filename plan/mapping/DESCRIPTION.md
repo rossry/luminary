@@ -114,7 +114,9 @@ way). **x** records the panel as not here — not built, not yet hung — which
 is different from leaving it unmapped: the sequence does not return to it and
 the deployed geometry is built without it rather than refusing. Any
 directional key clears that, since choosing a channel is the operator saying
-it exists after all. In stage A, **x** does the same for a whole board. A
+it exists after all. In stage A, **x** does the same for a whole board — and stage B then has no
+strips to ask about, so it skips that board's panels entirely. Un-skipping the
+board in stage A brings them back. A
 **single enter** confirms channel + density + winding together
 and advances; a confirmed panel holds its wheel portion at 20% of the
 active strip's brightness until the board completes. Meanwhile every

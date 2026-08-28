@@ -236,3 +236,51 @@ def test_a_skipped_panel_does_not_stop_the_sequence_again(plan):
 
     landed = plan.panels[plan.units[resumed.board_cursor]][resumed.panel_cursor]
     assert landed.face != panel.face
+
+
+def test_an_absent_board_has_no_strips_to_map(plan):
+    """Stage B must not walk the panels of a board that is not here.
+
+    The default pass reviews every slot, but "review everything" cannot mean
+    asking which channel each panel of a missing board is on.
+    """
+    state = initial_state(plan, list(range(len(plan.units))))
+    absent = plan.units[0]
+    state = step(state, plan, Event.SKIP)
+    for _ in range(len(plan.units) - 1):
+        state = step(state, plan, Event.ENTER)
+    assert state.stage == "panels"
+
+    visited = set()
+    for _ in range(500):
+        if state.stage != "panels":
+            break
+        visited.add(plan.units[state.board_cursor])
+        state = step(state, plan, Event.ENTER)
+
+    assert state.stage == "done"
+    assert absent not in visited, "asked for the strips of a board that is not here"
+    assert not state.boards[absent].channels
+
+
+def test_holding_enter_through_a_review_keeps_skipped_panels_skipped(plan):
+    """Re-confirming an absent panel must not resurrect it."""
+    state = _at_first_panel(plan)
+    unit = plan.units[state.board_cursor]
+    gone = plan.panels[unit][state.panel_cursor].face
+    state = step(state, plan, Event.SKIP)
+    for _ in range(500):
+        if state.stage == "done":
+            break
+        state = step(state, plan, Event.ENTER)
+
+    # Walk it again from the start, confirming everything.
+    state = initial_state(plan, list(range(len(plan.units))), state.boards)
+    for _ in range(500):
+        if state.stage == "done":
+            break
+        state = step(state, plan, Event.ENTER)
+
+    board = state.boards[unit]
+    assert gone in board.absent_faces
+    assert not any(r.face == gone for r in board.channels.values())
