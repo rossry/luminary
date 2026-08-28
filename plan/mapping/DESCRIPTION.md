@@ -231,6 +231,12 @@ lights per the recorded density (the
 INTERPOLATED if we choose to keep wire cost at 180/panel — decision at
 implementation time, measured, not assumed).
 
+Boards recorded absent have no controller id, so they cannot be keyed the way
+every other record is. They get one small `absent.yaml` listing the data units
+that are not on the sphere; it is deleted when nothing is absent. Without it an
+absent board reloads as merely unmapped, and `geometry` refuses a deployment
+over a board the operator already said was missing.
+
 ## Board-side mapping storage — HANDOFF to prod-hardware integration
 
 The base station's YAML is authoritative during mapping; a copy also

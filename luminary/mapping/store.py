@@ -32,6 +32,7 @@ from luminary.mapping.plan import Face, Plan
 from luminary.mapping.state import BoardRecord, ChannelRecord, MappingState
 
 SCHEMA = "luminary.mapping/1"
+ABSENT_SCHEMA = "luminary.mapping-absent/1"
 
 _WINDINGS = ("cw", "ccw")
 _DENSITIES = (180, 360)
@@ -80,6 +81,15 @@ class MappingStore:
     def path_for(self, controller_id: int) -> Path:
         return self.directory / f"mapping-{controller_id}.yaml"
 
+    # Boards recorded absent have no controller id, so they cannot be keyed
+    # the way every other record is. They get one small file listing the data
+    # units that are not on the sphere. Without it an absent board is
+    # indistinguishable from an unmapped one on reload, and `geometry` refuses
+    # the deployment over a board the operator already said was missing.
+    @property
+    def absent_path(self) -> Path:
+        return self.directory / "absent.yaml"
+
     def clear_records(self) -> List[Path]:
         """Delete every board YAML and its ``.bak`` twin (the demo's
         start-over); dated backups are kept. Returns what was removed."""
@@ -101,6 +111,16 @@ class MappingStore:
         are simply absent — exactly what ``load_records`` tolerates.
         """
         written: Dict[int, Path] = {}
+        absent = [unit for unit in plan.units if state.boards[unit].absent]
+        if absent:
+            self._write_verified(
+                self.absent_path,
+                yaml.safe_dump(
+                    {"schema": ABSENT_SCHEMA, "units": absent}, sort_keys=False
+                ).encode(),
+            )
+        elif self.absent_path.exists():
+            self.absent_path.unlink()  # nothing absent any more
         for unit in plan.units:
             board = state.boards[unit]
             if board.controller_id is None:
@@ -173,7 +193,33 @@ class MappingStore:
                     f"data unit {record.unit_vertex} is claimed by two mapping files"
                 )
             records[record.unit_vertex] = record
+        for unit in self._load_absent(plan):
+            if unit in records:
+                raise StoreError(
+                    f"data unit {unit} is recorded absent and also has a "
+                    "mapping file"
+                )
+            records[unit] = BoardRecord(unit_vertex=unit, absent=True)
         return records
+
+    def _load_absent(self, plan: Plan) -> List[int]:
+        """Data units recorded as not on the sphere."""
+        if not self.absent_path.exists():
+            return []
+        try:
+            doc = yaml.safe_load(self.absent_path.read_bytes()) or {}
+        except yaml.YAMLError as exc:
+            raise StoreError(f"{self.absent_path.name}: {exc}")
+        if doc.get("schema") != ABSENT_SCHEMA:
+            raise StoreError(f"{self.absent_path.name}: schema {doc.get('schema')!r}")
+        units = doc.get("units") or []
+        for unit in units:
+            if unit not in plan.units:
+                raise StoreError(
+                    f"{self.absent_path.name}: {unit} is not a data unit of "
+                    f"{plan.net_name}"
+                )
+        return [int(u) for u in units]
 
 
 def _parse_board_yaml(data: bytes, plan: Plan) -> Tuple[int, BoardRecord]:
