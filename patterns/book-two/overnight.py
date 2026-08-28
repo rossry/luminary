@@ -6,7 +6,7 @@ chapter *is* Nocturne, the same movement list, by import). Conductors
 nest freely because a show is itself a Pattern. ``loop=True``: no
 ``duration``, so the stage plays it until skipped, and the loop seam
 is composed — the last chapter's quiet starfield fades into
-Nocturne's opening embers, exactly, every pass (3 h 40 m each).
+Nocturne's opening embers, exactly, every pass (3 h 10 m each).
 """
 
 from luminary.patterns.compose import Conductor, Movement
@@ -19,24 +19,25 @@ class Overnight(Conductor):
     name = "overnight"
     description = "Dusk to dawn: book two as a looping program of chapters"
     notes = (
-        "The all-night program: queue it and walk away. Nocturne's hour, "
+        "The all-night program: queue it and walk away. Nocturne, "
         "four days of the small planet, firefly synchrony, veils, a relay "
         "set-break, sea weather, long rings, and quiet stars that loop "
         "back into the embers. No two passes read the same."
     )
 
     def __init__(self) -> None:
+        night = nocturne()  # its own total: retimed acts never drift here
         super().__init__(
             [
                 Movement(
-                    nocturne(),
-                    3600.0,
+                    night,
+                    night.total,
                     fade=25.0,
                     title="nocturne",
                     notes=(
-                        "The composed hour, whole — seven movements from "
-                        "dusk embers to starfall. See each chapter's own "
-                        "notes as it plays."
+                        "The composed half hour, whole — seven movements "
+                        "from dusk embers to starfall. See each chapter's "
+                        "own notes as it plays."
                     ),
                 ),
                 Movement(

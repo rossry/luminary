@@ -145,21 +145,31 @@ def test_conductor_is_stateless_and_seekable():
     lights[:, LightColumns.PHI_S] = rng.uniform(0, 2.2, 48)
     lights[:, LightColumns.THETA_S] = rng.uniform(-np.pi, np.pi, 48)
     a = show.render(lights, 500.0)
-    show.render(lights, 3100.0)
+    show.render(lights, 1700.0)
     show.render(lights, 12.0)
     assert np.array_equal(show.render(lights, 500.0), a)
 
 
-def test_nocturne_is_a_registered_hour():
+def test_nocturne_is_a_registered_half_hour():
     registry = default_registry()
     show = registry.get("nocturne")
-    assert show.duration == 3600.0
+    assert show.duration == 1784.0  # 29:44 — the acts sum to their tracks
     rows = show.schedule()
     assert len(rows) == 7
     assert rows[0]["start"] == 0.0
     starts = [row["start"] for row in rows]
     assert starts == sorted(starts)
-    assert sum(row["duration"] for row in rows) == 3600.0
+    assert sum(row["duration"] for row in rows) == 1784.0
+    # Every act declares its own track (separate files in var/audio).
+    assert [r["audio"] for r in rows] == [
+        "poa-alpina.mp3",
+        "saman.mp3",
+        "flight-from-the-city.mp3",
+        "the-pearl.mp3",
+        "cantus.mp3",
+        "requiem-static-king.mp3",
+        "eluvium.mp3",
+    ]
 
     lights = make_lights(60)
     rng = np.random.default_rng(9)
@@ -171,7 +181,7 @@ def test_nocturne_is_a_registered_hour():
     probes = [0.0, 6.0]
     for row in rows[1:]:
         probes += [row["start"] - 1.0, row["start"] + row["fade"] / 2.0]
-    probes += [3599.0, 3660.0]
+    probes += [1783.0, 1840.0]
     for t in probes:
         out = show.render(lights, t)
         assert np.all(np.isfinite(out))
@@ -207,7 +217,7 @@ def test_overnight_nests_the_repertoire():
     over = registry.get("overnight")
     noc = registry.get("nocturne")
     assert over.duration is None  # loops: the stage plays it until skipped
-    assert over.total == 13200.0  # one 3h40m pass
+    assert over.total == 11384.0  # one full pass (nocturne's own total nests)
     assert len(over.schedule()) == 8
 
     lights = make_lights(50)
@@ -221,7 +231,7 @@ def test_overnight_nests_the_repertoire():
 
     # Chapter 1 IS nocturne — the same movement list by import, so the
     # frames are bit-identical outside the outer crossfades.
-    assert np.array_equal(over.render(lights, 1800.0), noc.render(lights, 1800.0))
+    assert np.array_equal(over.render(lights, 900.0), noc.render(lights, 900.0))
     # The loop seam is exact: t and t + total render identically.
     assert np.array_equal(
         over.render(lights, 7.0), over.render(lights, 7.0 + over.total)
@@ -244,16 +254,17 @@ def test_chapters_tree_and_loop_flag():
     # IS the chapter — held bit-identical by the overnight nesting test).
     subs = first["children"]
     assert len(subs) == 7
-    assert subs[0]["start"] == 0.0 and subs[0]["title"] == "dusk"
-    assert subs[2]["start"] == 900.0  # nocturne III inside chapter 1
+    assert subs[0]["start"] == 0.0 and subs[0]["title"] == "embers"
+    assert subs[2]["start"] == 383.0  # nocturne III inside chapter 1
     assert subs[2]["title"] == "veils"
     assert all(c["notes"] for c in subs)  # every chapter carries liner notes
+    assert all(c["audio"].endswith(".mp3") for c in subs)  # and its track
     assert tree[1]["title"] == "small-planet"
     assert "children" not in tree[1]  # a plain-pattern chapter is a leaf
 
     rows = noc.schedule()
     assert [r["title"] for r in rows] == [
-        "dusk",
+        "embers",
         "first-stars",
         "veils",
         "deep-sea",
@@ -282,15 +293,25 @@ def test_duty_cycle_no_movement_black_or_blasting():
     lights[:, LightColumns.CHANNEL] = np.repeat(np.arange(8), 100)
     lights[:, LightColumns.INDEX] = np.tile(np.arange(100), 8)
 
-    for name in ("nocturne", "apollo", "overnight"):
-        show = registry.get(name)
+    # Every conducted show in the registry, present and future.
+    shows = [
+        registry.get(entry["name"])
+        for entry in registry.list()
+        if entry.get("ok") and hasattr(registry.get(entry["name"]), "schedule")
+    ]
+    assert len(shows) >= 5  # nocturne, apollo, overnight, promises, koln
+    for show in shows:
+        name = show.name
         for row in show.schedule():
             for frac, body in ((0.15, True), (0.40, True), (0.65, True), (0.90, False)):
                 t0 = row["start"] + row["fade"] + (row["duration"] - row["fade"]) * frac
                 samples = [show.render(lights, t0 + dt) for dt in (0.0, 2.3, 4.6, 6.9)]
                 L = np.concatenate([s[:, 0] for s in samples])
                 where = f"{name}/{row['title']}@{frac}"
-                assert float(np.mean(L)) >= 0.012, f"{where}: effectively black"
+                # A movement may end on a deliberate dying fall (embers,
+                # candles): the ending floor is a whisper, never zero.
+                floor = 0.012 if body else 0.003
+                assert float(np.mean(L)) >= floor, f"{where}: effectively black"
                 assert float(np.mean(L)) <= 0.42, f"{where}: full-field blast"
                 if body:
                     assert float(np.max(L)) >= 0.10, f"{where}: nothing alive"
@@ -303,4 +324,63 @@ def test_registry_finds_book_two_and_volumes():
     assert {"aurora", "vespers", "life", "serpent"} <= names
     assert {"nocturne", "starlight", "weather", "veils", "ringfall"} <= names
     assert {"small_planet", "fireflies", "relay", "apollo", "overnight"} <= names
+    assert {"embers", "promises", "koln", "spiegel"} <= names
     assert not registry.errors, f"pattern load errors: {registry.errors}"
+
+
+def test_album_cue_sheets_and_audio_pairings():
+    registry = default_registry()
+    promises = registry.get("promises")
+    assert promises.total == 2762.0  # 46:02, streaming edition
+    rows = promises.schedule()
+    assert len(rows) == 9
+    assert rows[5]["start"] == 1109.0  # Movement 6, the opening
+    assert rows[5]["title"] == "the-opening"
+    assert promises.audio == "promises.mp3"
+
+    koln = registry.get("koln")
+    assert koln.total == 3965.0  # 66:05
+    assert [r["title"] for r in koln.schedule()] == [
+        "part-i",
+        "part-iia",
+        "part-iib",
+        "part-iic",
+    ]
+    assert koln.schedule()[3]["start"] == 3549.0
+    assert koln.audio == "koln-concert.mp3"
+    # Part I is a suite on its own cue sheet (seconds into the track).
+    part_i = koln.chapters()[0]["children"]
+    assert [(c["title"], c["start"]) for c in part_i] == [
+        ("vamp", 0.0),
+        ("scouting", 304.0),  # 5:04 — the sharper, exploratory mode
+        ("the-breath", 405.0),  # 6:45 fade-out; one re-entry at 7:00
+        ("the-theme", 434.0),  # 7:14 — in earnest
+        ("wandering", 520.0),  # 8:40 — the sparse interlude
+        ("revisited", 581.0),  # 9:41 — to the end of the side
+    ]
+    assert sum(c["duration"] for c in part_i) == 1562.0
+
+    spiegel = registry.get("spiegel")
+    assert spiegel.duration == 715.0  # the Minkler-Johnson recording
+    assert spiegel.audio == "spiegel-im-spiegel.mp3"
+    assert registry.get("nocturne").audio == ""  # per-act tracks instead
+    assert registry.get("apollo").audio == "apollo.mp3"
+
+
+def test_layered_keys_accent_by_its_own_light():
+    from luminary.patterns.compose import Layered
+
+    base = Probe(0.2, hue=200.0)
+    accent = Probe(0.0, hue=90.0)  # dark accent: fully transparent
+    lights = make_lights()
+    out = Layered(base, accent, alpha_l=0.5).render(lights, 1.0)
+    assert np.allclose(out[:, 0], 0.2) and np.allclose(out[:, 2], 200.0)
+    assert (len(base.calls), len(accent.calls)) == (1, 1)  # exactly two renders
+
+    bright = Probe(0.5, hue=90.0)  # accent at alpha_l: fully opaque
+    out = Layered(base, bright, alpha_l=0.5).render(lights, 1.0)
+    assert np.allclose(out[:, 0], 0.5) and np.allclose(out[:, 2], 90.0)
+
+    half = Probe(0.25, hue=90.0)  # halfway: a perceptual blend
+    out = Layered(base, half, alpha_l=0.5).render(lights, 1.0)
+    assert 0.2 < float(out[0, 0]) < 0.25

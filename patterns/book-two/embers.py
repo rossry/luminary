@@ -15,9 +15,13 @@ class EmbersScene(Embers):
     """Registered as ``embers`` with a standing fire (no drain)."""
 
     notes = (
-        "A fire low but alive: coals inside the ash-glow, and a wind you "
-        "can see — the cloud darkens under each gust while the sparks "
-        "flare hot, and now and then one flares for the last time."
+        "A fire low but alive: coals inside the ash banks, and a wind you "
+        "can see — each gust beats the cloud down and the damage heals "
+        "slowly, while the coals flare and hold their flare, now and then "
+        "one for the last time before it rekindles."
     )
 
-    gain_from = 0.85
+    # The scar physics keeps the bed beaten down between gusts; the
+    # standing gain compensates so the scene holds its presence.
+    gain_from = 1.0
+    rekindle = True

@@ -36,7 +36,7 @@ class Movement:
     non-looping show fades in from black.
     """
 
-    __slots__ = ("pattern", "duration", "fade", "title", "notes")
+    __slots__ = ("pattern", "duration", "fade", "title", "notes", "audio")
 
     def __init__(
         self,
@@ -45,6 +45,7 @@ class Movement:
         fade: float = 10.0,
         title: Optional[str] = None,
         notes: Optional[str] = None,
+        audio: Optional[str] = None,
     ) -> None:
         if duration <= 0.0:
             raise ValueError(f"movement duration must be positive, got {duration}")
@@ -61,6 +62,10 @@ class Movement:
         # to the pattern's own notes).
         self.title = title if title is not None else pattern.name
         self.notes = notes if notes is not None else getattr(pattern, "notes", "")
+        # This movement's own soundtrack: a bare filename in the stage's
+        # audio directory. Queues playing the show as chapters attach it
+        # to this chapter when the file is present ("" = none).
+        self.audio = audio if audio is not None else ""
 
 
 class Conductor(Pattern):
@@ -107,6 +112,7 @@ class Conductor(Pattern):
                 "pattern": movement.pattern.name,
                 "title": movement.title,
                 "notes": movement.notes,
+                "audio": movement.audio,
                 "start": float(start),
                 "duration": movement.duration,
                 "fade": movement.fade,
@@ -116,7 +122,8 @@ class Conductor(Pattern):
 
     def chapters(self) -> List[Dict[str, Any]]:
         """The recursive chapter tree, for queues that play a show as its
-        chapters. One node per movement: ``title``, ``notes``,
+        chapters. One node per movement: ``title``, ``notes``, ``audio``
+        (the movement's own soundtrack file, "" for none),
         ``pattern``, ``start`` (seconds into THIS conductor's timeline —
         rendering this conductor over [start, start+duration) IS the
         chapter, crossfades included), ``duration``, ``fade``; movements
@@ -136,6 +143,7 @@ class Conductor(Pattern):
                 "title": movement.title,
                 "notes": movement.notes,
                 "pattern": movement.pattern.name,
+                "audio": movement.audio,
                 "start": float(start),
                 "duration": movement.duration,
                 "fade": movement.fade,
@@ -174,4 +182,42 @@ class Conductor(Pattern):
             prev_frame = np.zeros_like(frame)
         weight = float(smoothstep(0.0, current.fade, local))
         out: np.ndarray = blend_oklch(prev_frame, frame, weight)
+        return out
+
+
+class Layered(Pattern):
+    """Two patterns as one: ``accent`` over ``base``, statelessly.
+
+    The accent's own luminance is its opacity — where the accent is
+    dark it is transparent, where it glows it takes the frame (scaled
+    by ``strength``, keyed over ``alpha_l``). This is how a show holds
+    a persistent motif under changing scenes: every movement wraps its
+    scene in ``Layered(scene, motif)`` with the SAME motif instance,
+    and the motif plays on continuous global-feeling time because each
+    movement's local clock advances at the same rate.
+
+    Costs exactly two child renders per frame (four momentarily when a
+    conductor crossfades two layered movements).
+    """
+
+    name = "layered"
+    description = "An accent pattern keyed by its own light over a base"
+
+    def __init__(
+        self,
+        base: Pattern,
+        accent: Pattern,
+        strength: float = 1.0,
+        alpha_l: float = 0.5,
+    ) -> None:
+        self.base = base
+        self.accent = accent
+        self.strength = float(strength)
+        self.alpha_l = float(alpha_l)
+
+    def render(self, lights: np.ndarray, t: float) -> np.ndarray:
+        under: np.ndarray = self.base.render(lights, t)
+        over: np.ndarray = self.accent.render(lights, t)
+        weight = np.clip(over[:, 0] / self.alpha_l, 0.0, 1.0) * self.strength
+        out: np.ndarray = blend_oklch(under, over, weight)
         return out

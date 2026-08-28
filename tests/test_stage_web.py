@@ -49,7 +49,9 @@ def test_page_layout_and_audio_endpoints(stage, lights):  # noqa: F811
         assert layout["counts"]["total"] == lights.n == core.engine.lights.n
         assert len(layout["viewBox"]) == 4
 
-        assert client.get("/api/audio").json() == AUDIO_FILES  # sorted
+        inventory = client.get("/api/audio").json()
+        assert [row["name"] for row in inventory] == AUDIO_FILES  # sorted
+        assert all("seconds" in row for row in inventory)
 
 
 def test_queue_http_flow(stage):

@@ -27,6 +27,11 @@ class Pattern(ABC):
     #: show — what the scene is and where it is going. Shown in italics
     #: on viewer surfaces; empty is fine.
     notes: str = ""
+    #: The audio this pattern is meant to play with, as a bare filename
+    #: expected in the stage's audio directory (``var/audio``). Queues
+    #: pre-select it and attach it by default when the file is present;
+    #: empty means no pairing.
+    audio: str = ""
 
     @abstractmethod
     def render(self, lights: np.ndarray, t: float) -> np.ndarray:
@@ -48,5 +53,6 @@ class Pattern(ABC):
             "name": self.name,
             "description": self.description,
             "notes": self.notes,
+            "audio": self.audio,
             "class_name": type(self).__name__,
         }

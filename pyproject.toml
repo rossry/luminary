@@ -15,6 +15,8 @@ dependencies = [
     "python-multipart>=0.0.9",
     "pyserial>=3.5",
     "pyyaml>=6.0",
+    # Exact track lengths for stage queue timing (luminary/stage/audio.py).
+    "mutagen>=1.47",
 ]
 
 [project.optional-dependencies]
