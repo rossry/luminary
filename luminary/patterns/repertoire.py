@@ -34,7 +34,6 @@ from luminary.patterns.easing import env_ad, smootherstep
 from luminary.patterns.fields import fbm, value_noise
 from luminary.patterns.palettes import (
     AURORA,
-    EMBER,
     Palette,
     SEA_GLASS,
     oklch_to_vec,
@@ -43,6 +42,7 @@ from luminary.patterns.palettes import (
 from luminary.patterns.primitives import (
     AuroraVeils,
     Candles,
+    Embers,
     NoiseGlow,
     Primitive,
     RingWave,
@@ -409,27 +409,18 @@ def nocturne_movements() -> List[Movement]:
     """
     return [
         Movement(
-            NoiseGlow(
-                palette=EMBER,
-                scale=1.8,
-                speed=0.020,
-                contrast=1.7,
-                gain_from=0.95,
-                gain_to=0.22,
-                arc_s=480.0,
-                tide_s=47.0,
-                tide_depth=0.35,
-                breathe_s=0.0,
-                seed=3,
-            ),
+            Embers(arc_s=480.0, swell_gain=1.25),
             480.0,
             fade=12.0,
             title="dusk",
             notes=(
-                "The day's last fire, breathing out. A wind you cannot feel "
-                "crosses the coals every three-quarters of a minute, and "
-                "each pass leaves them a little dimmer. Going: out — "
-                "slowly, all evening at once."
+                "The day's fire, and the wind that ends it. Coals glow "
+                "inside the ash-cloud; every three-quarters of a minute a "
+                "gust crosses the sphere — you can watch it: the cloud "
+                "goes dark under it while the sparks flare hot, and some "
+                "of them flare for the last time. The fire swells once, "
+                "defiant, near the start. Then: going out, gust by gust, "
+                "until only the deepest coals remain."
             ),
         ),
         Movement(

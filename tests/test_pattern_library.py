@@ -227,6 +227,9 @@ def test_primitive_subclass_overrides_defaults():
         RingWave(palette=AURORA, gain_from=0.2, gain_to=1.0, arc_s=100.0),
         Candles(),
         Candles(fill_from=0.05, fill_to=0.9, arc_s=300.0),
+        __import__("luminary.patterns.primitives", fromlist=["Embers"]).Embers(
+            arc_s=400.0
+        ),
     ],
     ids=[
         "starfield",
@@ -239,6 +242,7 @@ def test_primitive_subclass_overrides_defaults():
         "ringwave-arc",
         "candles",
         "candles-arc",
+        "embers",
     ],
 )
 def test_primitives_obey_the_contract(primitive):
@@ -297,6 +301,46 @@ def test_starfield_population_swells_by_seniority():
 
     assert bright_ebb(390.0) <= bright_ebb(10.0)
     assert 0 < len(bright_ebb(390.0)) < len(bright_ebb(10.0))
+
+
+def test_embers_wind_is_visible_and_mortal():
+    """The dusk physics: the gust front dims the ash-cloud while it
+    fans the sparks; each pass consumes coals (population strictly
+    declines); the envelope swells before the long drain."""
+    from luminary.patterns.primitives import Embers
+    from luminary.patterns.util import seeded_random
+
+    lights = make_lights(n=2500, seed=6)
+    e = Embers(arc_s=480.0, swell_gain=1.25)
+
+    # Rebuild the wind mask exactly as the primitive defines it.
+    from luminary.patterns.util import plane_xy
+
+    u, v = plane_xy(lights)
+    a = np.radians(e.tide_angle)
+    proj = 0.5 * (u * np.cos(a) + v * np.sin(a))
+    t = 130.0
+    frac = (t / e.tide_s - proj) % 1.0
+    wind = np.exp(-(((frac - 0.5) / 0.13) ** 2))
+    crest, calm = wind > 0.7, wind < 0.05
+    spark = seeded_random(f"{e.salt}-pick", lights.shape[0]) < e.spark_density
+
+    L = e.render(lights, t)[:, 0]
+    assert float(L[crest & ~spark].mean()) < float(L[calm & ~spark].mean()) * 0.9
+    assert float(L[crest & spark].max()) > float(L[calm & spark].max()) * 1.25
+
+    def live(tt):
+        return int(np.sum(e.render(lights, tt)[:, 0] * spark > 0.17))
+
+    early, late = live(40.0), live(460.0)
+    assert early > live(250.0) > late >= 0
+    assert early > 20
+
+    means = {
+        tt: float(np.mean(e.render(lights, tt)[:, 0])) for tt in (5.0, 105.0, 460.0)
+    }
+    assert means[105.0] > means[5.0] * 1.2  # the defiant swell
+    assert means[460.0] < means[105.0] * 0.5  # the long drain
 
 
 def test_starfield_meteors_burst_toward_full():

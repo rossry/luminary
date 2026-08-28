@@ -306,6 +306,7 @@ Every file here is a worked example. By what it teaches:
 | `fireflies` (voice in `repertoire`) | Emergent behavior in closed form: slot-hashed events whose offsets lerp toward a metronome by a coherence curve — synchrony without simulation; agent-to-light gaussian pools via one matmul |
 | `book-two/apollo.py` | The cue-sheet show idiom: an album as a Movement list whose durations are the track lengths, crossfades as the drift tolerance — pair with the record on the stage |
 | `relay` (voice in `repertoire`) | The wiring as the medium: `CONTROLLER`/`CHANNEL`/`INDEX` make every strip a lane, and races run the serpentine in index order; per-lane state gathered to lights by `np.unique` inverse |
+| `embers` (voice in `primitives`) | Coupled figures: one wind field drives the cloud down and the sparks up, and counts gust passes per light so a coal's brightest frame is its last — physics as dramaturgy |
 | `book-two/overnight.py` | Nested conductors: a looping dusk-to-dawn program whose first chapter is the whole of Nocturne, by import — one name to queue when the sun goes down |
 
 `legacy/` holds pre-2.1 stateful patterns that don't meet this contract;
