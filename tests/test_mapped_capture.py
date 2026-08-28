@@ -276,3 +276,60 @@ def test_native_density_still_inherits_the_whole_beam(plan, net, net_lights):
     for row in rows:
         shape = tuple(np.round(np.asarray(lights.display[row], dtype=float).ravel(), 9))
         assert shape in source
+
+
+def test_interpolate_dense_halves_the_wire_cost_of_dense_strips(plan, net, net_lights):
+    """A 360-LED strip costs 180 lights on the wire; the board fills in."""
+    boards = _one_dense_strip(plan)
+
+    plain = capture_mapped(net, plan, boards, net_lights=net_lights)
+    lean = capture_mapped(
+        net, plan, boards, net_lights=net_lights, interpolate_dense=True
+    )
+
+    assert lean.n == plain.n, "the same physical LEDs either way"
+    plain_active = len(plain.active_rows_for_controller(0))
+    lean_active = len(lean.active_rows_for_controller(0))
+    # 360 -> 181 ACTIVE on that strip (the last light stays ACTIVE so every
+    # interpolated one is bounded); the other five strips are untouched.
+    assert plain_active - lean_active == 179
+
+
+def test_native_strips_are_untouched_by_interpolate_dense(plan, net, net_lights):
+    """There is nothing to subdivide at native density, so nothing changes."""
+    boards = _full_mapping(plan)
+
+    plain = capture_mapped(net, plan, boards, net_lights=net_lights)
+    lean = capture_mapped(
+        net, plan, boards, net_lights=net_lights, interpolate_dense=True
+    )
+
+    for controller in plain.controllers:
+        assert len(lean.active_rows_for_controller(controller)) == len(
+            plain.active_rows_for_controller(controller)
+        )
+
+
+def test_interpolated_strips_still_load_and_validate(plan, net, net_lights, tmp_path):
+    """Every INTERPOLATED light needs ACTIVE neighbours on both sides —
+    the geometry loader enforces it, so a round trip is the check."""
+    lights = capture_mapped(
+        net,
+        plan,
+        _one_dense_strip(plan),
+        net_lights=net_lights,
+        interpolate_dense=True,
+    )
+    path = tmp_path / "interp.lights.json"
+    lights.save(path)
+
+    from luminary.geometry.lights import LightsGeometry as LG
+
+    reloaded = LG.load(path)
+    assert reloaded.n == lights.n
+    # Weights were derived for the interpolated lights.
+    interp = (
+        reloaded.array[:, LightColumns.KIND]
+        != reloaded.array[reloaded.control_mask][0, LightColumns.KIND]
+    )
+    assert interp.sum() > 0

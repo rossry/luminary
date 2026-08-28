@@ -73,9 +73,12 @@ pip install platformio
 python -m luminary.cli flash --max-per-strip 180
 ```
 
-Set `--max-per-strip` to your longest strip. Every frame clocks out that
-many pixels on all eight outputs whatever the geometry uses, so
-overshooting costs frame rate directly.
+Set `--max-per-strip` to that board's longest strip. Every frame clocks out
+that many pixels on all eight outputs whatever the geometry uses, so
+overshooting costs frame rate. It is a **per-board** setting: flash 180 only
+where every strip on that board is 180 — a 360 strip under a 180 build is
+clamped, and half of it stays dark. Measured gain on an all-180 board:
+ACK p95 11.8 ms -> 9.9 ms.
 
 A board with working firmware is reset into its bootloader automatically.
 A board that has never been flashed will not be: hold **BOOTSEL** while
@@ -120,6 +123,13 @@ Turns the mapping records into the geometry the installation actually has —
 real `(controller, channel, index)` identities — and prints a store id. It
 refuses an incomplete mapping; `--partial` builds what exists and leaves the
 rest dark.
+
+If any board carries several **360-LED** strips, add `--interpolate`. A
+360 strip then costs 180 lights on the wire and the board reconstructs the
+rest. Measured on a SCORPIO with 8x360, this is the difference between an
+ACK round-trip p95 of 33.6 ms — at the 33.3 ms frame interval, where frame
+rate starts slipping — and 21.4 ms. Boards whose strips are all 180 are
+unaffected either way.
 
 ## 7. Show
 

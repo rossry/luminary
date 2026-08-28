@@ -101,12 +101,22 @@ def capture_mapped(
     *,
     net_lights: Optional[LightsGeometry] = None,
     strict: bool = True,
+    interpolate_dense: bool = False,
 ) -> LightsGeometry:
     """Net + mapping records -> the deployed geometry.
 
     ``strict`` refuses a partial mapping. Turn it off to drive whatever has
     been mapped so far — useful mid-commissioning, and honest about what it
     is: the unmapped panels are simply absent, so they stay dark.
+
+    ``interpolate_dense`` carries a subdivided beam as one ACTIVE light plus
+    INTERPOLATED neighbours, so a 360-LED strip costs 180 lights on the wire
+    and the board reconstructs the rest (§11.7.3). Measured on a Feather
+    SCORPIO driving 6 x 360: it takes the ACK round trip's p95 from 33.2 ms
+    to 16.8 ms against a 33.3 ms frame interval — the difference between
+    running at the edge and running with margin — while also cutting wire
+    bytes 35% and host encode time 23%. Native-density strips are unaffected,
+    since there is nothing to subdivide.
     """
     net_lights = net_lights if net_lights is not None else capture(net)
     geometry = json.loads((_CONFIGS / f"{plan.net_name}.json").read_text())["geometry"]
@@ -167,6 +177,12 @@ def capture_mapped(
                     piece["controller"] = controller
                     piece["channel"] = channel
                     piece["index"] = start + offset
+                    if interpolate_dense and parts > 1 and offset > 0:
+                        # The strip's last light must stay ACTIVE: an
+                        # INTERPOLATED light needs an ACTIVE one on each side
+                        # to interpolate between.
+                        if start + offset != len(refs) - 1:
+                            piece["kind"] = "interpolated"
                     shape = slices[offset]
                     if parts > 1 and shape:
                         cx, cy = _centroid(shape)

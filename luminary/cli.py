@@ -270,7 +270,13 @@ def cmd_geometry(args: argparse.Namespace) -> int:
     net = Net.from_json_file(configs / f"{args.config}.json")
 
     try:
-        lights = capture_mapped(net, plan, records, strict=not args.partial)
+        lights = capture_mapped(
+            net,
+            plan,
+            records,
+            strict=not args.partial,
+            interpolate_dense=args.interpolate,
+        )
     except MappingIncompleteError as exc:
         print(f"{exc}\n(--partial builds what is mapped so far)", file=sys.stderr)
         return 2
@@ -644,6 +650,12 @@ def main(argv: Optional[list] = None) -> int:
         "--partial",
         action="store_true",
         help="Build what is mapped so far; unmapped panels stay dark",
+    )
+    geometry.add_argument(
+        "--interpolate",
+        action="store_true",
+        help="Carry strips denser than the net as ACTIVE + INTERPOLATED, so a "
+        "360-LED strip costs 180 lights on the wire and the board fills in",
     )
     geometry.add_argument(
         "-o", "--output", default=None, help="Write a file instead of the store"
