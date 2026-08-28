@@ -175,3 +175,41 @@ class Conductor(Pattern):
         weight = float(smoothstep(0.0, current.fade, local))
         out: np.ndarray = blend_oklch(prev_frame, frame, weight)
         return out
+
+
+class Layered(Pattern):
+    """Two patterns as one: ``accent`` over ``base``, statelessly.
+
+    The accent's own luminance is its opacity — where the accent is
+    dark it is transparent, where it glows it takes the frame (scaled
+    by ``strength``, keyed over ``alpha_l``). This is how a show holds
+    a persistent motif under changing scenes: every movement wraps its
+    scene in ``Layered(scene, motif)`` with the SAME motif instance,
+    and the motif plays on continuous global-feeling time because each
+    movement's local clock advances at the same rate.
+
+    Costs exactly two child renders per frame (four momentarily when a
+    conductor crossfades two layered movements).
+    """
+
+    name = "layered"
+    description = "An accent pattern keyed by its own light over a base"
+
+    def __init__(
+        self,
+        base: Pattern,
+        accent: Pattern,
+        strength: float = 1.0,
+        alpha_l: float = 0.5,
+    ) -> None:
+        self.base = base
+        self.accent = accent
+        self.strength = float(strength)
+        self.alpha_l = float(alpha_l)
+
+    def render(self, lights: np.ndarray, t: float) -> np.ndarray:
+        under: np.ndarray = self.base.render(lights, t)
+        over: np.ndarray = self.accent.render(lights, t)
+        weight = np.clip(over[:, 0] / self.alpha_l, 0.0, 1.0) * self.strength
+        out: np.ndarray = blend_oklch(under, over, weight)
+        return out

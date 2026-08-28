@@ -282,8 +282,15 @@ def test_duty_cycle_no_movement_black_or_blasting():
     lights[:, LightColumns.CHANNEL] = np.repeat(np.arange(8), 100)
     lights[:, LightColumns.INDEX] = np.tile(np.arange(100), 8)
 
-    for name in ("nocturne", "apollo", "overnight"):
-        show = registry.get(name)
+    # Every conducted show in the registry, present and future.
+    shows = [
+        registry.get(entry["name"])
+        for entry in registry.list()
+        if entry.get("ok") and hasattr(registry.get(entry["name"]), "schedule")
+    ]
+    assert len(shows) >= 5  # nocturne, apollo, overnight, promises, koln
+    for show in shows:
+        name = show.name
         for row in show.schedule():
             for frac, body in ((0.15, True), (0.40, True), (0.65, True), (0.90, False)):
                 t0 = row["start"] + row["fade"] + (row["duration"] - row["fade"]) * frac
@@ -303,4 +310,52 @@ def test_registry_finds_book_two_and_volumes():
     assert {"aurora", "vespers", "life", "serpent"} <= names
     assert {"nocturne", "starlight", "weather", "veils", "ringfall"} <= names
     assert {"small_planet", "fireflies", "relay", "apollo", "overnight"} <= names
+    assert {"embers", "promises", "koln", "spiegel"} <= names
     assert not registry.errors, f"pattern load errors: {registry.errors}"
+
+
+def test_album_cue_sheets_and_audio_pairings():
+    registry = default_registry()
+    promises = registry.get("promises")
+    assert promises.total == 2762.0  # 46:02, streaming edition
+    rows = promises.schedule()
+    assert len(rows) == 9
+    assert rows[5]["start"] == 1109.0  # Movement 6, the opening
+    assert rows[5]["title"] == "the-opening"
+    assert promises.audio == "promises.mp3"
+
+    koln = registry.get("koln")
+    assert koln.total == 3965.0  # 66:05
+    assert [r["title"] for r in koln.schedule()] == [
+        "part-i",
+        "part-iia",
+        "part-iib",
+        "part-iic",
+    ]
+    assert koln.schedule()[3]["start"] == 3549.0
+    assert koln.audio == "koln-concert.mp3"
+
+    spiegel = registry.get("spiegel")
+    assert spiegel.duration == 715.0  # the Minkler-Johnson recording
+    assert spiegel.audio == "spiegel-im-spiegel.mp3"
+    assert registry.get("nocturne").audio == "nocturne.mp3"
+    assert registry.get("apollo").audio == "apollo.mp3"
+
+
+def test_layered_keys_accent_by_its_own_light():
+    from luminary.patterns.compose import Layered
+
+    base = Probe(0.2, hue=200.0)
+    accent = Probe(0.0, hue=90.0)  # dark accent: fully transparent
+    lights = make_lights()
+    out = Layered(base, accent, alpha_l=0.5).render(lights, 1.0)
+    assert np.allclose(out[:, 0], 0.2) and np.allclose(out[:, 2], 200.0)
+    assert (len(base.calls), len(accent.calls)) == (1, 1)  # exactly two renders
+
+    bright = Probe(0.5, hue=90.0)  # accent at alpha_l: fully opaque
+    out = Layered(base, bright, alpha_l=0.5).render(lights, 1.0)
+    assert np.allclose(out[:, 0], 0.5) and np.allclose(out[:, 2], 90.0)
+
+    half = Probe(0.25, hue=90.0)  # halfway: a perceptual blend
+    out = Layered(base, half, alpha_l=0.5).render(lights, 1.0)
+    assert 0.2 < float(out[0, 0]) < 0.25

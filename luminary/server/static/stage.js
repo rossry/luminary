@@ -296,22 +296,33 @@ export async function initStagePage() {
     audioSelect.appendChild(option);
   }
 
-  // The repeat toggle defaults to the pattern's own loop flag ("is this
-  // configured to repeat"); the VJ can always override per add.
+  // Per-pattern defaults: the repeat toggle follows the pattern's own
+  // loop flag, and the audio selector pre-selects the pattern's
+  // declared soundtrack when the file is present in var/audio. The VJ
+  // can always override either per add.
   const repeatBox = el("add-repeat");
-  const syncRepeatDefault = () => {
+  const syncPatternDefaults = () => {
     const meta = patternMeta.get(patternSelect.value);
     repeatBox.checked = !!(meta && meta.loop);
+    audioSelect.value = meta && meta.audio_present ? meta.audio : "";
+    if (meta && meta.audio && !meta.audio_present) {
+      none.textContent = `— no audio (wants ♪ ${meta.audio}) —`;
+    } else {
+      none.textContent = "— no audio —";
+    }
   };
-  patternSelect.addEventListener("change", syncRepeatDefault);
-  syncRepeatDefault();
+  patternSelect.addEventListener("change", syncPatternDefaults);
+  syncPatternDefaults();
 
   const addBody = () => {
     const duration = el("add-duration").value;
     return {
       pattern: patternSelect.value,
       duration: duration ? Number(duration) : null,
-      audio: audioSelect.value || null,
+      // The page always states its choice: "" is explicitly no audio
+      // (the server-side declared-audio default applies only when the
+      // field is omitted entirely).
+      audio: audioSelect.value,
       repeat: repeatBox.checked,
     };
   };

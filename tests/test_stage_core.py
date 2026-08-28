@@ -122,6 +122,34 @@ class Plain(Pattern):
         out[:, 2] = (t * 30.0) % 360.0
         return out
 """,
+    "scored.py": """
+import numpy as np
+from luminary.patterns.base import Pattern
+
+class Scored(Pattern):
+    name = "scored"
+    description = "declares its soundtrack"
+    audio = "track1.mp3"
+
+    def render(self, lights, t):
+        out = np.zeros((lights.shape[0], 3))
+        out[:, 0] = 0.3
+        return out
+""",
+    "unscored.py": """
+import numpy as np
+from luminary.patterns.base import Pattern
+
+class Unscored(Pattern):
+    name = "unscored"
+    description = "declares a soundtrack that is not on disk"
+    audio = "nowhere.mp3"
+
+    def render(self, lights, t):
+        out = np.zeros((lights.shape[0], 3))
+        out[:, 0] = 0.3
+        return out
+""",
     # Compositions for the chapter tests. Helper voices are deliberately
     # NOT Pattern subclasses (the registry would try to instantiate the
     # first local Pattern subclass it finds); Movement only needs
@@ -836,3 +864,29 @@ def test_detect_player_override_and_fallback(monkeypatch):
         lambda name: "/usr/bin/cvlc" if name == "cvlc" else None,
     )
     assert detect_player(None) == ["cvlc", "--play-and-exit", "--intf", "dummy"]
+
+
+def test_declared_audio_defaults_into_entries(tmp_path, registry, lights):
+    """A pattern's declared soundtrack attaches by default when the file
+    exists; an explicit empty string means none; a declared file that is
+    not on disk never attaches (and never errors)."""
+    core, _spawn, _clock = make_stage(tmp_path, registry, lights)
+
+    core.append({"pattern": "scored"})
+    assert core.snapshot()["entries"][-1]["audio"] == "track1.mp3"
+
+    core.append({"pattern": "scored", "audio": ""})
+    assert core.snapshot()["entries"][-1]["audio"] is None
+
+    core.append({"pattern": "scored", "audio": "b side.wav"})
+    assert core.snapshot()["entries"][-1]["audio"] == "b side.wav"
+
+    core.append({"pattern": "unscored"})
+    assert core.snapshot()["entries"][-1]["audio"] is None
+
+    meta = {row["name"]: row for row in core.patterns_meta() if row.get("ok")}
+    assert meta["scored"]["audio"] == "track1.mp3"
+    assert meta["scored"]["audio_present"] is True
+    assert meta["unscored"]["audio"] == "nowhere.mp3"
+    assert meta["unscored"]["audio_present"] is False
+    assert meta["plain"]["audio"] == ""

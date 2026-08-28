@@ -557,4 +557,5 @@ def nocturne() -> Conductor:
         "crests, the sea rests, a toll approaches, candles gather, and "
         "the same stars let go in reverse order of arrival."
     )
+    show.audio = "nocturne.mp3"  # the curated set: see book-two/nocturne.py
     return show
