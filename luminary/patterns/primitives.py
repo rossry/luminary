@@ -23,7 +23,14 @@ import numpy as np
 from luminary.patterns.base import Pattern
 from luminary.patterns.easing import breath, smoothstep
 from luminary.patterns.fields import fbm, ring_field, value_noise, warp
-from luminary.patterns.palettes import AURORA, CANDLE, SEA_GLASS, Palette, blend_oklch
+from luminary.patterns.palettes import (
+    AURORA,
+    CANDLE,
+    EMBER,
+    SEA_GLASS,
+    Palette,
+    blend_oklch,
+)
 from luminary.patterns.util import phi_theta, plane_xy, seeded_random
 
 _RESERVED = frozenset({"name", "description"})
@@ -403,3 +410,102 @@ class Candles(Primitive):
         spot = np.exp((nl @ fl.T - 1.0) / (sigma**2))
         glow = np.minimum(spot @ strength, 1.15) / 1.15
         return self.palette.sample(np.clip(glow, 0.0, 1.0) * self.pos_max)
+
+
+class Embers(Primitive):
+    name = "embers"
+    description = "A dying fire with a visible wind: coals fan, flare, and go out"
+
+    # The cloud: the ash-glow bed, an EMBER-palette noise field.
+    palette = EMBER
+    scale = 1.8
+    drift = 0.020  # feature drift, units/s
+    contrast = 1.7
+    # The wind: one sphere-wide gust front crossing every tide_s seconds.
+    # It is a palpable thing — it blows the CLOUD darker (wind_dim) while
+    # it fans the SPARKS brighter (wind_fan), and every pass consumes
+    # some sparks: a spark's brightest moment is its last.
+    tide_s = 47.0
+    tide_angle = 30.0
+    wind_dim = 0.55
+    wind_fan = 1.1
+    # The sparks: points of light glowing within the cloud.
+    spark_density = 0.045
+    spark_l = 0.38  # a resting coal (a figure: above the cloud's lane)
+    flicker_s = 3.6
+    mortality = 0.085  # fraction of spark lifetimes consumed per gust
+    # The envelope: a significant swell (to swell_gain at swell_at of
+    # the arc) before the long drain to gain_to. arc_s <= 0 holds at
+    # gain_from with no swell.
+    gain_from = 0.55
+    swell_gain = 1.15
+    swell_at = 0.22
+    gain_to = 0.16
+    arc_s = 0.0
+    seed = 3
+    salt = "embers"
+
+    def _gain(self, t: float) -> float:
+        if self.arc_s <= 0.0:
+            return self.gain_from
+        u = min(max(t / self.arc_s, 0.0), 1.0)
+        if u < self.swell_at:
+            return _arc(u, self.swell_at, self.gain_from, self.swell_gain)
+        return _arc(
+            u - self.swell_at, 1.0 - self.swell_at, self.swell_gain, self.gain_to
+        )
+
+    def render(self, lights: np.ndarray, t: float) -> np.ndarray:
+        n = lights.shape[0]
+        u, v = plane_xy(lights)
+
+        # The wind front, positional: phase advances with time and lags
+        # across the layout, so the crest travels. Gust passes are counted
+        # per light — floor increments exactly at the crest, so a spark
+        # that dies this pass dies at its brightest.
+        a = np.radians(self.tide_angle)
+        proj = 0.5 * (u * np.cos(a) + v * np.sin(a))  # ~[-0.5, 0.5]
+        phase = t / self.tide_s - proj
+        frac = phase - np.floor(phase)
+        wind = np.exp(-(((frac - 0.5) / 0.13) ** 2))
+        passes = np.floor(phase + 0.5)
+
+        gain = self._gain(t)
+
+        # The cloud, blown darker where the gust runs.
+        uu = u * self.scale + t * self.drift
+        vv = v * self.scale - t * self.drift * 0.71
+        wu, wv = warp(uu, vv, self.seed, 1.1, octaves=2)
+        field = fbm(wu, wv, self.seed + 10, octaves=3)
+        field = np.clip(field, 0.0, 1.0) ** self.contrast
+        cloud = self.palette.sample(field * (1.0 - self.wind_dim * wind) * gain)
+
+        # The sparks: seeded coals with individual breath, fanned by the
+        # wind, consumed by it. Survivors keep glowing through the drain.
+        pick = seeded_random(f"{self.salt}-pick", n)
+        life = seeded_random(f"{self.salt}-life", n)
+        per = self.flicker_s * (0.7 + 0.6 * seeded_random(f"{self.salt}-per", n))
+        ph = seeded_random(f"{self.salt}-ph", n) * 2.0 * np.pi
+        is_spark = pick < self.spark_density
+        alive = life > self.mortality * np.maximum(passes, 0.0)
+        dying_next = alive & (life <= self.mortality * (np.maximum(passes, 0.0) + 1.0))
+        flicker = 0.85 + 0.15 * np.sin(2.0 * np.pi * (t / per) + ph)
+        fan = self.wind_fan * wind * (1.0 + 0.8 * dying_next)
+        level = np.where(
+            is_spark & alive,
+            np.minimum(
+                self.spark_l * (0.45 + 0.55 * gain) * flicker * (1.0 + fan), 0.90
+            ),
+            0.0,
+        )
+        # Fanned coals run hotter: orange toward yellow-white.
+        hot = np.column_stack(
+            [
+                level,
+                np.full(n, 0.13),
+                42.0 + 26.0 * np.minimum(fan, 1.0),
+            ]
+        )
+        weight = np.clip(level / max(self.spark_l, 1e-6), 0.0, 1.0)
+        weight = np.minimum(weight, 1.0) * (level > 0.0)
+        return blend_oklch(cloud, hot, np.minimum(weight, 0.95))
