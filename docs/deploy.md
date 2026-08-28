@@ -41,7 +41,7 @@ sudo -u luminary python3 -m venv /opt/luminary/venv
 sudo -u luminary /opt/luminary/venv/bin/pip install -r requirements.txt
 
 # one-time: demo geometries so the UI isn't empty (idempotent)
-sudo -u luminary /opt/luminary/venv/bin/python -m luminary.cli seed \
+sudo -u luminary /opt/luminary/venv/bin/luminary seed \
     --store /opt/luminary/var
 ```
 
@@ -55,7 +55,7 @@ After=network.target
 [Service]
 User=luminary
 WorkingDirectory=/opt/luminary/app
-ExecStart=/opt/luminary/venv/bin/python -m luminary.cli \
+ExecStart=/opt/luminary/venv/bin/luminary \
     --store /opt/luminary/var serve --host 127.0.0.1 --port 8080 \
     --disable-pattern-upload
 Restart=on-failure

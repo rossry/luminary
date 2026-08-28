@@ -8,7 +8,7 @@ STATS frame, spec §13.7). ACK round trip folds decode, render and DMA into
 one number and cannot say which of them moved.
 
 ```bash
-python -m luminary.cli flash --controller 0 --max-per-strip 360
+luminary flash --controller 0 --max-per-strip 360
 python firmware/tools/phases.py --port /dev/ttyACM0 --channels 8 \
     --per-strip 360 --fps 60 --seconds 10
 cd firmware/test/host && make -s && ./test_decoder ../../golden/case1

@@ -12,44 +12,58 @@ the *same* codec, so the demo continuously exercises the production path.
 ## Install
 
 ```bash
-git clone https://github.com/rossry/luminary && cd luminary
-pip install -r requirements.txt
+./install.sh && . .venv/bin/activate
 ```
 
-Python ≥ 3.11. That's everything for the server, CLI, and web client.
-(Firmware builds need PlatformIO — see `firmware/scorpio/README.md`.)
+Sets up the virtualenv, installs the `luminary` command, and — on Linux —
+grants board access and installs the udev rules so a board stays reachable
+after each flash. `--no-sudo` skips the privileged parts. Re-runnable.
+
+Running an installation start to finish: [`QUICKSTART.md`](QUICKSTART.md).
+
+By hand, if you would rather not run a script:
+
+```bash
+git clone https://github.com/rossry/luminary && cd luminary
+python -m venv .venv && . .venv/bin/activate
+pip install -e '.[dev]'     # omit [dev] to skip the test tooling
+```
+
+Python ≥ 3.12. Editable deliberately: geometry configs and patterns live
+beside the package rather than inside it, and the code resolves them from the
+source tree. `pip install -e '.[flash]'` adds PlatformIO for building firmware.
 
 ## Quick start
 
 ```bash
 # 1. Turn a scaffold into a lights geometry (where each LED is, on which strip)
-python -m luminary.cli capture --scaffold examples/hex-demo.scaffold.json \
+luminary capture --scaffold examples/hex-demo.scaffold.json \
     -o hex.lights.json
 
 # 2. Render a pattern to a static SVG
-python -m luminary.cli render --lights hex.lights.json --pattern spiral \
+luminary render --lights hex.lights.json --pattern spiral \
     -t 2.5 -o hex-spiral.svg
 
 # 3. Watch it live: web server + canvas client at http://localhost:8080
 #    (--seed-demo loads the demo geometries so the UI isn't empty)
-python -m luminary.cli serve --port 8080 --seed-demo
+luminary serve --port 8080 --seed-demo
 
 # 4. Stream to hardware (Scorpio on USB serial)
-python -m luminary.cli play --lights hex.lights.json --pattern kaleidoscope \
+luminary play --lights hex.lights.json --pattern kaleidoscope \
     --serial /dev/ttyACM0
 
 # 5. No hardware handy? Dry-run the full render+encode pipeline with stats
-python -m luminary.cli play --lights hex.lights.json --pattern ripple --duration 5
+luminary play --lights hex.lights.json --pattern ripple --duration 5
 ```
 
 Running an actual installation is a different path — find and register the
 boards, flash them, map them, then stream to all of them with a live preview:
 
 ```bash
-python -m luminary.cli boards                     # verify + register what's on USB
-python -m luminary.cli flash --max-per-strip 180  # build, flash, prove it came back
-python -m luminary.cli map                        # interactive deployment mapping
-python -m luminary.cli show --lights pentagon-4A-33 --pattern aurora
+luminary boards                     # verify + register what's on USB
+luminary flash --max-per-strip 180  # build, flash, prove it came back
+luminary map                        # interactive deployment mapping
+luminary show --lights pentagon-4A-33 --pattern aurora
 ```
 
 `show` streams to the boards and mirrors the same wire bytes to
@@ -94,7 +108,7 @@ against shared golden vectors (`firmware/golden/`).
 | `GET/POST /api/patterns` | list / upload+hot-reload patterns |
 | `WS /api/play?lights=ID&pattern=NAME` | wire-protocol streaming |
 | `GET /demo/mapping` | the scrambled-build mapping tutorial, mounted here by `serve` (opt out: `--no-mapping-demo`); also standalone via `python -m luminary.mapping.web` |
-| `GET …/api/mapping/layout` · `WS …/api/mapping/{window,wire,control}` | the mapping app's own API (`luminary.mapping.web`, under whatever prefix it serves at): layout+plan+state JSON; wire-codec streams; key events. A live session's window page is `/window` — its own process, `python -m luminary.cli map --web` |
+| `GET …/api/mapping/layout` · `WS …/api/mapping/{window,wire,control}` | the mapping app's own API (`luminary.mapping.web`, under whatever prefix it serves at): layout+plan+state JSON; wire-codec streams; key events. A live session's window page is `/window` — its own process, `luminary map --web` |
 | `GET /stage` · `GET/POST /api/queue` · `DELETE /api/queue/{i}` · `POST /api/queue/{play_next,move,skip,clear}` | the stage: viewer/control page and the play-queue API (tracklist + repeats cycle + now-playing; mounted by `serve`, opt out: `--no-stage`). Mutations take the stage key when one is configured (below) |
 | `POST /api/repeats/move` · `DELETE /api/repeats/{i}` | reorder / cancel turns of the stage's repeats cycle |
 | `WS /api/stage` · `GET /api/stage/{layout,patterns,chapters?pattern=N}` | the stage's wire-codec stream (SESSION on join, `{"type":"resync"}` back), its canvas draw layout, panel pattern metadata (notes, `loop`, `has_chapters`), and one pattern's chapter tree (`[]` if chapterless) |
@@ -217,7 +231,7 @@ cd firmware/test/host && make run
 node tests/js/test_decoder.mjs        # same vectors, browser decoder
 ```
 
-Flashing is `python -m luminary.cli flash` (PlatformIO underneath, one
+Flashing is `luminary flash` (PlatformIO underneath, one
 build per controller id, verified with an identity probe afterwards). A
 board that has never been flashed does not enumerate at all: hold BOOTSEL
 while plugging it in, and `luminary boards` will report it as `bootsel`.

@@ -1,14 +1,14 @@
 """Unified CLI: every verb is an adapter over the one engine (spec §16).
 
-python -m luminary.cli serve   [--host --port --store]
-python -m luminary.cli play    --lights F --pattern N [--serial P | --dry-run]
-python -m luminary.cli capture --scaffold F [--params F] -o OUT
-python -m luminary.cli render  --lights F --pattern N [-t S] -o OUT.svg
-python -m luminary.cli map     [--continue --trust-boards --controllers IDS --web]
-python -m luminary.cli boards  [--json --all-ports --no-register]
-python -m luminary.cli flash   [--controller N --max-per-strip N --build-only]
-python -m luminary.cli geometry [--config NAME --partial -o OUT]
-python -m luminary.cli show    --lights F --pattern N [--serial P --host --port]
+luminary serve   [--host --port --store]
+luminary play    --lights F --pattern N [--serial P | --dry-run]
+luminary capture --scaffold F [--params F] -o OUT
+luminary render  --lights F --pattern N [-t S] -o OUT.svg
+luminary map     [--continue --trust-boards --controllers IDS --web]
+luminary boards  [--json --all-ports --no-register]
+luminary flash   [--controller N --max-per-strip N --build-only]
+luminary geometry [--config NAME --partial -o OUT]
+luminary show    --lights F --pattern N [--serial P --host --port]
 """
 
 from __future__ import annotations

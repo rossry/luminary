@@ -207,7 +207,7 @@ The sequence logic is one pure state machine: `(state, input_event) ->
   and resume across restarts, and the page's ↺ restart control clears
   them to start the sequence over.
 
-Entry point: one script (`python -m luminary.cli map`, flags
+Entry point: one script (`luminary map`, flags
 `--continue`, `--trust-boards`) — details at implementation time.
 
 ## Identity mapping (closes spec §19.6)

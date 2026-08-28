@@ -1,3 +1,45 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "luminary"
+version = "2.1.0"
+description = "Lights geometries, stateless patterns, and a bit-efficient wire codec for an LED installation"
+requires-python = ">=3.12"
+dependencies = [
+    "numpy>=2.0",
+    "pydantic>=2.5",
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.29",
+    "python-multipart>=0.0.9",
+    "pyserial>=3.5",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+# `pip install -e .[dev]` for the test suite and the quality gates.
+dev = [
+    "pytest>=8.0",
+    "httpx>=0.27",
+    "websockets>=12.0",
+    "mypy>=1.10",
+    "black>=24.0",
+    "types-pyserial",
+    "types-PyYAML",
+]
+# Flashing boards needs a toolchain; the rest of the CLI does not.
+flash = ["platformio>=6.1"]
+
+[project.scripts]
+luminary = "luminary.cli:main"
+
+# Installed editable, deliberately: geometry configs and patterns live beside
+# the package rather than inside it, and the code resolves them from the source
+# tree (luminary/cli.py, luminary/stage/web.py).
+[tool.setuptools.packages.find]
+include = ["luminary*"]
+
 [tool.mypy]
 # 3.12 matches CI and the reference deployment. Must be >= 3.12: current
 # numpy ships PEP 695 `type` statements in its stubs, which mypy rejects

@@ -222,7 +222,7 @@ at the RP2040's DMA and CPU contending for the same banked SRAM:
 
 ## Building
 
-Normally you do not build by hand: `python -m luminary.cli flash
+Normally you do not build by hand: `luminary flash
 --max-per-strip <n>` builds per controller id, resets the board into its
 bootloader, writes the UF2, and then re-probes to confirm the board came back
 answering with the id it was built for. It uses the `deploy` env and passes
@@ -253,7 +253,7 @@ within ±2/255 of the Python float reference.
 
 ## Driving it
 
-    python -m luminary.cli play --lights <geometry> --pattern <name> \
+    luminary play --lights <geometry> --pattern <name> \
         --serial /dev/ttyACM0
 
 The server negotiates nothing beyond the SESSION frame; a freshly booted
