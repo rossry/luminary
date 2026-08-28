@@ -24,9 +24,10 @@ from __future__ import annotations
 
 import struct
 import sys
+import threading
 import time
 from collections import deque
-from typing import Deque, Dict, Iterator, List, Optional, Tuple, Union
+from typing import Callable, Deque, Dict, Iterator, List, Optional, Tuple, Union
 
 import serial as pyserial
 
@@ -90,8 +91,22 @@ class SerialDriver:
         baud: int = 2_000_000,
         hello_timeout: float = 2.0,
         max_in_flight: Optional[int] = 4,
+        frame_observer: Optional[Callable[[bytes], None]] = None,
     ) -> None:
         self.engine = engine
+        # Optional tap on the outbound stream, for surfaces that mirror what
+        # the boards were sent (luminary/drivers/broadcast.py). It is called
+        # on the stream loop's own thread, so it MUST NOT BLOCK: the loop's
+        # timing is the acknowledgement window (spec 11.7.6), and delaying it
+        # is exactly the overrun the window exists to prevent. Implementations
+        # hand the frame off without waiting and drop rather than back up.
+        self.frame_observer = frame_observer
+        # Lets another thread end an open-ended run() (luminary show runs the
+        # loop in a thread and stops it when the server shuts down). The loop
+        # owns every connection: a caller that reached in and closed ports
+        # itself would be mutating `connections` under the loop's feet, which
+        # raced with the reconnect path and left the thread spinning forever.
+        self._stop = threading.Event()
         if isinstance(ports, str):
             controllers = engine.lights.controllers
             if len(controllers) != 1:
@@ -423,6 +438,15 @@ class SerialDriver:
         while time.monotonic() < deadline:
             pass
 
+    def request_stop(self) -> None:
+        """Ask a running :meth:`run` to finish its tick and return.
+
+        Safe from any thread: it only sets an event. Everything that touches
+        a connection still happens on the loop's own thread, so shutdown does
+        not race the reconnect path.
+        """
+        self._stop.set()
+
     def run(self, duration: Optional[float] = None, start_frame: int = 0) -> None:
         """Blocking stream loop at engine.fps until duration (or forever)."""
         if not self.connections:
@@ -431,8 +455,11 @@ class SerialDriver:
         started = time.monotonic()
         frame_index = start_frame
         timer_raised = _raise_timer_resolution()
+        self._stop.clear()
         try:
-            while duration is None or (time.monotonic() - started) < duration:
+            while not self._stop.is_set() and (
+                duration is None or (time.monotonic() - started) < duration
+            ):
                 tick_start = time.monotonic()
                 self._poll_inbound()
                 self._try_reconnect()
@@ -447,6 +474,8 @@ class SerialDriver:
                     t = frame_index / self.engine.fps
                     for frame in self.engine.frame(t):
                         self._route(frame)
+                        if self.frame_observer is not None:
+                            self.frame_observer(frame)
                 frame_index += 1
                 self._adapt_budget()
                 self._pace(tick_start + interval)

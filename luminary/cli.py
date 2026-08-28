@@ -5,6 +5,10 @@ python -m luminary.cli play    --lights F --pattern N [--serial P | --dry-run]
 python -m luminary.cli capture --scaffold F [--params F] -o OUT
 python -m luminary.cli render  --lights F --pattern N [-t S] -o OUT.svg
 python -m luminary.cli map     [--continue --trust-boards --controllers IDS --web]
+python -m luminary.cli boards  [--json --all-ports --no-register]
+python -m luminary.cli flash   [--controller N --max-per-strip N --build-only]
+python -m luminary.cli geometry [--config NAME --partial -o OUT]
+python -m luminary.cli show    --lights F --pattern N [--serial P --host --port]
 """
 
 from __future__ import annotations
@@ -130,6 +134,248 @@ def _parse_ports(spec: str) -> Union[str, Dict[int, str]]:
     return ports
 
 
+def cmd_boards(args: argparse.Namespace) -> int:
+    """Inventory the boards on USB, and record the ones that are real."""
+    from datetime import datetime, timezone
+
+    from luminary.boards import discovery
+    from luminary.boards.registry import BoardRegistry
+
+    candidates = discovery.discover(all_ports=args.all_ports, timeout=args.timeout)
+    boards = [c for c in candidates if c.is_board]
+    duplicates = discovery.duplicate_controllers(candidates)
+
+    if args.json:
+        print(
+            json.dumps(
+                {
+                    "boards": [
+                        {
+                            "controller": c.controller,
+                            "port": c.device,
+                            "usb": c.vidpid(),
+                            "usb_serial": c.usb_serial,
+                            "description": c.description,
+                        }
+                        for c in boards
+                    ],
+                    "other": [
+                        {
+                            "port": c.device,
+                            "status": c.status,
+                            "usb": c.vidpid(),
+                            "detail": c.detail,
+                        }
+                        for c in candidates
+                        if not c.is_board
+                    ],
+                    "duplicate_controllers": duplicates,
+                },
+                indent=2,
+            )
+        )
+    else:
+        if boards:
+            print(f"{len(boards)} board(s):")
+            for c in sorted(boards, key=lambda c: (c.controller or 0)):
+                serial_note = f"  usb-serial {c.usb_serial}" if c.usb_serial else ""
+                print(
+                    f"  controller {c.controller}  {c.device}  "
+                    f"[{c.vidpid()}] {c.description}{serial_note}"
+                )
+        else:
+            print("no boards found")
+        others = [c for c in candidates if not c.is_board]
+        if others and args.verbose:
+            print("\nother USB devices considered:")
+            for c in others:
+                print(f"  {c.status:12s} {c.device}  [{c.vidpid()}]  {c.detail}")
+        elif others:
+            skipped = sum(1 for c in others if c.status == discovery.FOREIGN)
+            notable = [c for c in others if c.status != discovery.FOREIGN]
+            for c in notable:
+                print(f"\n  {c.status}: {c.device}  [{c.vidpid()}]\n    {c.detail}")
+            if skipped:
+                print(f"\n({skipped} other USB device(s) skipped; -v to list)")
+
+    if duplicates:
+        print("\nWARNING: controller id claimed by more than one board:")
+        for controller, ports in sorted(duplicates.items()):
+            print(f"  controller {controller}: {', '.join(ports)}")
+        print("  Both address the same lights. Re-flash one with a distinct id.")
+
+    if args.no_register or not boards:
+        return 1 if duplicates else 0
+
+    registry = BoardRegistry(_store_dir(args.store)).load()
+    when = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    for c in boards:
+        if c.controller is not None:
+            registry.register(c.controller, c.device, c.usb_serial, when)
+    path = registry.save()
+    print(f"\nregistered {len(boards)} board(s) -> {path}")
+    return 1 if duplicates else 0
+
+
+def cmd_flash(args: argparse.Namespace) -> int:
+    """Build and flash firmware, then prove each board came back."""
+    from luminary.boards import discovery
+    from luminary.boards.flash import flash_board, targets_from
+    from luminary.boards.registry import BoardRegistry
+
+    registry = BoardRegistry(_store_dir(args.store)).load()
+    candidates = discovery.discover(timeout=args.timeout)
+
+    if args.controller is not None:
+        targets = [args.controller]
+    else:
+        targets = targets_from(registry.ports(), candidates)
+    if not targets:
+        print(
+            "no boards to flash: run `luminary boards` first, pass "
+            "--controller N, or hold BOOTSEL while plugging a board in",
+            file=sys.stderr,
+        )
+        return 2
+
+    live = discovery.boards_by_controller(candidates)
+    failures = 0
+    for controller in targets:
+        result = flash_board(
+            controller,
+            port=live.get(controller) or registry.ports().get(controller),
+            max_per_strip=args.max_per_strip,
+            color_order=args.color_order,
+            verify=not args.no_verify,
+            log=sys.stdout,
+        )
+        mark = "ok" if result.ok else "FAILED"
+        print(f"controller {result.controller}: {mark} — {result.detail}")
+        if not result.ok:
+            failures += 1
+    return 1 if failures else 0
+
+
+def cmd_geometry(args: argparse.Namespace) -> int:
+    """Mapping records -> the geometry the installation actually has."""
+    from luminary.geometry.net import Net
+    from luminary.geometry.pentagon.mapped import (
+        MappingIncompleteError,
+        capture_mapped,
+    )
+    from luminary.mapping.plan import Plan
+    from luminary.mapping.store import MappingStore
+
+    plan = Plan.load(args.config)
+    store = MappingStore(_store_dir(args.store, "mapping"))
+    records = store.load_records(plan)
+    configs = Path(__file__).resolve().parents[1] / "configs"
+    net = Net.from_json_file(configs / f"{args.config}.json")
+
+    try:
+        lights = capture_mapped(
+            net,
+            plan,
+            records,
+            strict=not args.partial,
+            interpolate_dense=args.interpolate,
+        )
+    except MappingIncompleteError as exc:
+        print(f"{exc}\n(--partial builds what is mapped so far)", file=sys.stderr)
+        return 2
+
+    per = {c: len(lights.active_rows_for_controller(c)) for c in lights.controllers}
+    print(f"{lights.n} lights across controllers {lights.controllers}")
+    for controller, count in sorted(per.items()):
+        print(f"  controller {controller}: {count} active")
+
+    if args.output:
+        lights.save(args.output)
+        print(f"-> {args.output}")
+        return 0
+
+    from luminary.server.store import Store
+
+    doc_id = Store(_store_dir(args.store)).save("lights", lights.to_file_dict())
+    print(f"-> store id {doc_id}   (luminary show --lights {doc_id} --pattern ...)")
+    return 0
+
+
+def cmd_show(args: argparse.Namespace) -> int:
+    """Stream to the boards and mirror the same bytes to a preview page."""
+    import asyncio
+
+    import uvicorn
+
+    from luminary.boards import discovery
+    from luminary.boards.registry import BoardRegistry
+    from luminary.drivers.broadcast import BroadcastSession
+    from luminary.engine.engine import Engine
+    from luminary.patterns.registry import default_registry
+    from luminary.server.app import create_app
+
+    store_dir = _store_dir(args.store)
+    lights = _load_lights(args.lights, store_dir)
+    pattern = default_registry().get(args.pattern)
+    engine = Engine(
+        lights,
+        pattern,
+        fps=args.fps,
+        codec_config=CodecConfig(budget_bytes=args.budget),
+    )
+
+    if args.serial:
+        ports = _parse_ports(args.serial)
+        if isinstance(ports, str):
+            controllers = lights.controllers
+            if len(controllers) != 1:
+                print(
+                    f"geometry spans controllers {controllers}; pass "
+                    "--serial 0=/dev/ttyACM0,1=/dev/ttyACM1",
+                    file=sys.stderr,
+                )
+                return 2
+            ports = {controllers[0]: ports}
+    else:
+        # Registered boards first, re-probed so a moved port is corrected;
+        # the registry stores hints, never identities.
+        ports = discovery.boards_by_controller(discovery.discover())
+        if not ports:
+            ports = BoardRegistry(store_dir).load().ports()
+        if not ports:
+            print(
+                "no boards found: run `luminary boards`, or pass --serial",
+                file=sys.stderr,
+            )
+            return 2
+
+    missing = [c for c in lights.controllers if c not in ports]
+    if missing:
+        print(
+            f"warning: geometry needs controller(s) {missing} with no port; "
+            "those lights will stay dark",
+            file=sys.stderr,
+        )
+
+    def factory(loop: "asyncio.AbstractEventLoop") -> BroadcastSession:
+        session = BroadcastSession(
+            engine, ports, loop=loop, baud=args.baud, lights_id=args.lights
+        )
+        return session
+
+    app = create_app(
+        store_dir=store_dir,
+        allow_pattern_upload=False,
+        broadcast_factory=factory,
+    )
+    print(
+        f"streaming {pattern.name!r} to {ports} at {args.fps} fps\n"
+        f"preview: http://{args.host}:{args.port}/preview"
+    )
+    uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
+    return 0
+
+
 def cmd_capture(args: argparse.Namespace) -> int:
     from luminary.geometry.capture.from_scaffold import CaptureParams, capture
     from luminary.geometry.scaffold import Scaffold
@@ -181,21 +427,34 @@ def build_mapping_session(
         controllers = [int(part) for part in args.controllers.split(",")]
     else:
         ports = probe_controllers()
+        if not ports:
+            # Fall back to what `luminary boards` registered. The ports there
+            # are hints, not identities, so this only helps when the boards
+            # are present but momentarily unprobeable -- it never invents a
+            # board that is not on the bus.
+            from luminary.boards.registry import BoardRegistry
+
+            ports = BoardRegistry(_store_dir(args.store)).load().ports()
         controllers = sorted(ports)
         if not controllers:
             raise SystemExit(
-                "no boards answered the identity probe; pass --controllers "
-                "(e.g. --controllers 0,1,2) for a window-only run"
+                "no boards answered the identity probe; run `luminary boards` "
+                "to see what is on USB, or pass --controllers (e.g. "
+                "--controllers 0,1,2) for a window-only run"
             )
 
     store = MappingStore(_store_dir(args.store, "mapping"))
     store.port_hints = dict(ports)
     if args.trust_boards:
         trust_boards(store, SerialBoards(ports), plan)
+    records = store.load_records(plan)
     if args.continue_ or args.trust_boards:
-        state = resume_state(plan, controllers, store.load_records(plan))
+        # --continue skips ahead to the first slot never recorded.
+        state = resume_state(plan, controllers, records)
     else:
-        state = initial_state(plan, controllers)
+        # Default: walk from the beginning, but pre-filled from the saved
+        # records, so every step that is already right is a single enter.
+        state = initial_state(plan, controllers, records)
 
     core = SessionCore(plan, net_lights, state, fps=args.fps)
     if ports:
@@ -342,6 +601,86 @@ def main(argv: Optional[list] = None) -> int:
     mapping.add_argument("--host", default="127.0.0.1", help="--web bind host")
     mapping.add_argument("--port", type=int, default=8080, help="--web bind port")
     mapping.set_defaults(func=cmd_map)
+
+    boards = sub.add_parser(
+        "boards", help="Find, verify, and register the Scorpio boards on USB"
+    )
+    boards.add_argument(
+        "--json", action="store_true", help="Machine-readable inventory"
+    )
+    boards.add_argument(
+        "-v", "--verbose", action="store_true", help="List every device considered"
+    )
+    boards.add_argument(
+        "--all-ports",
+        action="store_true",
+        help="Probe ports that do not carry the Scorpio USB identity too",
+    )
+    boards.add_argument(
+        "--no-register",
+        action="store_true",
+        help="Report only; don't write boards.yaml",
+    )
+    boards.add_argument("--timeout", type=float, default=1.5, help="Probe seconds")
+    boards.set_defaults(func=cmd_boards)
+
+    flash = sub.add_parser(
+        "flash", help="Build and flash firmware, then verify the board answers"
+    )
+    flash.add_argument(
+        "--controller", type=int, default=None, help="One id (default: all registered)"
+    )
+    flash.add_argument(
+        "--max-per-strip",
+        type=int,
+        default=None,
+        help="LUMINARY_MAX_PER_STRIP: set to the longest strip installed",
+    )
+    flash.add_argument(
+        "--color-order", default=None, help="LUMINARY_COLOR_ORDER (default NEO_GRB)"
+    )
+    flash.add_argument(
+        "--no-verify", action="store_true", help="Skip the post-flash identity probe"
+    )
+    flash.add_argument("--timeout", type=float, default=1.5, help="Probe seconds")
+    flash.set_defaults(func=cmd_flash)
+
+    show = sub.add_parser(
+        "show", help="Stream to the boards and mirror it to a preview page"
+    )
+    show.add_argument("--lights", required=True, help="Lights file or store id")
+    show.add_argument("--pattern", required=True)
+    show.add_argument(
+        "--serial", help="Port, or controller=port[,...]; default: registered boards"
+    )
+    show.add_argument("--baud", type=int, default=2_000_000)
+    show.add_argument("--fps", type=float, default=30.0)
+    show.add_argument("--budget", type=int, default=None)
+    show.add_argument("--host", default="127.0.0.1")
+    show.add_argument("--port", type=int, default=8080)
+    show.set_defaults(func=cmd_show)
+
+    geometry = sub.add_parser(
+        "geometry", help="Build the deployed geometry from the mapping records"
+    )
+    geometry.add_argument(
+        "--config", default="4A-33", help="Net config name (default: 4A-33)"
+    )
+    geometry.add_argument(
+        "--partial",
+        action="store_true",
+        help="Build what is mapped so far; unmapped panels stay dark",
+    )
+    geometry.add_argument(
+        "--interpolate",
+        action="store_true",
+        help="Carry strips denser than the net as ACTIVE + INTERPOLATED, so a "
+        "360-LED strip costs 180 lights on the wire and the board fills in",
+    )
+    geometry.add_argument(
+        "-o", "--output", default=None, help="Write a file instead of the store"
+    )
+    geometry.set_defaults(func=cmd_geometry)
 
     render = sub.add_parser("render", help="Static SVG of a pattern at time t")
     render.add_argument("--lights", required=True, help="Lights file or store id")

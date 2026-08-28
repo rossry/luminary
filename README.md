@@ -42,6 +42,21 @@ python -m luminary.cli play --lights hex.lights.json --pattern kaleidoscope \
 python -m luminary.cli play --lights hex.lights.json --pattern ripple --duration 5
 ```
 
+Running an actual installation is a different path — find and register the
+boards, flash them, map them, then stream to all of them with a live preview:
+
+```bash
+python -m luminary.cli boards                     # verify + register what's on USB
+python -m luminary.cli flash --max-per-strip 180  # build, flash, prove it came back
+python -m luminary.cli map                        # interactive deployment mapping
+python -m luminary.cli show --lights pentagon-4A-33 --pattern aurora
+```
+
+`show` streams to the boards and mirrors the same wire bytes to
+`/preview` — one engine, so the preview is evidence of what the hardware
+received rather than a second render. Step-by-step:
+[`QUICKSTART.md`](QUICKSTART.md).
+
 In the web UI, pick a geometry and a pattern and press Play; the header
 shows live fps and bytes/light·frame so you can watch the codec work. Add
 your own geometries via `POST /api/scaffolds` +
@@ -158,6 +173,11 @@ core is plain C++ and host-tested against the golden vectors:
 cd firmware/test/host && make run
 node tests/js/test_decoder.mjs        # same vectors, browser decoder
 ```
+
+Flashing is `python -m luminary.cli flash` (PlatformIO underneath, one
+build per controller id, verified with an identity probe afterwards). A
+board that has never been flashed does not enumerate at all: hold BOOTSEL
+while plugging it in, and `luminary boards` will report it as `bootsel`.
 
 ## Tests
 

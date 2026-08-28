@@ -6,58 +6,35 @@ a deliberately corrupt frame provokes a RESYNC, and RESYNC carries the
 board's compiled-in controller id in its header. Works in any board state --
 unlike HELLO, which stops after the first frame is consumed.
 
+The probe itself lives in ``luminary.boards.discovery`` and is shared with
+``luminary boards`` and the mapping tool, so all three agree on what counts
+as a board. ``luminary boards`` is the fuller command -- it registers what it
+finds and reports BOOTSEL and duplicate ids; this stays as the minimal
+one-port check for firmware work.
+
     python firmware/tools/whoami.py            # probe every candidate port
-    python firmware/tools/whoami.py --port COM8
+    python firmware/tools/whoami.py --port /dev/ttyACM0
 """
 
 from __future__ import annotations
 
 import argparse
 import sys
-import time
 from pathlib import Path
 
-import serial
 from serial.tools import list_ports
 
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))
 
-from luminary.comms import protocol as p  # noqa: E402
+from luminary.boards import discovery  # noqa: E402
 
-APP_VIDPID = (0x239A, 0x8121)
+APP_VIDPID = discovery.APP_VIDPID
 
 
 def probe(port: str, timeout: float = 1.5):
     """Return (controller_id, how) or (None, reason)."""
-    try:
-        conn = serial.Serial(port, baudrate=2_000_000, timeout=0, write_timeout=1.0)
-    except (serial.SerialException, OSError) as exc:
-        return None, f"cannot open: {exc}"
-    try:
-        time.sleep(0.2)
-        conn.reset_input_buffer()
-        splitter = p.FrameSplitter()
-        # A COBS chunk that decodes but fails CRC: one byte of junk. The
-        # board answers RESYNC, whose header names its controller.
-        conn.write(b"\x01\x00")
-        deadline = time.monotonic() + timeout
-        while time.monotonic() < deadline:
-            data = conn.read(4096)
-            for raw in splitter.feed(data):
-                try:
-                    frame_type, controller, _, _ = p.parse_frame(raw)
-                except p.ProtocolError:
-                    continue
-                if frame_type == p.FRAME_RESYNC:
-                    return controller, "RESYNC"
-                if frame_type == p.FRAME_HELLO:
-                    return controller, "HELLO"
-            if not data:
-                time.sleep(0.02)
-        return None, "no response"
-    finally:
-        conn.close()
+    return discovery.probe_port(port, timeout)
 
 
 def main() -> int:

@@ -369,6 +369,103 @@ static int testColorPipelineWidth() {
   return 0;
 }
 
+// ---------------------------------------------- presentation clock (13.9)
+
+static int testPresentationClock() {
+  const double fps = 60.0;
+  const uint32_t frameUs = (uint32_t)(1e6 / fps);
+
+  // Queuing delay is non-negative by construction -- it is time spent
+  // waiting, never time saved -- so the true offset is the floor, and the
+  // minimum over a window converges on it while a mean cannot.
+  const int32_t queueA[8] = {4300, 900, 120, 0, 40, 1500, 70, 2600};
+  const int32_t queueB[8] = {0, 2600, 70, 1500, 40, 4300, 120, 900};
+
+  // The base is captured from the *first* frame, whose own queuing delay is
+  // arbitrary. So the filter's real job is undoing an unlucky first frame:
+  // board A started 4300 us late, and its skew must walk back by that much.
+  lumicodec::PresentationClock a;
+  const uint32_t bootA = 500000, latA = 1200;
+  for (int i = 0; i < 200; i++) {
+    const double t = i / fps;
+    a.observe(t, bootA + (uint32_t)(t * 1e6) + latA + (uint32_t)queueA[i % 8]);
+  }
+  if (a.skewUs() > -4100 || a.skewUs() < -4500) {
+    fprintf(stderr,
+            "clock: skew %d us, expected ~-4300 (undoing a late first frame, "
+            "not averaging the queuing)\n",
+            (int)a.skewUs());
+    return 1;
+  }
+
+  // The property the whole mechanism exists for. Two boards with different
+  // link latencies, different local epochs, and differently unlucky first
+  // frames must present the same frame at deadlines differing by exactly
+  // their link-latency difference -- no first-frame luck may survive, or the
+  // boards paint out of step forever.
+  lumicodec::PresentationClock b;
+  const uint32_t bootB = 99000000, latB = 7800;
+  for (int i = 0; i < 200; i++) {
+    const double t = i / fps;
+    b.observe(t, bootB + (uint32_t)(t * 1e6) + latB + (uint32_t)queueB[i % 8]);
+  }
+  const double showT = 200 / fps;
+  const uint32_t delay = 50000;
+  const int64_t relA = (int64_t)(a.deadline(showT, delay) - bootA);
+  const int64_t relB = (int64_t)(b.deadline(showT, delay) - bootB);
+  const int64_t spread = relA > relB ? relA - relB : relB - relA;
+  const int64_t want = (int64_t)latB - (int64_t)latA;
+  if (spread < want - 200 || spread > want + 200) {
+    fprintf(stderr,
+            "clock: boards %lld us apart, expected ~%lld (their link latency "
+            "difference, first-frame luck removed)\n",
+            (long long)spread, (long long)want);
+    return 1;
+  }
+
+  // A board that has seen nothing must not claim a deadline.
+  lumicodec::PresentationClock fresh;
+  if (fresh.ready()) {
+    fprintf(stderr, "clock: reported ready before any frame\n");
+    return 1;
+  }
+
+  // The display delay is capped below one frame period: only one snapshot is
+  // in flight, so a longer hold stalls the pipeline instead of buffering it.
+  lumicodec::PresentationClock paced;
+  for (int i = 0; i < 40; i++) {
+    paced.observe(i / fps, 1000000 + (uint32_t)(i / fps * 1e6));
+  }
+  if (paced.intervalUs() < frameUs - 200 || paced.intervalUs() > frameUs + 200) {
+    fprintf(stderr, "clock: interval %u us, expected ~%u\n",
+            paced.intervalUs(), frameUs);
+    return 1;
+  }
+  if (paced.usableDelay(1000) != 1000) {
+    fprintf(stderr, "clock: a delay inside one frame must pass through\n");
+    return 1;
+  }
+  if (paced.usableDelay(500000) >= frameUs) {
+    fprintf(stderr, "clock: delay %u us not capped below the %u us frame\n",
+            paced.usableDelay(500000), frameUs);
+    return 1;
+  }
+
+  // Deadlines advance exactly one frame period per frame.
+  lumicodec::PresentationClock even;
+  for (int i = 0; i < 200; i++) {
+    even.observe(i / fps, 1000000 + (uint32_t)(i / fps * 1e6));
+  }
+  const int32_t step =
+      (int32_t)(even.deadline(11 / fps, 0) - even.deadline(10 / fps, 0));
+  if (step < (int32_t)frameUs - 2 || step > (int32_t)frameUs + 2) {
+    fprintf(stderr, "clock: deadline step %d us, expected %u\n", (int)step,
+            frameUs);
+    return 1;
+  }
+  return 0;
+}
+
 int main(int argc, char** argv) {
   std::string dir = argc > 1 ? argv[1] : "../../golden/case1";
   std::vector<uint8_t> stream = readFile(dir + "/stream.bin");
@@ -465,9 +562,10 @@ int main(int argc, char** argv) {
   if (testDeltaOpBound() != 0) return 1;
   if (testOversizedSessionFallback() != 0) return 1;
   if (testColorPipelineWidth() != 0) return 1;
+  if (testPresentationClock() != 0) return 1;
 
   printf("OK: %d frames bit-exact, %d strips within RGB tolerance, "
-         "4 robustness checks passed\n",
+         "5 robustness checks passed\n",
          framesChecked, stripsChecked);
   return 0;
 }

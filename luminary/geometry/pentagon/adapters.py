@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from typing import List, Optional, Set, Tuple
+from typing import Callable, List, Optional, Set, Tuple
 
 from luminary.geometry.lights import (
     MAX_CHANNELS,
@@ -110,6 +110,50 @@ def _panel_shrink(triangle: Triangle, inset: float) -> Tuple[float, float, float
     return inc.x, inc.y, max(0.0, scale)
 
 
+def build_fold(net: Net) -> Optional[List[Optional[Tuple]]]:
+    """Per-triangle barycentric fold data, or None when the config is 2-D.
+
+    Spec §4.1.2 dual-authoritative: when the config carries points3d, every
+    light gets a true 3-D position — the barycentric image of its net
+    position in its triangle's folded corners. Shared with the mapped
+    capture, which folds positions the design capture never produced.
+    """
+    g = net.config.geometry
+    if g.points3d is None:
+        return None
+    tri_indices = [tri for series in g.triangles for tri in series]
+    assert len(tri_indices) == len(net.triangles)
+    fold_tris: List[Optional[Tuple]] = []
+    for tri in tri_indices:
+        p2d = [g.points[i] for i in tri]
+        p3d = [g.points3d[i] for i in tri]
+        if any(p is None for p in p3d):
+            fold_tris.append(None)
+            continue
+        (x0, y0), (x1, y1), (x2, y2) = [(p[0], p[1]) for p in p2d]
+        det = (y1 - y2) * (x0 - x2) + (x2 - x1) * (y0 - y2)
+        fold_tris.append((x0, y0, x1, y1, x2, y2, det, p3d))
+    return fold_tris
+
+
+def folder(
+    fold_tris: Optional[List[Optional[Tuple]]],
+) -> Callable[[int, float, float], Optional[List[float]]]:
+    """(triangle, x, y) -> folded 3-D position, or None."""
+
+    def _fold(tri_index: int, px: float, py: float) -> Optional[List[float]]:
+        entry = fold_tris[tri_index] if fold_tris is not None else None
+        if entry is None:
+            return None
+        x0, y0, x1, y1, x2, y2, det, p3d = entry
+        l0 = ((y1 - y2) * (px - x2) + (x2 - x1) * (py - y2)) / det
+        l1 = ((y2 - y0) * (px - x2) + (x0 - x2) * (py - y2)) / det
+        l2 = 1.0 - l0 - l1
+        return [l0 * p3d[0][d] + l1 * p3d[1][d] + l2 * p3d[2][d] for d in range(3)]
+
+    return _fold
+
+
 def capture(
     net: Net, channels: int = MAX_CHANNELS, controller: int = 0
 ) -> LightsGeometry:
@@ -183,31 +227,8 @@ def capture(
     # barycentric image of its net position in its triangle's folded
     # corners. The net XY stays the drawing/pattern plane; the fold fills
     # X3/Y3/Z3 (and, derived, RHO/THETA_S/PHI_S).
-    fold_tris: Optional[List[Optional[Tuple]]] = None
-    g = net.config.geometry
-    if g.points3d is not None:
-        tri_indices = [tri for series in g.triangles for tri in series]
-        assert len(tri_indices) == len(net.triangles)
-        fold_tris = []
-        for tri in tri_indices:
-            p2d = [g.points[i] for i in tri]
-            p3d = [g.points3d[i] for i in tri]
-            if any(p is None for p in p3d):
-                fold_tris.append(None)
-                continue
-            (x0, y0), (x1, y1), (x2, y2) = [(p[0], p[1]) for p in p2d]
-            det = (y1 - y2) * (x0 - x2) + (x2 - x1) * (y0 - y2)
-            fold_tris.append((x0, y0, x1, y1, x2, y2, det, p3d))
-
-    def _fold(tri_index: int, px: float, py: float) -> Optional[List[float]]:
-        entry = fold_tris[tri_index] if fold_tris is not None else None
-        if entry is None:
-            return None
-        x0, y0, x1, y1, x2, y2, det, p3d = entry
-        l0 = ((y1 - y2) * (px - x2) + (x2 - x1) * (py - y2)) / det
-        l1 = ((y2 - y0) * (px - x2) + (x0 - x2) * (py - y2)) / det
-        l2 = 1.0 - l0 - l1
-        return [l0 * p3d[0][d] + l1 * p3d[1][d] + l2 * p3d[2][d] for d in range(3)]
+    fold_tris = build_fold(net)
+    _fold = folder(fold_tris)
 
     for tri_index, triangle in enumerate(net.triangles):
         panel_x, panel_y, shrink = panels[tri_index]

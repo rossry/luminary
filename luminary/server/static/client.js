@@ -38,17 +38,22 @@ class Client {
     this.drag = null;
     this.suppressClick = false;
 
-    el("play").onclick = () => this.play();
-    el("render").onclick = () => this.toggleRender();
+    // The preview page (luminary show) reuses this class for its decode and
+    // paint path but has no geometry/pattern pickers -- it mirrors a stream
+    // it does not steer -- so every control is bound only if it is present.
+    const on = (id, event, fn) => { const node = el(id); if (node) node[event] = fn; };
+    on("play", "onclick", () => this.play());
+    on("render", "onclick", () => this.toggleRender());
     this.canvas.onclick = (e) => this.onCanvasClick(e);
-    el("pause").onclick = () => this.togglePause();
-    el("resync").onclick = () => this.send({ type: "resync" });
-    el("pattern").onchange = () => {
+    on("pause", "onclick", () => this.togglePause());
+    on("resync", "onclick", () => this.send({ type: "resync" }));
+    on("pattern", "onchange", () => {
       if (this.ws && this.ws.readyState === WebSocket.OPEN) {
         this.send({ type: "set_pattern", name: el("pattern").value });
       }
-    };
-    this.loadLists();
+    });
+    if (window.LUMINARY_PREVIEW) this.previewMode();
+    else this.loadLists();
     requestAnimationFrame(() => this.paintLoop());
     setInterval(() => this.updateStats(), 500);
   }
@@ -58,6 +63,7 @@ class Client {
       fetch("/api/lights").then((r) => r.json()),
       fetch("/api/patterns").then((r) => r.json()),
     ]);
+    if (!el("lights") || !el("pattern")) return;
     el("lights").innerHTML = lights
       .map((g) => `<option value="${g.id}">${g.name || g.id} (${g.n_lights})</option>`)
       .join("");
@@ -77,6 +83,26 @@ class Client {
     const lightsId = el("lights").value;
     const pattern = el("pattern").value;
     if (!lightsId || !pattern) return;
+    const proto = location.protocol === "https:" ? "wss:" : "ws:";
+    await this.attach(
+      lightsId,
+      `${proto}//${location.host}/api/play?lights=${lightsId}&pattern=${pattern}&fps=30`
+    );
+  }
+
+  /* Mirror a running `luminary show`: the same decoder and the same paint
+   * path as play(), fed the exact bytes the boards were sent. The geometry
+   * and pattern come from the server because the stream, not this page,
+   * decides them. */
+  async previewMode() {
+    const info = await fetch("/api/preview/info").then((r) => r.json());
+    const proto = location.protocol === "https:" ? "wss:" : "ws:";
+    const status = el("status");
+    if (status) status.textContent = `${info.pattern} @ ${info.fps} fps`;
+    await this.attach(info.lights, `${proto}//${location.host}/api/preview`);
+  }
+
+  async attach(lightsId, url) {
     if (this.ws) this.ws.close();
 
     this.layout = await fetch(`/api/lights/${lightsId}/layout`).then((r) => r.json());
@@ -85,10 +111,7 @@ class Client {
     this.bytes = 0;
     this.frames = 0;
 
-    const proto = location.protocol === "https:" ? "wss:" : "ws:";
-    this.ws = new WebSocket(
-      `${proto}//${location.host}/api/play?lights=${lightsId}&pattern=${pattern}&fps=30`
-    );
+    this.ws = new WebSocket(url);
     this.ws.binaryType = "arraybuffer";
     this.ws.onmessage = (event) => {
       const bytes = new Uint8Array(event.data);
@@ -104,8 +127,8 @@ class Client {
         this.send({ type: "resync" });
       }
     };
-    this.ws.onopen = () => (el("status").textContent = "connected");
-    this.ws.onclose = () => (el("status").textContent = "disconnected");
+    this.ws.onopen = () => { const n = el("status"); if (n) n.textContent = "connected"; };
+    this.ws.onclose = () => { const n = el("status"); if (n) n.textContent = "disconnected"; };
   }
 
   togglePause() {
@@ -581,6 +604,7 @@ class Client {
     const rate = this.bytes / dt;
     const nActive = this.layout ? this.layout.counts.active : 0;
     const perLight = this.frames && nActive ? this.bytes / this.frames / nActive : 0;
+    if (!el("stats")) return;
     el("stats").textContent =
       `${fps.toFixed(1)} fps · ${(rate / 1024).toFixed(1)} KiB/s · ` +
       `${perLight.toFixed(2)} B/light·frame`;

@@ -85,22 +85,22 @@ class TestColor:
         """Test OKLCH string parsing and roundtripping."""
         test_oklch_strings = [
             "oklch(0.628 0.258 29.22)",  # Red-ish
-            "oklch(0.558 0.169 142.91)", # Green-ish  
+            "oklch(0.558 0.169 142.91)",  # Green-ish
             "oklch(0.571 0.222 20.07)",  # Crimson-ish
-            "oklch(0.5 0.2 180)",        # Simple format
-            "oklch(50% 0.2 180deg)",     # With percentage and degree
+            "oklch(0.5 0.2 180)",  # Simple format
+            "oklch(50% 0.2 180deg)",  # With percentage and degree
         ]
 
         for oklch_str in test_oklch_strings:
             color = Color.from_oklch_string(oklch_str)
-            
+
             # Parse the original components for comparison
-            content = oklch_str.replace('oklch(', '').replace(')', '')
-            parts = content.replace('%', '').replace('deg', '').split()
-            orig_l = float(parts[0]) / (100 if '%' in oklch_str else 1)
+            content = oklch_str.replace("oklch(", "").replace(")", "")
+            parts = content.replace("%", "").replace("deg", "").split()
+            orig_l = float(parts[0]) / (100 if "%" in oklch_str else 1)
             orig_c = float(parts[1])
             orig_h = float(parts[2])
-            
+
             # Check components are approximately equal
             l, c, h = color.get_oklch()
             assert abs(l - orig_l) < 0.01, f"Lightness mismatch: {l} vs {orig_l}"
@@ -194,7 +194,7 @@ class TestColor:
         oklch_color = Color.from_string("oklch(0.628 0.258 29.22)")
         direct_oklch = Color.from_oklch_string("oklch(0.628 0.258 29.22)")
         assert oklch_color.to_oklch_string() == direct_oklch.to_oklch_string()
-        
+
         # Test unsupported format
         with pytest.raises(ValueError, match="Unsupported color format"):
             Color.from_string("unsupported_format")
@@ -215,15 +215,15 @@ class TestColor:
         # Test empty string
         with pytest.raises(ValueError, match="Empty color string"):
             Color.from_string("")
-            
+
         # Test invalid hex
         with pytest.raises(ValueError, match="Invalid hex color format"):
             Color.from_hex_string("#gggggg")
-            
+
         # Test invalid OKLCH
         with pytest.raises(ValueError, match="Invalid OKLCH"):
             Color.from_oklch_string("oklch(invalid)")
-            
+
         # Test unsupported format
         with pytest.raises(ValueError, match="Unsupported color format"):
             Color.from_string("rgb(255, 0, 0)")
