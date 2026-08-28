@@ -1,5 +1,11 @@
 #include "lumicodec.h"
 
+#ifdef ARDUINO
+// micros() for the predictor-loop instrumentation (spec 13.7). This file also
+// compiles host-side for the conformance tests, where there is no Arduino.
+#include <Arduino.h>
+#endif
+
 #include <cmath>
 #include <cstring>
 
@@ -248,6 +254,9 @@ bool Decoder::applyDelta(const uint8_t* payload, size_t len) {
   if (off != len) return false;
 
   // The normative frame step (spec §11.5.4): coast, correct, blend velocity.
+#ifdef ARDUINO
+  const uint32_t predictStart = micros();
+#endif
   size_t opCursor = 0;
   for (size_t i = 0; i < nActive_; i++) {
     int32_t qL = q_[i * 3], qC = q_[i * 3 + 1], qH = q_[i * 3 + 2];
@@ -270,6 +279,9 @@ bool Decoder::applyDelta(const uint8_t* payload, size_t len) {
     q_[i * 3 + 1] = pC;
     q_[i * 3 + 2] = pH;
   }
+#ifdef ARDUINO
+  g_predictUs += micros() - predictStart;
+#endif
   return true;
 }
 
@@ -299,9 +311,17 @@ bool g_tablesReady = false;
 constexpr int32_t M_L2LMS[9] = {16384, 6494,  3536,
                                 16384, -1730, -1046,
                                 16384, -1466, -21160};
-constexpr int32_t M_LMS2RGB[9] = {66793, -54194, 3784,
-                                  -20782, 42758, -5592,
-                                  -69,   -11525, 27978};
+// Q13, not Q14. At Q14 the row sum peaks near 2.04e9 against int32's 2.147e9
+// -- only 5% margin, so the accumulator had to be int64, and a Cortex-M0+ has
+// no 64-bit multiply: every one of the nine products became an __aeabi_lmul
+// call, ~20 instructions each, 9 per pixel. Halving the coefficients puts the
+// peak at 1.02e9, which is int32 with 2x room, and the accumulator becomes
+// nine single-cycle MULS. The cost is one bit of coefficient precision --
+// a relative error near 1.5e-5 on a value that ends up as 8-bit sRGB, far
+// inside the +-2/255 the host conformance test allows.
+constexpr int32_t M_LMS2RGB_Q13[9] = {33397, -27097, 1892,
+                                      -10391, 21379, -2796,
+                                      -35,   -5763,  13989};
 
 // M_PI is a POSIX/GNU extension, not standard C++: it is absent under a
 // strict -std=c++17 host build (e.g. MinGW-w64, MSVC). Define it locally so
@@ -358,9 +378,12 @@ inline int32_t cosInterp_q14(int32_t h_88) {
 //
 // None can overflow, so results are bit-identical to the int64 form -- which
 // the golden-vector conformance test (spec 11.9) verifies directly. The
-// LMS->RGB accumulator in oklchQ14ToRgb8 is deliberately NOT converted: its
-// worst case reaches ~2.04e9 against a 2.15e9 limit, too little margin to
-// call safe.
+// LMS->RGB accumulator was the one exception, at ~2.04e9 against a 2.15e9
+// limit; it is now int32 too, by carrying that matrix at Q13 instead of Q14
+// (see M_LMS2RGB_Q13). That one is NOT bit-identical -- it trades a bit of
+// coefficient precision for nine single-cycle multiplies in place of nine
+// __aeabi_lmul calls -- so it is held to the conformance test's +-2/255 RGB
+// tolerance rather than to exactness.
 inline int32_t cube_q14(int32_t x) {
   int32_t xx = static_cast<int32_t>((x * x) >> 14);
   return static_cast<int32_t>((xx * x) >> 14);
@@ -379,7 +402,8 @@ inline uint8_t gammaEncode(int32_t linear_q14, uint8_t scale1, uint8_t scale2) {
 void oklchQ14ToRgb8(int32_t l_q14, int32_t c_q14, int32_t h_88,
                     uint8_t brightness, const uint8_t correction[3],
                     uint8_t out[3]) {
-  buildTables();
+  // buildTables() is NOT called here: this runs once per pixel, and every
+  // caller builds the tables before its loop.
   int32_t cosH = cosInterp_q14(h_88);
   int32_t sinH = cosInterp_q14(((64 << 8) - h_88) & 0xFFFF);  // sin x = cos(64-x)
   // c_q14 <= 6554 and |cos| <= 16384, so the product peaks near 2^26.7 --
@@ -396,17 +420,20 @@ void oklchQ14ToRgb8(int32_t l_q14, int32_t c_q14, int32_t h_88,
     lms[i] = cube_q14(acc >> 14);
   }
   for (int i = 0; i < 3; i++) {
-    // Stays 64-bit: this one peaks near 2.04e9, too close to the int32
-    // limit to be provably safe.
-    int64_t acc = static_cast<int64_t>(M_LMS2RGB[i * 3]) * lms[0] +
-                  static_cast<int64_t>(M_LMS2RGB[i * 3 + 1]) * lms[1] +
-                  static_cast<int64_t>(M_LMS2RGB[i * 3 + 2]) * lms[2];
-    out[i] = gammaEncode(static_cast<int32_t>(acc >> 14), brightness,
-                         correction[i]);
+    // int32 throughout: see the note on M_LMS2RGB_Q13.
+    const int32_t acc = M_LMS2RGB_Q13[i * 3] * lms[0] +
+                        M_LMS2RGB_Q13[i * 3 + 1] * lms[1] +
+                        M_LMS2RGB_Q13[i * 3 + 2] * lms[2];
+    out[i] = gammaEncode(acc >> 13, brightness, correction[i]);
   }
 }
 
 uint16_t Decoder::stripRGB(uint8_t id, uint8_t* rgb, uint16_t maxPixels) const {
+  return stripRGBFrom(q_.data(), id, rgb, maxPixels);
+}
+
+uint16_t Decoder::stripRGBFrom(const int32_t* q, uint8_t id, uint8_t* rgb,
+                               uint16_t maxPixels) const {
   const ChannelState* ch = channel(id);
   if (ch == nullptr) return 0;
   buildTables();
@@ -430,8 +457,8 @@ uint16_t Decoder::stripRGB(uint8_t id, uint8_t* rgb, uint16_t maxPixels) const {
     if (kind == KIND_ACTIVE) {
       size_t slot = ch->base + activeCursor;
       activeCursor++;
-      oklchQ14ToRgb8(g_lq14_of_ql[q_[slot * 3]], g_cq14_of_qc[q_[slot * 3 + 1]],
-                     q_[slot * 3 + 2] << 8, brightness_, colorCorrection_, out);
+      oklchQ14ToRgb8(g_lq14_of_ql[q[slot * 3]], g_cq14_of_qc[q[slot * 3 + 1]],
+                     q[slot * 3 + 2] << 8, brightness_, colorCorrection_, out);
       continue;
     }
     // INTERPOLATED: bounding actives are the cursor's neighbors.
@@ -442,15 +469,15 @@ uint16_t Decoder::stripRGB(uint8_t id, uint8_t* rgb, uint16_t maxPixels) const {
     size_t prevSlot = ch->base + activeCursor - 1;
     size_t nextSlot = ch->base + activeCursor;
     int32_t w = ch->weights[pos];  // 0..255
-    int32_t lA = g_lq14_of_ql[q_[prevSlot * 3]];
-    int32_t lB = g_lq14_of_ql[q_[nextSlot * 3]];
-    int32_t cA = g_cq14_of_qc[q_[prevSlot * 3 + 1]];
-    int32_t cB = g_cq14_of_qc[q_[nextSlot * 3 + 1]];
+    int32_t lA = g_lq14_of_ql[q[prevSlot * 3]];
+    int32_t lB = g_lq14_of_ql[q[nextSlot * 3]];
+    int32_t cA = g_cq14_of_qc[q[prevSlot * 3 + 1]];
+    int32_t cB = g_cq14_of_qc[q[nextSlot * 3 + 1]];
     int32_t l_q14 = lA + static_cast<int32_t>((static_cast<int64_t>(lB - lA) * w) >> 8);
     int32_t c_q14 = cA + static_cast<int32_t>((static_cast<int64_t>(cB - cA) * w) >> 8);
     // OKLCH shortest-arc hue in 8.8 fixed point (spec §13.5.1).
-    int32_t hA = q_[prevSlot * 3 + 2];
-    int32_t dH = hueWrapDiff(q_[nextSlot * 3 + 2], hA);
+    int32_t hA = q[prevSlot * 3 + 2];
+    int32_t dH = hueWrapDiff(q[nextSlot * 3 + 2], hA);
     int32_t h_88 = ((hA << 8) + dH * w) & 0xFFFF;
     oklchQ14ToRgb8(l_q14, c_q14, h_88, brightness_, colorCorrection_, out);
   }
@@ -496,6 +523,77 @@ void testPatternRGB(uint8_t channel, uint8_t* rgb, uint16_t nPixels,
 
 // ---------------------------------------------------------- outbound frames
 
+uint32_t g_predictUs = 0;
+
+// ------------------------------------------------------- presentation clock
+
+void PresentationClock::reset() {
+  have_ = false;
+  skewUs_ = 0;
+  windowMin_ = 0;
+  windowCount_ = 0;
+  windowTarget_ = ACQUIRE_WINDOW;
+  lastT_ = 0.0;
+  intervalUs_ = 0;
+}
+
+uint32_t PresentationClock::usableDelay(uint32_t wantUs, uint8_t slots) const {
+  if (intervalUs_ == 0) return wantUs;
+  // Staging is eager -- core1 fills any free slot as soon as a frame is
+  // published -- so a full queue holds (slots - 1) frames ahead of the one
+  // being shown. The delay must budget for exactly that, or the frame at the
+  // tail reaches the head of the queue with its deadline already in the past
+  // and every frame reads as late. Budgeting three quarters of it did exactly
+  // that: 377 of 535 frames late at 8x360.
+  const uint32_t usable = slots > 1 ? (uint32_t)(slots - 1) : 1u;
+  const uint32_t cap = intervalUs_ * usable;
+  return wantUs < cap ? wantUs : cap;
+}
+
+uint32_t PresentationClock::nominal(double t) const {
+  // Elapsed host time since the base frame, in local micros. Deliberately
+  // computed as a delta rather than an absolute: micros() wraps every ~71
+  // minutes, and unsigned arithmetic on the difference wraps with it.
+  const double elapsed = (t - baseT_) * 1e6;
+  return baseUs_ + static_cast<uint32_t>(static_cast<int64_t>(elapsed));
+}
+
+void PresentationClock::observe(double t, uint32_t nowUs) {
+  if (!have_) {
+    have_ = true;
+    baseT_ = t;
+    baseUs_ = nowUs;
+    skewUs_ = 0;
+    windowMin_ = 0;
+    windowCount_ = 1;
+    windowTarget_ = ACQUIRE_WINDOW;
+    lastT_ = t;
+    return;
+  }
+  // Smoothed frame interval, so the display delay can be held below one
+  // frame period whatever rate the host is running at.
+  const double dt = (t - lastT_) * 1e6;
+  if (dt > 0.0 && dt < 1e6) {
+    const uint32_t sample = static_cast<uint32_t>(dt);
+    intervalUs_ = intervalUs_ ? (intervalUs_ * 7 + sample) / 8 : sample;
+  }
+  lastT_ = t;
+  // Signed difference, wrap-safe: the unsigned subtraction wraps the same way
+  // micros() does, and the cast reinterprets it as a signed offset.
+  const int32_t err = static_cast<int32_t>(nowUs - nominal(t));
+  if (windowCount_ == 0 || err < windowMin_) windowMin_ = err;
+  if (++windowCount_ >= windowTarget_) {
+    skewUs_ = windowMin_;
+    windowCount_ = 0;
+    windowMin_ = 0;
+    windowTarget_ = windowTarget_ * 2 < WINDOW ? windowTarget_ * 2 : WINDOW;
+  }
+}
+
+uint32_t PresentationClock::deadline(double t, uint32_t delayUs) const {
+  return nominal(t) + static_cast<uint32_t>(skewUs_) + delayUs;
+}
+
 static size_t buildFrame(uint8_t type, uint8_t controller, double t,
                          uint8_t out[64]) {
   uint8_t raw[HEADER_SIZE + 2];
@@ -523,6 +621,34 @@ size_t buildResync(uint8_t controller, uint8_t out[64]) {
 
 size_t buildAck(uint8_t controller, double t, uint8_t out[64]) {
   return buildFrame(FRAME_ACK, controller, t, out);
+}
+
+size_t buildStats(uint8_t controller, const uint32_t* fields, uint8_t nFields,
+                  uint8_t* out) {
+  const size_t payloadLen = static_cast<size_t>(nFields) * 4;
+  uint8_t raw[HEADER_SIZE + STATS_MAX_PAYLOAD + 2];
+  if (payloadLen > STATS_MAX_PAYLOAD) return 0;
+  raw[0] = PROTOCOL_VERSION;
+  raw[1] = FRAME_STATS;
+  raw[2] = controller;
+  double t = 0.0;
+  std::memcpy(raw + 3, &t, sizeof(double));
+  raw[11] = static_cast<uint8_t>(payloadLen & 0xFF);
+  raw[12] = static_cast<uint8_t>(payloadLen >> 8);
+  for (uint8_t i = 0; i < nFields; i++) {
+    const uint32_t v = fields[i];
+    raw[HEADER_SIZE + i * 4 + 0] = static_cast<uint8_t>(v & 0xFF);
+    raw[HEADER_SIZE + i * 4 + 1] = static_cast<uint8_t>((v >> 8) & 0xFF);
+    raw[HEADER_SIZE + i * 4 + 2] = static_cast<uint8_t>((v >> 16) & 0xFF);
+    raw[HEADER_SIZE + i * 4 + 3] = static_cast<uint8_t>((v >> 24) & 0xFF);
+  }
+  const size_t rawLen = HEADER_SIZE + payloadLen + 2;
+  uint16_t crc = crc16(raw, HEADER_SIZE + payloadLen);
+  raw[HEADER_SIZE + payloadLen] = static_cast<uint8_t>(crc & 0xFF);
+  raw[HEADER_SIZE + payloadLen + 1] = static_cast<uint8_t>(crc >> 8);
+  size_t encoded = cobsEncode(raw, rawLen, out);
+  out[encoded] = 0;
+  return encoded + 1;
 }
 
 }  // namespace lumicodec

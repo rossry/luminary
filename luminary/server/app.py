@@ -9,9 +9,10 @@ from __future__ import annotations
 
 from contextlib import AsyncExitStack, asynccontextmanager
 from pathlib import Path
-from typing import Any, AsyncIterator, Dict, Optional
+from typing import Any, AsyncIterator, Callable, Dict, Optional
 
 from fastapi import FastAPI, HTTPException, Query, UploadFile, WebSocket
+from fastapi.websockets import WebSocketDisconnect
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -34,6 +35,7 @@ def create_app(
     uploads_dir: Optional[Path] = None,
     allow_pattern_upload: bool = True,
     mapping_demo: bool = False,
+    broadcast_factory: Optional[Callable[[Any], Any]] = None,
     stage: bool = False,
     stage_lights: Optional[str] = None,
     audio_player: Optional[str] = None,
@@ -48,7 +50,14 @@ def create_app(
     /stage + /api/queue over the ``stage_lights`` geometry (a store id or
     file path; default: the production pentagon-4A-33 capture), with state
     under ``<store_dir>/stage/`` and audio files from ``<store_dir>/audio/``
-    (player auto-detected; ``audio_player`` overrides)."""
+    (player auto-detected; ``audio_player`` overrides).
+
+    ``broadcast_factory`` turns the server into the ``luminary show`` surface:
+    called with the running event loop, it returns the
+    :class:`~luminary.drivers.broadcast.BroadcastSession` that is already
+    streaming to hardware, and ``/preview`` mirrors those exact bytes. It is a
+    factory rather than a session because the session needs the loop uvicorn
+    ends up running, which does not exist yet at app-build time."""
     store_dir = Path(store_dir or "var")
     uploads_dir = Path(uploads_dir or store_dir / "patterns-uploads")
     uploads_dir.mkdir(parents=True, exist_ok=True)
@@ -74,6 +83,24 @@ def create_app(
         )
 
     @asynccontextmanager
+    async def _broadcast(_app: FastAPI) -> AsyncIterator[None]:
+        """Own the hardware stream for the server's lifetime.
+
+        Entered here rather than built with the app because the session's
+        fan-out posts frames to a specific event loop, and the loop that
+        matters is the one uvicorn ends up running.
+        """
+        import asyncio
+
+        session = broadcast_factory(asyncio.get_running_loop())  # type: ignore[misc]
+        _app.state.broadcast = session
+        session.start()
+        try:
+            yield
+        finally:
+            session.stop()
+
+    @asynccontextmanager
     async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
         # Starlette does not run mounted apps' lifespans, and this app may
         # carry several long-lived tickers; enter each explicitly so they
@@ -87,6 +114,8 @@ def create_app(
                 from luminary.stage.web import stage_lifespan
 
                 await stack.enter_async_context(stage_lifespan(stage_core))
+            if broadcast_factory is not None:
+                await stack.enter_async_context(_broadcast(_app))
             yield
 
     app = FastAPI(title="Luminary", version="2.1", lifespan=_lifespan)
@@ -235,6 +264,55 @@ def create_app(
         )
         session = WebSocketSession(engine, websocket, resolve_pattern=registry.get)
         await session.run()
+
+    # ----------------------------------------------------------------- preview
+
+    if broadcast_factory is not None:
+
+        @app.get("/api/preview/info")
+        def preview_info() -> Dict[str, Any]:
+            session = getattr(app.state, "broadcast", None)
+            if session is None:
+                raise HTTPException(503, detail="stream not started")
+            return {
+                "lights": session.lights_id,
+                "pattern": session.engine.pattern.name,
+                "fps": session.engine.fps,
+                "running": session.running,
+                "stats": session.stats(),
+            }
+
+        @app.websocket("/api/preview")
+        async def preview(websocket: WebSocket) -> None:
+            """Mirror the hardware stream to one viewer.
+
+            Send-only: a preview must not be able to steer the installation,
+            and the frames are whatever the boards were already sent. The
+            viewer is fed from a bounded queue, so a browser that cannot keep
+            up loses frames rather than delaying the stream loop.
+            """
+            session = getattr(app.state, "broadcast", None)
+            if session is None:
+                await websocket.close(code=4404)
+                return
+            await websocket.accept()
+            queue = session.hub.subscribe()
+            try:
+                for frame in session.session_frames():
+                    await websocket.send_bytes(frame)
+                # A DELTA means nothing to a decoder that has not seen the
+                # state it corrects, so make the next frame a keyframe.
+                session.request_keyframe()
+                while True:
+                    await websocket.send_bytes(await queue.get())
+            except (WebSocketDisconnect, RuntimeError):
+                pass
+            finally:
+                session.hub.unsubscribe(queue)
+
+        @app.get("/preview", response_class=HTMLResponse)
+        def preview_page() -> str:
+            return (_STATIC_DIR / "preview.html").read_text()
 
     # ------------------------------------------------------------------- pages
 

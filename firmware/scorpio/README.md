@@ -173,9 +173,21 @@ at the RP2040's DMA and CPU contending for the same banked SRAM:
 
 ## Building
 
-With [PlatformIO](https://platformio.org): `pio run` in this directory, then
-`pio run -t upload` with the board in BOOTSEL mode. Set the controller id per
-board with the `controller0` / `controller1` envs (or `-DLUMINARY_CONTROLLER_ID=n`).
+Normally you do not build by hand: `python -m luminary.cli flash
+--max-per-strip <n>` builds per controller id, resets the board into its
+bootloader, writes the UF2, and then re-probes to confirm the board came back
+answering with the id it was built for. It uses the `deploy` env and passes
+the id as a build flag, so ids beyond `controller0`/`controller1` need no new
+env here.
+
+By hand, with [PlatformIO](https://platformio.org): `pio run` in this
+directory, then `pio run -t upload` with the board in BOOTSEL mode. Set the
+controller id per board with the `controller0` / `controller1` envs (or
+`-DLUMINARY_CONTROLLER_ID=n`). Note that `pio run` has **no** `--build-flag`
+option — pass overrides through `PLATFORMIO_BUILD_FLAGS`.
+
+A board with no usable firmware does not enumerate at all. Hold **BOOTSEL**
+while plugging it in; `luminary boards` then reports it as `bootsel`.
 
 With the Arduino IDE: install *Adafruit NeoPXL8* (+ its NeoPixel dependency),
 open `src/main.cpp` alongside `lib/lumicodec/`, select the SCORPIO board.

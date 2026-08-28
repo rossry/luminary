@@ -1,12 +1,15 @@
 """Hardware adapter for the mapping tool: which board is on which port,
 and frame routing to it.
 
-The identity probe reimplements ``firmware/tools/whoami.py`` inside the
-package (the tools script is not importable): every board enumerates
-with the same VID:PID, so port -> controller cannot come from
+The identity probe lives in ``luminary.boards.discovery`` and is shared
+with ``firmware/tools/whoami.py`` and ``luminary boards``: every board
+enumerates with the same VID:PID, so port -> controller cannot come from
 enumeration. A deliberately corrupt frame provokes RESYNC, whose header
 carries the compiled-in controller id — which is why mappings are keyed
-on controller id, never port paths (plan/mapping/DESCRIPTION.md).
+on controller id, never port paths (plan/mapping/DESCRIPTION.md). One
+copy of that rule, because a mapping surface that disagreed with
+``luminary boards`` about which board is which would be a
+production-divergence bug (CLAUDE.md, "one logic path across modes").
 
 Everything degrades to "no hardware": pyserial absent, no matching
 ports, or no answers just means the tool runs window-only.
@@ -23,6 +26,7 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING, Dict, List, Optional
 
+from luminary.boards import discovery
 from luminary.comms import protocol as p
 
 if TYPE_CHECKING:
@@ -36,57 +40,18 @@ BAUD = 2_000_000
 def probe_controllers(timeout: float = 1.5) -> Dict[int, str]:
     """controller id -> port device, for every board that answers.
 
-    Pyserial absent, no candidate ports, or no answers -> {}. When two
-    ports answer with the same id (misflashed boards) the first wins;
-    the mapping session will make the collision visible.
+    Pyserial absent, no candidate ports, or no answers -> {}. Collisions
+    (two boards flashed with the same id) resolve first-wins here; the
+    mapping session makes them visible, and ``luminary boards`` reports
+    them outright.
     """
-    try:
-        from serial.tools import list_ports
-    except ImportError:
-        return {}
-    found: Dict[int, str] = {}
-    for info in list_ports.comports():
-        if (info.vid, info.pid) != APP_VIDPID:
-            continue
-        controller = _probe_port(info.device, timeout)
-        if controller is not None and controller not in found:
-            found[controller] = info.device
-    return found
+    return discovery.probe_controllers(timeout)
 
 
 def _probe_port(device: str, timeout: float) -> Optional[int]:
     """Provoke a RESYNC on one port; -> its controller id, or None."""
-    import serial
-
-    try:
-        conn = serial.Serial(device, baudrate=BAUD, timeout=0, write_timeout=1.0)
-    except (OSError, ValueError):
-        return None
-    try:
-        time.sleep(0.2)  # let the CDC connection settle mid-frame
-        conn.reset_input_buffer()
-        splitter = p.FrameSplitter()
-        # One COBS chunk decoding to a single junk byte: fails CRC, and
-        # the board answers RESYNC naming itself. HELLO (an unhosted
-        # board announcing) carries the same header field.
-        conn.write(b"\x01\x00")
-        deadline = time.monotonic() + timeout
-        while time.monotonic() < deadline:
-            data = conn.read(4096)
-            for raw in splitter.feed(data):
-                try:
-                    frame_type, controller, _, _ = p.parse_frame(raw)
-                except p.ProtocolError:
-                    continue
-                if frame_type in (p.FRAME_RESYNC, p.FRAME_HELLO):
-                    return controller
-            if not data:
-                time.sleep(0.02)
-        return None
-    except OSError:
-        return None
-    finally:
-        conn.close()
+    controller, _ = discovery.probe_port(device, timeout)
+    return controller
 
 
 class SerialSink:

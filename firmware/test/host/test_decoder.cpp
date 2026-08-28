@@ -9,6 +9,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <fstream>
 #include <new>
 #include <string>
 #include <vector>
@@ -369,6 +370,166 @@ static int testColorPipelineWidth() {
   return 0;
 }
 
+// ---------------------------------------------- presentation clock (13.9)
+
+// Replay the shared golden vector (spec 13.9). The Python reference, the
+// browser decoder and this firmware all run it, so the boards, the web viewer
+// and the local preview cannot disagree about when a frame is shown.
+static int testPresentationGolden(const std::string& dir) {
+  const std::string path = dir + "/../presentation/case1.bin";
+  std::ifstream in(path, std::ios::binary);
+  if (!in) {
+    fprintf(stderr, "presentation: cannot open %s\n", path.c_str());
+    return 1;
+  }
+  std::vector<uint8_t> blob((std::istreambuf_iterator<char>(in)),
+                            std::istreambuf_iterator<char>());
+  if (blob.size() < 12) {
+    fprintf(stderr, "presentation: vector truncated\n");
+    return 1;
+  }
+  uint32_t n, delayUs, slots;
+  std::memcpy(&n, blob.data() + 0, 4);
+  std::memcpy(&delayUs, blob.data() + 4, 4);
+  std::memcpy(&slots, blob.data() + 8, 4);
+  const size_t stride = 8 + 4 + 4 + 4 + 4 + 4;
+  if (blob.size() < 12 + (size_t)n * stride) {
+    fprintf(stderr, "presentation: vector truncated\n");
+    return 1;
+  }
+  lumicodec::PresentationClock clock;
+  for (uint32_t i = 0; i < n; i++) {
+    const uint8_t* row = blob.data() + 12 + (size_t)i * stride;
+    double t;
+    uint32_t arrival, wantInterval, wantUsable, wantDeadline;
+    int32_t wantSkew;
+    std::memcpy(&t, row + 0, 8);
+    std::memcpy(&arrival, row + 8, 4);
+    std::memcpy(&wantSkew, row + 12, 4);
+    std::memcpy(&wantInterval, row + 16, 4);
+    std::memcpy(&wantUsable, row + 20, 4);
+    std::memcpy(&wantDeadline, row + 24, 4);
+    clock.observe(t, arrival);
+    const uint32_t usable = clock.usableDelay(delayUs, (uint8_t)slots);
+    if (clock.skewUs() != wantSkew || clock.intervalUs() != wantInterval ||
+        usable != wantUsable || clock.deadline(t, usable) != wantDeadline) {
+      fprintf(stderr,
+              "presentation frame %u: skew %d/%d interval %u/%u usable %u/%u "
+              "deadline %u/%u (got/want)\n",
+              i, (int)clock.skewUs(), (int)wantSkew, clock.intervalUs(),
+              wantInterval, usable, wantUsable, clock.deadline(t, usable),
+              wantDeadline);
+      return 1;
+    }
+  }
+  return 0;
+}
+
+static int testPresentationClock() {
+  const double fps = 60.0;
+  const uint32_t frameUs = (uint32_t)(1e6 / fps);
+
+  // Queuing delay is non-negative by construction -- it is time spent
+  // waiting, never time saved -- so the true offset is the floor, and the
+  // minimum over a window converges on it while a mean cannot.
+  const int32_t queueA[8] = {4300, 900, 120, 0, 40, 1500, 70, 2600};
+  const int32_t queueB[8] = {0, 2600, 70, 1500, 40, 4300, 120, 900};
+
+  // The base is captured from the *first* frame, whose own queuing delay is
+  // arbitrary. So the filter's real job is undoing an unlucky first frame:
+  // board A started 4300 us late, and its skew must walk back by that much.
+  lumicodec::PresentationClock a;
+  const uint32_t bootA = 500000, latA = 1200;
+  for (int i = 0; i < 200; i++) {
+    const double t = i / fps;
+    a.observe(t, bootA + (uint32_t)(t * 1e6) + latA + (uint32_t)queueA[i % 8]);
+  }
+  if (a.skewUs() > -4100 || a.skewUs() < -4500) {
+    fprintf(stderr,
+            "clock: skew %d us, expected ~-4300 (undoing a late first frame, "
+            "not averaging the queuing)\n",
+            (int)a.skewUs());
+    return 1;
+  }
+
+  // The property the whole mechanism exists for. Two boards with different
+  // link latencies, different local epochs, and differently unlucky first
+  // frames must present the same frame at deadlines differing by exactly
+  // their link-latency difference -- no first-frame luck may survive, or the
+  // boards paint out of step forever.
+  lumicodec::PresentationClock b;
+  const uint32_t bootB = 99000000, latB = 7800;
+  for (int i = 0; i < 200; i++) {
+    const double t = i / fps;
+    b.observe(t, bootB + (uint32_t)(t * 1e6) + latB + (uint32_t)queueB[i % 8]);
+  }
+  const double showT = 200 / fps;
+  const uint32_t delay = 50000;
+  const int64_t relA = (int64_t)(a.deadline(showT, delay) - bootA);
+  const int64_t relB = (int64_t)(b.deadline(showT, delay) - bootB);
+  const int64_t spread = relA > relB ? relA - relB : relB - relA;
+  const int64_t want = (int64_t)latB - (int64_t)latA;
+  if (spread < want - 200 || spread > want + 200) {
+    fprintf(stderr,
+            "clock: boards %lld us apart, expected ~%lld (their link latency "
+            "difference, first-frame luck removed)\n",
+            (long long)spread, (long long)want);
+    return 1;
+  }
+
+  // A board that has seen nothing must not claim a deadline.
+  lumicodec::PresentationClock fresh;
+  if (fresh.ready()) {
+    fprintf(stderr, "clock: reported ready before any frame\n");
+    return 1;
+  }
+
+  // The display delay is capped below one frame period: only one snapshot is
+  // in flight, so a longer hold stalls the pipeline instead of buffering it.
+  lumicodec::PresentationClock paced;
+  for (int i = 0; i < 40; i++) {
+    paced.observe(i / fps, 1000000 + (uint32_t)(i / fps * 1e6));
+  }
+  if (paced.intervalUs() < frameUs - 200 || paced.intervalUs() > frameUs + 200) {
+    fprintf(stderr, "clock: interval %u us, expected ~%u\n",
+            paced.intervalUs(), frameUs);
+    return 1;
+  }
+  if (paced.usableDelay(1000, 1) != 1000) {
+    fprintf(stderr, "clock: a delay inside one frame must pass through\n");
+    return 1;
+  }
+  if (paced.usableDelay(500000, 1) > frameUs) {
+    fprintf(stderr, "clock: delay %u us not capped below the %u us frame\n",
+            paced.usableDelay(500000, 1), frameUs);
+    return 1;
+  }
+  // Depth buys proportionally more delay: 8 slots must allow several frames
+  // of it, which is the whole point of the play-out queue.
+  const uint32_t deep = paced.usableDelay(500000, 8);
+  if (deep < frameUs * 6 || deep > frameUs * 8) {
+    fprintf(stderr,
+            "clock: 8 slots allowed %u us of delay, expected between %u and "
+            "%u\n",
+            deep, frameUs * 4, frameUs * 8);
+    return 1;
+  }
+
+  // Deadlines advance exactly one frame period per frame.
+  lumicodec::PresentationClock even;
+  for (int i = 0; i < 200; i++) {
+    even.observe(i / fps, 1000000 + (uint32_t)(i / fps * 1e6));
+  }
+  const int32_t step =
+      (int32_t)(even.deadline(11 / fps, 0) - even.deadline(10 / fps, 0));
+  if (step < (int32_t)frameUs - 2 || step > (int32_t)frameUs + 2) {
+    fprintf(stderr, "clock: deadline step %d us, expected %u\n", (int)step,
+            frameUs);
+    return 1;
+  }
+  return 0;
+}
+
 int main(int argc, char** argv) {
   std::string dir = argc > 1 ? argv[1] : "../../golden/case1";
   std::vector<uint8_t> stream = readFile(dir + "/stream.bin");
@@ -465,9 +626,11 @@ int main(int argc, char** argv) {
   if (testDeltaOpBound() != 0) return 1;
   if (testOversizedSessionFallback() != 0) return 1;
   if (testColorPipelineWidth() != 0) return 1;
+  if (testPresentationClock() != 0) return 1;
+  if (testPresentationGolden(dir) != 0) return 1;
 
   printf("OK: %d frames bit-exact, %d strips within RGB tolerance, "
-         "4 robustness checks passed\n",
+         "6 robustness checks passed\n",
          framesChecked, stripsChecked);
   return 0;
 }

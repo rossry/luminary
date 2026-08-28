@@ -20,7 +20,7 @@ Per-light wire format (spec §11.4):
 from __future__ import annotations
 
 import struct
-from typing import Iterator, List, Tuple
+from typing import Dict, Iterator, List, Tuple
 
 import numpy as np
 
@@ -33,6 +33,10 @@ FRAME_DELTA = 2
 FRAME_HELLO = 3
 FRAME_RESYNC = 4
 FRAME_ACK = 5
+# Board -> host diagnostics only (spec §13.7). Never on the render path, so
+# it is outside the three-decoder conformance rule: the JS and C++ decoders
+# decode host->board frames and never see one.
+FRAME_STATS = 6
 
 # Quantized precision (spec §11.4.1)
 QL_LEVELS = 64  # 6 bits over L in [0, 1]
@@ -169,6 +173,30 @@ def build_frame(frame_type: int, controller: int, t: float, payload: bytes) -> b
     raw += payload
     raw += CRC_STRUCT.pack(crc16(raw))
     return cobs_encode(raw) + b"\x00"
+
+
+STATS_FIELDS = (
+    "frames",
+    "decode_us",
+    "predict_us",
+    "convert_us",
+    "stage_us",
+    "show_us",
+    "loop_max_us",
+    "n_active",
+    "queue_depth_sum",
+    "late_frames",
+    "queue_slots",
+)
+STATS = struct.Struct("<" + "I" * len(STATS_FIELDS))
+
+
+def parse_stats_payload(payload: bytes) -> Dict[str, int]:
+    """Per-phase microsecond accumulators reported by a board (§13.7)."""
+    if len(payload) < STATS.size:
+        raise ProtocolError(f"STATS payload {len(payload)} < {STATS.size}")
+    values = STATS.unpack_from(payload, 0)
+    return dict(zip(STATS_FIELDS, values))
 
 
 def build_ack(controller: int, t: float) -> bytes:

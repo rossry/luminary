@@ -22,6 +22,10 @@ constexpr uint8_t FRAME_DELTA = 2;
 constexpr uint8_t FRAME_HELLO = 3;
 constexpr uint8_t FRAME_RESYNC = 4;
 constexpr uint8_t FRAME_ACK = 5;
+// Board -> host diagnostics (spec 13.7). Off the render path entirely, so it
+// is outside the three-decoder conformance rule -- the JS and C++ decoders
+// only ever decode host -> board frames.
+constexpr uint8_t FRAME_STATS = 6;
 
 constexpr uint8_t KIND_ACTIVE = 0;
 constexpr uint8_t KIND_INTERPOLATED = 1;
@@ -94,6 +98,15 @@ class Decoder {
   // is bounded only by the frame size, so trusting it overruns the buffer.
   uint16_t stripRGB(uint8_t channel, uint8_t* rgb, uint16_t maxPixels) const;
 
+  // stripRGB against a caller-supplied state snapshot rather than the live
+  // q_. The render core works from a snapshot so the decode core can advance
+  // the next frame's state concurrently (spec 13.8).
+  uint16_t stripRGBFrom(const int32_t* q, uint8_t channel, uint8_t* rgb,
+                        uint16_t maxPixels) const;
+
+  // Bytes of state one frame snapshot needs: nActive * 3 int32.
+  size_t snapshotWords() const { return nActive_ * 3; }
+
  private:
   bool decodeFrame(const uint8_t* raw, size_t len);
   bool applySession(const uint8_t* payload, size_t len);
@@ -104,6 +117,13 @@ class Decoder {
   std::vector<uint8_t> pending_;  // bytes of the current COBS chunk
   std::vector<ChannelState> channels_;
   std::vector<uint8_t> channelIds_;
+  // int32, though the state is only 19 bits per light and the velocity fits
+  // int16. Narrowing these to 9 bytes per light was tried and measured
+  // WORSE -- predictor 2407 -> 2531 us, colour conversion 4995 -> 5235 us,
+  // 48.8 -> 47.1 fps at 8x360. ARMv6-M has no free narrow access: every
+  // byte/halfword load needs an extension instruction, and these loops are
+  // instruction-bound, not memory-bound. The 24-bytes-per-light cost only
+  // matters against MAX_ACTIVE_LIGHTS, and the busiest real board uses 1440.
   std::vector<int32_t> q_;
   std::vector<int32_t> v_;
   size_t nActive_ = 0;
@@ -149,5 +169,75 @@ size_t buildResync(uint8_t controller, uint8_t out[64]);
 // has no payload. Acknowledging t retires every frame at or before it, which
 // is what makes a dropped ACK self-correcting rather than cumulative drift.
 size_t buildAck(uint8_t controller, double t, uint8_t out[64]);
+
+// Largest STATS payload, in bytes. Adding a field past this made buildStats
+// return 0 and the board fall silent -- the caller cannot tell a refused
+// frame from an idle board, so the ceiling is generous and named.
+constexpr size_t STATS_MAX_PAYLOAD = 64;
+
+// Per-phase microsecond accumulators, little-endian uint32 in the order
+// firmware/tools/phases.py expects. `out` needs 96 bytes.
+size_t buildStats(uint8_t controller, const uint32_t* fields, uint8_t nFields,
+                  uint8_t* out);
+
+// Microseconds spent in the O(nActive) predictor loop since the counter was
+// last cleared. Instrumentation only; compiled out off-target.
+extern uint32_t g_predictUs;
+
+// Maps the host's frame time onto a local presentation deadline (spec 13.9).
+//
+// Without this each board paints whenever its own decode happens to finish,
+// so boards drift apart by their own decode times and by whatever jitter the
+// host and USB contribute -- invisible on a gradient, ragged on a hard cut.
+// Every board is fed the same `t` sequence by one host, so if each presents
+// frame `t` at the same offset from its own arrival estimate, they present
+// together without any clock exchange.
+//
+// The offset is tracked with a MINIMUM filter, not a mean. Arrival delay is
+// the true offset plus a non-negative queuing term, so the minimum over a
+// window converges on the true offset while a mean would bake each board's
+// own average queuing delay into its estimate -- the standard NTP argument.
+// The window resets periodically so the estimate can follow crystal drift
+// (RP2040 parts differ by tens of ppm, tens of ms per hour).
+class PresentationClock {
+ public:
+  void reset();
+  // A frame with header time `t` arrived at local `nowUs`.
+  void observe(double t, uint32_t nowUs);
+  bool ready() const { return have_; }
+  // Local micros at which frame `t` should be shown. `delayUs` is the fixed
+  // display delay: it must exceed worst-case arrival jitter, since a frame
+  // that arrives after its own deadline can only be shown late.
+  uint32_t deadline(double t, uint32_t delayUs) const;
+  int32_t skewUs() const { return skewUs_; }
+  // Smoothed host frame interval, microseconds; 0 until two frames are seen.
+  uint32_t intervalUs() const { return intervalUs_; }
+  // The display delay actually usable at the current frame rate, given how
+  // many play-out slots there are. With a single slot, holding a frame longer
+  // than a frame period stalls the pipeline instead of buffering it (8x360:
+  // 8 ms and 20 ms both gave 56 fps, 33 ms gave 45), so the delay had to stay
+  // under one period. Depth buys proportionally more, less one slot kept free
+  // so staging always has somewhere to go.
+  uint32_t usableDelay(uint32_t wantUs, uint8_t slots) const;
+
+ private:
+  // The first window is short and each one doubles up to the ceiling: fast
+  // acquisition, then slow tracking. A flat 64 put the first correction 2.1 s
+  // into a 30 fps show, and until then every frame ran on whatever queuing
+  // delay the first frame happened to carry -- about 100 frames past their
+  // deadline at startup, and none at all afterwards.
+  static constexpr uint16_t ACQUIRE_WINDOW = 4;
+  static constexpr uint16_t WINDOW = 64;
+  uint32_t nominal(double t) const;
+  bool have_ = false;
+  double baseT_ = 0.0;
+  uint32_t baseUs_ = 0;
+  int32_t skewUs_ = 0;
+  int32_t windowMin_ = 0;
+  uint16_t windowCount_ = 0;
+  uint16_t windowTarget_ = ACQUIRE_WINDOW;
+  double lastT_ = 0.0;
+  uint32_t intervalUs_ = 0;
+};
 
 }  // namespace lumicodec

@@ -2,11 +2,30 @@
  * The WebSocket carries only codec frames — identical to serial (spec §14.3).
  */
 
-import { LumiDecoder, FRAME_KEYFRAME, FRAME_SESSION } from "./decoder.js";
+import {
+  LumiDecoder,
+  FRAME_KEYFRAME,
+  FRAME_SESSION,
+  PresentationClock,
+  PlayoutQueue,
+} from "./decoder.js";
 import { oklchToSrgb8 } from "./color.js";
 import { GlowRenderer, oklchToLinear } from "./glow.js";
 
 const el = (id) => document.getElementById(id);
+
+/* Play-out depth and delay, matching the firmware's defaults (spec §13.9).
+ * The boards, this viewer and the local preview are fed the identical wire
+ * stream; sharing the clock and the delay is what makes them agree about when
+ * a frame is shown, without any of them exchanging a clock. */
+const PLAYOUT_SLOTS = 4;
+const PLAYOUT_DELAY_US = 100000;
+
+/* performance.now() is milliseconds with sub-ms resolution and no wall-clock
+ * jumps -- the browser's nearest thing to the board's micros(). */
+function nowMicros() {
+  return Math.trunc(performance.now() * 1000);
+}
 
 function pointInTriangle(x, y, tri) {
   const [[ax, ay], [bx, by], [cx, cy]] = tri;
@@ -38,17 +57,22 @@ class Client {
     this.drag = null;
     this.suppressClick = false;
 
-    el("play").onclick = () => this.play();
-    el("render").onclick = () => this.toggleRender();
+    // The preview page (luminary show) reuses this class for its decode and
+    // paint path but has no geometry/pattern pickers -- it mirrors a stream
+    // it does not steer -- so every control is bound only if it is present.
+    const on = (id, event, fn) => { const node = el(id); if (node) node[event] = fn; };
+    on("play", "onclick", () => this.play());
+    on("render", "onclick", () => this.toggleRender());
     this.canvas.onclick = (e) => this.onCanvasClick(e);
-    el("pause").onclick = () => this.togglePause();
-    el("resync").onclick = () => this.send({ type: "resync" });
-    el("pattern").onchange = () => {
+    on("pause", "onclick", () => this.togglePause());
+    on("resync", "onclick", () => this.send({ type: "resync" }));
+    on("pattern", "onchange", () => {
       if (this.ws && this.ws.readyState === WebSocket.OPEN) {
         this.send({ type: "set_pattern", name: el("pattern").value });
       }
-    };
-    this.loadLists();
+    });
+    if (window.LUMINARY_PREVIEW) this.previewMode();
+    else this.loadLists();
     requestAnimationFrame(() => this.paintLoop());
     setInterval(() => this.updateStats(), 500);
   }
@@ -58,6 +82,7 @@ class Client {
       fetch("/api/lights").then((r) => r.json()),
       fetch("/api/patterns").then((r) => r.json()),
     ]);
+    if (!el("lights") || !el("pattern")) return;
     el("lights").innerHTML = lights
       .map((g) => `<option value="${g.id}">${g.name || g.id} (${g.n_lights})</option>`)
       .join("");
@@ -77,6 +102,26 @@ class Client {
     const lightsId = el("lights").value;
     const pattern = el("pattern").value;
     if (!lightsId || !pattern) return;
+    const proto = location.protocol === "https:" ? "wss:" : "ws:";
+    await this.attach(
+      lightsId,
+      `${proto}//${location.host}/api/play?lights=${lightsId}&pattern=${pattern}&fps=30`
+    );
+  }
+
+  /* Mirror a running `luminary show`: the same decoder and the same paint
+   * path as play(), fed the exact bytes the boards were sent. The geometry
+   * and pattern come from the server because the stream, not this page,
+   * decides them. */
+  async previewMode() {
+    const info = await fetch("/api/preview/info").then((r) => r.json());
+    const proto = location.protocol === "https:" ? "wss:" : "ws:";
+    const status = el("status");
+    if (status) status.textContent = `${info.pattern} @ ${info.fps} fps`;
+    await this.attach(info.lights, `${proto}//${location.host}/api/preview`);
+  }
+
+  async attach(lightsId, url) {
     if (this.ws) this.ws.close();
 
     this.layout = await fetch(`/api/lights/${lightsId}/layout`).then((r) => r.json());
@@ -85,27 +130,64 @@ class Client {
     this.bytes = 0;
     this.frames = 0;
 
-    const proto = location.protocol === "https:" ? "wss:" : "ws:";
-    this.ws = new WebSocket(
-      `${proto}//${location.host}/api/play?lights=${lightsId}&pattern=${pattern}&fps=30`
-    );
+    this.clock = new PresentationClock();
+    this.queue = new PlayoutQueue(PLAYOUT_SLOTS);
+
+    this.ws = new WebSocket(url);
     this.ws.binaryType = "arraybuffer";
     this.ws.onmessage = (event) => {
       const bytes = new Uint8Array(event.data);
       this.bytes += bytes.length;
-      const applied = this.decoder.feed(bytes);
-      for (const frame of applied) {
-        if (frame.type !== FRAME_SESSION) this.frames++;
-        this.needsPaint = true;
-        this.glowColorsStale = true;
+      const now = nowMicros();
+      for (const frame of this.decoder.split(bytes)) {
+        // SESSION carries geometry, not a moment in the show: applying it
+        // late would decode every following frame against the wrong strip
+        // map, so it never waits.
+        if (frame.type === FRAME_SESSION) {
+          this.applyFrame(frame);
+          continue;
+        }
+        this.clock.observe(frame.t, now);
+        const delay = this.clock.usableDelay(PLAYOUT_DELAY_US, PLAYOUT_SLOTS);
+        // A full queue means this viewer is behind; applying immediately
+        // keeps it from falling further behind, at the cost of that frame's
+        // timing. The boards make the same trade.
+        if (!this.queue.push(frame, this.clock.deadline(frame.t, delay))) {
+          this.applyFrame(frame);
+        }
       }
       if (this.decoder.wantResync) {
         this.decoder.wantResync = false;
         this.send({ type: "resync" });
       }
     };
-    this.ws.onopen = () => (el("status").textContent = "connected");
-    this.ws.onclose = () => (el("status").textContent = "disconnected");
+    this.ws.onopen = () => { const n = el("status"); if (n) n.textContent = "connected"; };
+    this.ws.onclose = () => { const n = el("status"); if (n) n.textContent = "disconnected"; };
+  }
+
+  /* Apply one split frame and mark the scene dirty. */
+  applyFrame(frame) {
+    try {
+      const applied = this.decoder.apply(frame.body);
+      if (applied.type !== FRAME_SESSION) this.frames++;
+      this.needsPaint = true;
+      this.glowColorsStale = true;
+    } catch (err) {
+      this.decoder.wantResync = true;
+    }
+  }
+
+  /* Release any frame whose presentation deadline has arrived. Called once
+   * per animation frame, so the viewer paints on the same schedule the
+   * boards do rather than whenever bytes happened to land. */
+  drainQueue() {
+    if (!this.queue) return;
+    const now = nowMicros();
+    for (;;) {
+      const frame = this.queue.due(now);
+      if (!frame) break;
+      this.applyFrame(frame);
+    }
   }
 
   togglePause() {
@@ -415,6 +497,10 @@ class Client {
   }
 
   paintLoop() {
+    // Release any frame whose deadline has arrived before painting, so the
+    // viewer shows the same frame the boards are showing rather than
+    // whatever bytes happened to land since the last repaint.
+    this.drainQueue();
     // Realistic mode repaints every frame (~0.2 ms): glow.params stays
     // live-tunable from the console even when the stream is paused.
     if (this.renderMode === "realistic" && this.glow && this.draws)
@@ -581,6 +667,7 @@ class Client {
     const rate = this.bytes / dt;
     const nActive = this.layout ? this.layout.counts.active : 0;
     const perLight = this.frames && nActive ? this.bytes / this.frames / nActive : 0;
+    if (!el("stats")) return;
     el("stats").textContent =
       `${fps.toFixed(1)} fps · ${(rate / 1024).toFixed(1)} KiB/s · ` +
       `${perLight.toFixed(2)} B/light·frame`;
