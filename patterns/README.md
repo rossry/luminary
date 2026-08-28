@@ -3,8 +3,10 @@
 Everything you need to contribute a pattern is in this directory and this
 file. A pattern is **one Python file** containing a `Pattern` subclass: a
 pure, vectorized function from `(lights, t)` to a color per light. The
-registry discovers every `*.py` here automatically (names starting with `_`
-are skipped) — there is nothing to register, import, or wire up.
+registry discovers every `*.py` here automatically and recursively —
+volume subdirectories included; path components starting with `_` and the
+`legacy/` tree are skipped — there is nothing to register, import, or
+wire up.
 
 ```python
 import numpy as np
@@ -38,6 +40,19 @@ class BreathingRing(Pattern):
 One `Pattern` subclass per file; `name` must be unique across the
 directory. Patterns are looked up by `name` or by file stem.
 
+The directory is organized into volumes:
+
+| Where | What |
+|---|---|
+| `*.py` (top level) | The ported 2.0 set and small worked examples |
+| `book-one/` | The 2026-07 look-dev set — one axis of the medium each |
+| `conifer/` | conifer egitto's set (`life`, `pacman`, `serpent`) |
+| `book-two/` | Patterns and shows **composed from the shared library** (below) |
+| `legacy/` | Pre-contract patterns; not loaded |
+
+New standalone patterns are welcome anywhere sensible; new *composed*
+work belongs in `book-two/`.
+
 ## What you're given
 
 `lights` is an `(n, 24)` float array — one row per light, columns indexed
@@ -50,7 +65,7 @@ matter for pattern work:
 | `R`, `THETA` | Polar coordinates about the origin (the pentagon's center hole on the star geometries). |
 | `X3`, `Y3`, `Z3` | True 3D position on folded geometries (4A-37 folds onto the physical 3V geodesic sphere: apex +z, the door faces −y, radius ≈ 122 units). All-zero z on flat geometries — gate 3D-only effects on `np.any(lights[:, LightColumns.Z3] != 0)`. |
 | `RHO`, `THETA_S`, `PHI_S` | Spherical form of X3/Y3/Z3: radius, azimuth (radians), and polar angle from the apex — `PHI_S` is the "elevation ring" axis. |
-| `DX`, `DY` | The beam's throw direction — the fan mesostructure of the physical build. See `prism.py` for what this unlocks. |
+| `DX`, `DY` | The beam's throw direction — the fan mesostructure of the physical build. See `book-one/prism.py` for what this unlocks. |
 | `KIND`, `WEIGHT` | Light kind and interpolation weight. You normally ignore these: render every row and let the engine handle the wire. |
 
 Rows with missing coordinates can be NaN — pass your result through
@@ -91,7 +106,7 @@ This costs you nothing once you know the idioms:
   `seeded_random(f"myname-{slot}", k)`. Any frame can then reconstruct
   every event that could still be visible by scanning the last few slots.
   Worked examples, simplest first: `plasma_storm.py` (one bolt per slot),
-  `emberfall.py` (per-lane spawns), `tidepool.py` (events timed to when a
+  `book-one/emberfall.py` (per-lane spawns), `book-one/tidepool.py` (events timed to when a
   moving crest passed each anchor).
 - **Whole simulations**, when the thing you want genuinely has state (a
   game, a growth, a collapse): simulate it *once* as a pure function of
@@ -99,7 +114,7 @@ This costs you nothing once you know the idioms:
   result on a content fingerprint of `lights`, and make `render` a
   lookup into that timeline. Memoization is not state — the cache is
   fully determined by its key, so any call order gives identical
-  output. `pacman.py` is the worked example.
+  output. `conifer/pacman.py` is the worked example.
 - **Envelopes in closed form**: an event at `t0` has intensity
   `attack((t - t0)/rise) * exp(-(t - t0)/decay)` — a pure function of
   `t`, no accumulation.
@@ -117,10 +132,10 @@ not a monitor. The craft rules the current set follows:
   L floors around 0.04–0.06 (a few wire quantization steps above zero, so
   darks don't posterize — the wire L step is 1/63).
 - **OKLCH is the brush.** Equal L steps look equal; hue walks at constant
-  L stay luminous the whole way (`aurora.py` walks green→teal→violet).
+  L stay luminous the whole way (`book-one/aurora.py` walks green→teal→violet).
   To blend two *color fields* into each other, lerp OKLab vectors
   (`a = C·cos H`, `b = C·sin H`) instead of lerping H — the meeting zone
-  desaturates into pearl instead of mudding (`vespers.py`).
+  desaturates into pearl instead of mudding (`book-one/vespers.py`).
 - **Size features in facet units.** The piece is built from triangular
   boards subdivided into beam fans; a feature narrower than a facet
   (roughly 1/20 of the piece's span) reads as speckle, not object. Give
@@ -128,7 +143,7 @@ not a monitor. The craft rules the current set follows:
 - **Respect time.** Event attacks ≥ 100 ms, no strobing, and slow is
   usually more beautiful than fast. The geometry is mirror-symmetric
   about x = 0, and its five inner sectors sit at −90° + 36° + k·72° —
-  compose with that or deliberately against it (`sanctum.py` locks to it).
+  compose with that or deliberately against it (`book-one/sanctum.py` locks to it).
 
 ## The wire (what makes it cheap)
 
@@ -179,6 +194,66 @@ The dev server rescans this directory on restart (or on any
 deployments run with uploads disabled, so contributed patterns ship the
 repo way: PR → merge → `git pull` + service restart (`docs/deploy.md`).
 
+## Composing from the library (book two)
+
+`luminary/patterns/` is the importable library — write field math once
+there, publish tuned voices here (invariant §2.9: the mapping visuals and
+show patterns share these exact implementations):
+
+- **`palettes`** — `Palette` (OKLCH stops sampled by any scalar field),
+  `blend_oklch` (THE perceptual crossfade: hue the short way, chroma
+  through neutral), and tuned house palettes (`NIGHT_SKY`, `CANDLE`,
+  `AURORA`, `EMBER`, `SEA_GLASS`).
+- **`easing`** — `smoothstep`, `smootherstep`, `breath`, `env_ad`,
+  `wrap01`: nothing in a good pattern moves linearly.
+- **`fields`** — deterministic value noise / `fbm` / domain `warp`
+  (integer-hash based, identical on every platform) and `ring_field`,
+  the shared descending-ring motif.
+- **`primitives`** — `Starfield`, `NoiseGlow`, `AuroraVeils`, `RingWave`:
+  complete patterns whose knobs are **class attributes**. Publishing a
+  tuned voice is a subclass that overrides values; typos in overrides
+  fail loudly:
+
+  ```python
+  from luminary.patterns.primitives import NoiseGlow
+
+  class Weather(NoiseGlow):          # patterns/book-two/weather.py
+      name = "weather"
+      description = "Sea-glass weather: warped noise banks drifting slowly"
+      scale = 2.4
+      speed = 0.022
+  ```
+
+- **`compose`** — `Movement` + `Conductor`: a show is itself a Pattern.
+  Sequence primitive instances with durations and fade-in windows; the
+  conductor maps global `t` onto one movement (two during a crossfade,
+  never more), blends with `blend_oklch`, and stays a pure function of
+  `(lights, t)` — seekable, stateless, gapless. A non-looping conductor
+  exposes `duration`, which the stage queue uses to advance shows
+  without gaps.
+
+  ```python
+  from luminary.patterns.compose import Conductor, Movement
+  from luminary.patterns.palettes import CANDLE, EMBER
+  from luminary.patterns.primitives import NoiseGlow, Starfield
+
+  class Vigil(Conductor):            # patterns/book-two/vigil.py
+      name = "vigil"
+      description = "Embers, then stars"
+
+      def __init__(self) -> None:
+          super().__init__([
+              Movement(NoiseGlow(palette=EMBER, speed=0.02), 480.0, fade=12.0),
+              Movement(Starfield(density=0.03), 420.0, fade=35.0),
+          ])
+  ```
+
+  `nocturne.py` is the worked example: an hour in seven movements,
+  neighboring movements keyed to neighboring hue families so every
+  crossfade blends kin colors. Composition overhead is O(1) per frame
+  (a searchsorted plus at most one blend), so conducted shows cost what
+  their movements cost.
+
 ## Reading list
 
 Every file here is a worked example. By what it teaches:
@@ -189,15 +264,17 @@ Every file here is a worked example. By what it teaches:
 | `spiral.py`, `kaleidoscope.py`, `tunnel_vision.py`, `ripple.py` | Polar composition around the center |
 | `firelike.py` | Per-light hashed noise (and the C ≤ 0.4 cautionary tale) |
 | `plasma_storm.py` | Slot-hashed events: deterministic lightning |
-| `aurora.py` | Layered drifting ridges; hue ramps walked in OKLCH; hashed star twinkle |
-| `emberfall.py` | Events on polar lanes; facet-scale widths; fused-exponential comet math |
-| `sanctum.py` | Phase-locking to the piece's own five-fold structure |
-| `prism.py` | The `DX`/`DY` beam-direction columns — patterns impossible on a pixel grid |
-| `tidepool.py` | Closed-form event timing (flares scheduled by a moving crest) |
-| `vespers.py` | OKLab-vector color blending; multi-minute incommensurate orbits |
-| `pacman.py` | A precomputed simulation played back statelessly; per-epoch rounds; a graph recovered from the lights themselves, cached by content fingerprint |
-| `serpent.py` | Multiple agents co-simulated on one event timeline; a body as a sliding arclength window over a per-round `(row, s)` table |
-| `life.py` | A CA rule chosen by measurement, not assumption; births and deaths as directional sweeps; hue as ancestry |
+| `book-one/aurora.py` | Layered drifting ridges; hue ramps walked in OKLCH; hashed star twinkle |
+| `book-one/emberfall.py` | Events on polar lanes; facet-scale widths; fused-exponential comet math |
+| `book-one/sanctum.py` | Phase-locking to the piece's own five-fold structure |
+| `book-one/prism.py` | The `DX`/`DY` beam-direction columns — patterns impossible on a pixel grid |
+| `book-one/tidepool.py` | Closed-form event timing (flares scheduled by a moving crest) |
+| `book-one/vespers.py` | OKLab-vector color blending; multi-minute incommensurate orbits |
+| `conifer/pacman.py` | A precomputed simulation played back statelessly; per-epoch rounds; a graph recovered from the lights themselves, cached by content fingerprint |
+| `conifer/serpent.py` | Multiple agents co-simulated on one event timeline; a body as a sliding arclength window over a per-round `(row, s)` table |
+| `conifer/life.py` | A CA rule chosen by measurement, not assumption; births and deaths as directional sweeps; hue as ancestry |
+| `book-two/starlight.py`, `weather.py`, `veils.py`, `ringfall.py` | The registration idiom: a tuned voice as class-attribute overrides of a shared primitive |
+| `book-two/nocturne.py` | A conducted hour: movements, crossfade windows, palette continuity |
 
 `legacy/` holds pre-2.1 stateful patterns that don't meet this contract;
 `plasma_storm.py` is the worked example of converting one.

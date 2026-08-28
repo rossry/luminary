@@ -21,7 +21,12 @@
 | `luminary/color/color.py` | §8.5 | Scalar `Color` for config parsing **only** — never per-frame |
 | `luminary/patterns/base.py` | §9.1 | `Pattern.render(lights, t: float) -> (n,3) OKLCH`, pure and vectorized |
 | `luminary/patterns/registry.py` | §9.3 | Discovery + hot reload with error isolation; compiles source directly (see §5 below) |
-| `luminary/patterns/util.py` | §9.4 | Column accessors, `seeded_random` for deterministic per-entity constants |
+| `luminary/patterns/util.py` | §9.4 | Column accessors, `seeded_random` for deterministic per-entity constants, `phi_theta` (spherical coords with a planar fallback on unfolded nets) |
+| `luminary/patterns/palettes.py` | §9.4 | `Palette` (OKLCH stops sampled by scalar fields) and `blend_oklch` — THE perceptual crossfade (OKLab vector plane); house palettes |
+| `luminary/patterns/easing.py` | §9.4 | `smoothstep`/`smootherstep`/`breath`/`env_ad`/`wrap01` — closed-form temporal shaping |
+| `luminary/patterns/fields.py` | §9.4 | Deterministic uint64-hash value noise, `fbm`, domain `warp`; `ring_field`, the shared descending-ring motif (single source for mapping visuals *and* show patterns, §2.9) |
+| `luminary/patterns/primitives.py` | §9.4 | `Primitive` (class-attribute parameter schema, validated overrides) + `Starfield`/`NoiseGlow`/`AuroraVeils`/`RingWave` — the shared parametrized voices |
+| `luminary/patterns/compose.py` | §9.1, §9.4 | `Movement` + `Conductor`: shows as stateless Patterns; searchsorted slot lookup, ≤2 child renders/frame, OKLab crossfades, `duration` as the queue-advance signal |
 | `luminary/comms/protocol.py` | §11.4, §11.7 | Wire constants: COBS+CRC16 framing, 13-byte header (f64 `t`), quantization, keyframe/delta word packing, varints, SESSION payloads |
 | `luminary/comms/predictor.py` | §11.5 | The normative integer dead-reckoning step — shared by encoder mirror and decoder so they cannot diverge |
 | `luminary/comms/codec.py` | §11.6–§11.8 | `Encoder` (error-ranked budgeted deltas, keyframe cadence, per-controller frames) and the reference `Decoder` |
@@ -82,7 +87,11 @@
    (`resync_sinks`); all mapping state persists through `MappingStore`
    (the demo included); the mockup paints through server-computed
    `strip_refs`; runtime-state paths resolve through
-   `luminary/statedir.py`. Where an adapter *must* carry a parallel
+   `luminary/statedir.py`; shared visual motifs live once in the
+   pattern library (`ring_field` in `luminary/patterns/fields.py`
+   serves both the mapping stage-C ring/finale waves and show
+   patterns; crossfading is `palettes.blend_oklch` wherever two color
+   fields meet). Where an adapter *must* carry a parallel
    table (the web/TUI key maps), a conformance test holds it to one
    canon (`tests/test_mapping_keys.py`) — the golden-vector philosophy.
    When adding a surface or a feature, ask: "where does this logic
@@ -125,8 +134,7 @@ python -m mypy luminary/geometry/coords.py luminary/geometry/lights.py \
   luminary/geometry/scaffold.py luminary/geometry/capture/ \
   luminary/geometry/pentagon/ luminary/color/convert.py \
   luminary/color/color.py luminary/comms/ luminary/engine/ \
-  luminary/patterns/base.py luminary/patterns/registry.py \
-  luminary/patterns/util.py luminary/render/ luminary/server/ \
+  luminary/patterns/ luminary/render/ luminary/server/ \
   luminary/drivers/ luminary/cli.py \
   --explicit-package-bases --follow-imports=silent
 ```

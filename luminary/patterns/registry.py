@@ -27,6 +27,23 @@ class PatternRegistry:
         self._load_counter = 0
         self.reload()
 
+    @staticmethod
+    def _pattern_files(directory: Path) -> List[Path]:
+        """Every pattern file under the directory, recursively, so the
+        library can be organized into volumes (book-one/, conifer/,
+        book-two/, ...) without registry changes. Excluded: any path
+        component starting with "_" (helpers) and the legacy/ tree
+        (pre-contract patterns, spec §3.9)."""
+        out: List[Path] = []
+        for path in sorted(directory.rglob("*.py")):
+            parts = path.relative_to(directory).parts
+            if any(part.startswith("_") for part in parts):
+                continue
+            if "legacy" in parts[:-1]:
+                continue
+            out.append(path)
+        return out
+
     def reload(self) -> None:
         """Re-scan all directories and re-execute pattern modules."""
         self._load_counter += 1
@@ -37,9 +54,7 @@ class PatternRegistry:
         for directory in self.directories:
             if not directory.is_dir():
                 continue
-            for path in sorted(directory.glob("*.py")):
-                if path.name.startswith("_"):
-                    continue
+            for path in self._pattern_files(directory):
                 try:
                     loaded = self._load_file(path)
                 except Exception:
@@ -55,7 +70,7 @@ class PatternRegistry:
                     )
                     continue
                 patterns[loaded.name] = loaded
-                by_stem[path.stem] = loaded.name
+                by_stem.setdefault(path.stem, loaded.name)
 
         self.patterns = patterns
         self.errors = errors
