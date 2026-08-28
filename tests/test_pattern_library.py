@@ -249,3 +249,42 @@ def test_starfield_density_zero_is_all_sky():
     assert float(np.max(out[:, 0])) < 0.06  # nothing brighter than airglow
     star_lights = Starfield(density=1.0).render(lights, 1.6)
     assert float(np.max(star_lights[:, 0])) > 0.3  # somebody twinkles bright
+
+
+# ------------------------------------------------- composed: small planet
+
+
+def test_small_planet_day_night_and_cities():
+    from luminary.patterns.registry import default_registry
+
+    planet = default_registry().get("small_planet")
+    lights = make_lights(n=800, seed=3)
+    t = 150.0  # quarter day: sun over azimuth 90°
+
+    out = planet.render(lights, t)
+    assert np.all(np.isfinite(out))
+    assert np.all(out[:, 1] < 0.4)
+
+    # The subsolar hemisphere carries the day; the antisolar side is night.
+    phi = lights[:, LightColumns.PHI_S]
+    th = lights[:, LightColumns.THETA_S]
+    alpha = 2.0 * np.pi * t / planet.day_s
+    insol = np.sin(phi) * np.cos(th - alpha)
+    lit = float(np.mean(out[insol > 0.5, 0]))
+    dark = float(np.mean(out[insol < -0.5, 0]))
+    assert lit > 4.0 * dark
+    assert dark < 0.08  # night is genuinely dark
+
+    # Statics memoization is not state: interleaved times reproduce exactly.
+    again = planet.render(lights, t)
+    assert np.array_equal(out, again)
+
+    # City lights are what glows on the dark side: with cities disabled,
+    # the darkest hemisphere loses its bright outliers (moon aside).
+    cls = type(planet)
+    no_cities = cls(city_density=0.0, moon_s=1e9)  # park the moon far away
+    with_cities = cls(moon_s=1e9)
+    dark_mask = insol < -0.5
+    bright_no = float(np.max(no_cities.render(lights, t)[dark_mask, 0]))
+    bright_with = float(np.max(with_cities.render(lights, t)[dark_mask, 0]))
+    assert bright_with > bright_no + 0.1
