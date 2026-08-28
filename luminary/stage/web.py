@@ -274,13 +274,17 @@ def register_stage(
 
     @app.get("/api/audio")
     def list_audio() -> JSONResponse:
-        """The audio inventory: [{name, seconds}] — seconds null when
-        the file's length cannot be read."""
+        """The audio inventory: the resolved directory the stage reads
+        (so a misplaced file is diagnosable from the page) and its
+        files as [{name, seconds}] — seconds null when unreadable."""
         return JSONResponse(
-            [
-                {"name": name, "seconds": core.audio.duration_of(name)}
-                for name in core.audio.list_files()
-            ]
+            {
+                "dir": str(core.audio.audio_dir.resolve()),
+                "files": [
+                    {"name": name, "seconds": core.audio.duration_of(name)}
+                    for name in core.audio.list_files()
+                ],
+            }
         )
 
     # ------------------------------------------------------------- stream

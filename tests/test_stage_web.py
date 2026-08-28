@@ -50,8 +50,9 @@ def test_page_layout_and_audio_endpoints(stage, lights):  # noqa: F811
         assert len(layout["viewBox"]) == 4
 
         inventory = client.get("/api/audio").json()
-        assert [row["name"] for row in inventory] == AUDIO_FILES  # sorted
-        assert all("seconds" in row for row in inventory)
+        assert [row["name"] for row in inventory["files"]] == AUDIO_FILES  # sorted
+        assert all("seconds" in row for row in inventory["files"])
+        assert inventory["dir"].endswith("audio")  # the resolved directory
 
 
 def test_queue_http_flow(stage):
@@ -177,7 +178,9 @@ def test_create_app_mounts_stage(tmp_path, lights):  # noqa: F811
         snap = client.get("/api/queue").json()
         assert snap["now"]["holding"] is True
         assert snap["now"]["pattern"] == "spiral"  # the repo default
-        assert client.get("/api/audio").json() == []
+        inventory = client.get("/api/audio").json()
+        assert inventory["files"] == []
+        assert inventory["dir"]  # the resolved directory, even empty
 
         decoder = Decoder()
         with client.websocket_connect("/api/stage") as ws:

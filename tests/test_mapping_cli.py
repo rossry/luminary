@@ -76,14 +76,18 @@ def test_build_continue_resumes_from_the_store(tmp_path):
     assert resumed.state.boards == core.state.boards
 
 
-def test_store_dir_is_var_with_no_fallback_logic():
-    """Runtime state defaults to var/ — which ships in the repo
-    (var/.gitkeep), so the resolver carries no existence or legacy
-    logic at all; an explicit --store wins verbatim."""
+def test_store_dir_is_the_checkout_var_regardless_of_cwd(tmp_path, monkeypatch):
+    """Runtime state defaults to the CHECKOUT's var/ — which ships in
+    the repo (var/.gitkeep) — anchored by __file__ like the pattern
+    registry, so a service run from any working directory (systemd's
+    default is /) still finds the operator's files. No existence or
+    legacy logic; an explicit --store wins verbatim."""
     from luminary.cli import _store_dir
 
-    assert _store_dir(None) == Path("var")
-    assert _store_dir(None, "mapping") == Path("var") / "mapping"
+    assert _store_dir(None) == REPO / "var"
+    assert _store_dir(None, "mapping") == REPO / "var" / "mapping"
+    monkeypatch.chdir(tmp_path)  # a wrong CWD must change nothing
+    assert _store_dir(None) == REPO / "var"
     # An explicit path is the directory itself, sub or no sub.
     assert _store_dir("elsewhere", "mapping") == Path("elsewhere")
     assert (REPO / "var" / ".gitkeep").exists()  # the checkout guarantee

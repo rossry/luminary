@@ -79,6 +79,7 @@ class AudioPlayer:
         self._spawn = spawn
         self._proc: Optional[Any] = None
         self._durations: Dict[Tuple[str, int, int], Optional[float]] = {}
+        logger.info("stage audio dir: %s", self.audio_dir.resolve())
         if self.command is None:
             logger.info(
                 "stage audio disabled: no player found (looked for mpv, cvlc, "
