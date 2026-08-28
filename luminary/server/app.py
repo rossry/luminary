@@ -39,6 +39,7 @@ def create_app(
     stage: bool = False,
     stage_lights: Optional[str] = None,
     audio_player: Optional[str] = None,
+    stage_key: Optional[str] = None,
 ) -> FastAPI:
     """Build the app. ``allow_pattern_upload=False`` hard-disables
     POST /api/patterns (403) — uploads execute in-process (spec §15.5.2), so
@@ -50,7 +51,10 @@ def create_app(
     /stage + /api/queue over the ``stage_lights`` geometry (a store id or
     file path; default: the production pentagon-4A-33 capture), with state
     under ``<store_dir>/stage/`` and audio files from ``<store_dir>/audio/``
-    (player auto-detected; ``audio_player`` overrides).
+    (player auto-detected; ``audio_player`` overrides). ``stage_key``
+    (default: env ``LUMINARY_STAGE_KEY``; an explicit argument wins) gates
+    the stage's mutating endpoints behind an ``X-Stage-Key`` header —
+    unset, they stay open (LAN deployments).
 
     ``broadcast_factory`` turns the server into the ``luminary show`` surface:
     called with the running event loop, it returns the
@@ -76,8 +80,11 @@ def create_app(
 
     stage_core = None
     if stage:
+        import os
+
         from luminary.stage.web import build_stage
 
+        stage_key = stage_key or os.environ.get("LUMINARY_STAGE_KEY") or None
         stage_core = build_stage(
             store_dir, registry, lights_ref=stage_lights, audio_player=audio_player
         )
@@ -124,7 +131,7 @@ def create_app(
     if stage_core is not None:
         from luminary.stage.web import register_stage
 
-        register_stage(app, stage_core)
+        register_stage(app, stage_core, stage_key=stage_key)
     app.state.store = store
     app.state.registry = registry
     app.state.uploads_dir = uploads_dir

@@ -18,16 +18,22 @@
     }
     header h1 { font-size: 1rem; margin: 0 .6rem 0 0; font-weight: 600; }
     #status { font-size: .8rem; color: #7fbf7f; }
-    #now { margin-left: auto; font-size: .85rem; color: #9a9aa8;
-           font-variant-numeric: tabular-nums; }
+    #nowbox { margin-left: auto; display: flex; flex-direction: column;
+              align-items: flex-end; min-width: 0; }
+    #now { font-size: .85rem; color: #9a9aa8; font-variant-numeric: tabular-nums; }
     #now b { color: #ffd9a0; font-weight: 600; }
     #now .hold { color: #9fd0ff; }
+    #liner {
+      font-size: .76rem; font-style: italic; color: #747482; max-width: 34rem;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    #liner:empty { display: none; }
     main { flex: 1; min-height: 0; display: flex; gap: .8rem; padding: .8rem; }
     #viewer { position: relative; flex: 1; min-width: 0; }
     #viewer canvas { position: absolute; inset: 0; width: 100%; height: 100%;
                      display: block; border-radius: 8px; }
     #panel {
-      width: 22rem; max-width: 45%; display: flex; flex-direction: column;
+      width: 24rem; max-width: 45%; display: flex; flex-direction: column;
       gap: .6rem; min-height: 0;
     }
     #queue {
@@ -43,30 +49,64 @@
     .entry.playing .pat { color: #ffd9a0; font-weight: 600; }
     .entry .pat { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis;
                   white-space: nowrap; }
+    .entry.expandable .pat { cursor: pointer; }
+    .entry.expandable .pat:hover { text-decoration: underline dotted; }
     .entry .meta { color: #8a8a98; font-size: .75rem; white-space: nowrap; }
     .entry.playing .meta { color: #9fd0ff; }
-    .entry button {
+    .entry button, .repeat-row button {
       background: #22222b; color: #b6b6c2; border: 1px solid #34343e;
       border-radius: 5px; padding: 0 .4rem; font-size: .8rem; cursor: pointer;
       line-height: 1.4;
     }
-    .entry button:hover { background: #2d2d38; }
-    #queue .empty { color: #6a6a76; font-size: .82rem; padding: .6rem .5rem; }
+    .entry button:hover, .repeat-row button:hover { background: #2d2d38; }
+    .chapters { padding: 0 .5rem .25rem; }
+    .chapter {
+      font-size: .78rem; color: #8a8a98; padding: .08rem 0;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .chapter .dur { color: #62626e; font-size: .72rem; }
+    #queue .empty, #repeats .empty { color: #6a6a76; font-size: .82rem;
+                                     padding: .45rem .5rem; }
+    #repeats-box {
+      background: #121218; border: 1px solid #26262e; border-radius: 8px;
+      padding: .3rem; max-height: 11rem; overflow-y: auto; flex: none;
+    }
+    .pane-label {
+      font-size: .72rem; text-transform: uppercase; letter-spacing: .06em;
+      color: #6a6a76; padding: .2rem .5rem;
+    }
+    .repeat-row {
+      display: flex; gap: .45rem; align-items: center;
+      padding: .3rem .5rem; border-radius: 6px; font-size: .85rem;
+    }
+    .repeat-row .pat { flex: 1; min-width: 0; overflow: hidden;
+                       text-overflow: ellipsis; white-space: nowrap; }
     form {
       display: grid; grid-template-columns: 1fr 5.5rem; gap: .4rem;
       background: #121218; border: 1px solid #26262e; border-radius: 8px;
       padding: .55rem;
     }
-    form select, form input {
+    form select, form input[type=number] {
       background: #1a1a21; color: #dcdce4; border: 1px solid #34343e;
       border-radius: 6px; padding: .3rem .45rem; font-size: .85rem; min-width: 0;
     }
-    form button {
-      grid-column: 1 / -1; background: #24322a; color: #dcdce4;
+    #repeat-label {
+      display: flex; align-items: center; gap: .35rem; font-size: .82rem;
+      color: #b6b6c2; padding: 0 .1rem; user-select: none;
+    }
+    #buttons { grid-column: 1 / -1; display: flex; gap: .4rem; }
+    #add-btn {
+      flex: 1; background: #24322a; color: #dcdce4;
       border: 1px solid #3a5343; border-radius: 6px; padding: .4rem;
       font-size: .9rem; cursor: pointer;
     }
-    form button:hover { background: #2d3f35; }
+    #add-btn:hover { background: #2d3f35; }
+    #play-next {
+      flex: none; background: #2e6b40; color: #e6ffe9;
+      border: 1px solid #4b9c62; border-radius: 6px; padding: .3rem .6rem;
+      font-size: .8rem; cursor: pointer; align-self: center;
+    }
+    #play-next:hover { background: #38804d; }
     footer {
       display: flex; gap: .5rem; align-items: center;
       padding: .55rem .8rem; background: #16161c; border-top: 1px solid #26262e;
@@ -76,6 +116,10 @@
       border-radius: 6px; padding: .35rem .8rem; font-size: .9rem; cursor: pointer;
     }
     footer button:hover { background: #2d2d38; }
+    #stage-key {
+      background: #1a1a21; color: #dcdce4; border: 1px solid #34343e;
+      border-radius: 6px; padding: .3rem .45rem; font-size: .8rem; width: 7rem;
+    }
     footer .legend { margin-left: auto; font-size: .78rem; color: #8a8a98; }
   </style>
 </head>
@@ -83,24 +127,40 @@
   <header>
     <h1>Luminary · Stage</h1>
     <span id="status">connecting…</span>
-    <span id="now">…</span>
+    <div id="nowbox">
+      <span id="now">…</span>
+      <span id="liner"></span>
+    </div>
   </header>
   <main>
     <div id="viewer"><canvas id="stage-canvas"></canvas></div>
     <div id="panel">
       <div id="queue"><div class="empty">loading queue…</div></div>
+      <div id="repeats-box">
+        <div class="pane-label">repeats · round-robin when the queue runs out</div>
+        <div id="repeats"></div>
+      </div>
       <form id="add-form">
         <select id="add-pattern" title="pattern"></select>
         <input id="add-duration" type="number" min="1" step="1"
                placeholder="auto s" title="seconds (blank: pattern's own length)">
         <select id="add-audio" title="audio file"></select>
-        <button type="submit">＋ add to queue</button>
+        <label id="repeat-label" title="re-queue automatically whenever the queue runs out">
+          <input type="checkbox" id="add-repeat"> repeat</label>
+        <div id="buttons">
+          <button type="submit" id="add-btn">＋ add to queue</button>
+          <button type="button" id="play-next"
+                  title="insert right after the playing entry">▶ play next</button>
+        </div>
       </form>
     </div>
   </main>
   <footer>
-    <button id="skip" title="end the current entry now">⏭ skip</button>
-    <button id="clear" title="drop the whole queue (keeps playing)">✕ clear queue</button>
+    <button id="skip" title="end the current entry (chapter) now">⏭ skip</button>
+    <button id="clear" title="drop the play-through queue (keeps playing; repeats keep cycling)">✕ clear queue</button>
+    <input id="stage-key" type="password" placeholder="stage key"
+           title="control key (X-Stage-Key); also set by a #key=… URL fragment"
+           autocomplete="off">
     <span class="legend" id="audio-note"></span>
   </footer>
   <script type="module">

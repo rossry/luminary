@@ -10,6 +10,14 @@ so it is in sync at the very next tick (the mapping web app's join
 shape). Entry advances re-keyframe but never re-send SESSION — the
 geometry never changes for the stage's life.
 
+Access control: when a stage key is configured (``serve --stage-key``,
+or env ``LUMINARY_STAGE_KEY``; the flag wins), every mutating endpoint
+requires it in an ``X-Stage-Key`` header — wrong or missing gets a 403
+with a JSON ``detail`` the page surfaces. Read-only traffic (the page,
+layout, the WS stream, queue/patterns/chapters/audio GETs) is never
+gated, and with no key configured everything stays open (LAN
+deployments).
+
 The ticker mirrors the mapping app's: fps-paced `core.tick()`, falling
 back to a slow poll whenever nothing consumes frames and nothing is
 scheduled (``StageCore.idle`` — no viewer sockets, no audio playing,
@@ -26,7 +34,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, AsyncIterator, Dict, List, Optional
 
-from fastapi import FastAPI, HTTPException, WebSocket
+from fastapi import Depends, FastAPI, HTTPException, Request, WebSocket
 from fastapi.responses import HTMLResponse, JSONResponse
 
 from luminary.geometry.lights import LightsGeometry
@@ -145,13 +153,29 @@ async def stage_lifespan(core: StageCore) -> AsyncIterator[None]:
 # --------------------------------------------------------------------- routes
 
 
-def register_stage(app: FastAPI, core: StageCore) -> None:
+def register_stage(
+    app: FastAPI, core: StageCore, *, stage_key: Optional[str] = None
+) -> None:
     """Mount the stage routes on ``app`` (the main server's paths:
-    /stage, /api/queue, /api/audio, /api/stage[.layout]). The caller
-    owns the ticker via :func:`stage_lifespan`; tests register on a
-    bare app and drive ``core.tick()`` manually."""
+    /stage, /api/queue, /api/repeats, /api/audio, /api/stage[.layout /
+    .patterns / .chapters]). ``stage_key`` (when set) gates every
+    mutating route behind an ``X-Stage-Key`` header; read-only routes
+    are never gated. The caller owns the ticker via
+    :func:`stage_lifespan`; tests register on a bare app and drive
+    ``core.tick()`` manually."""
     layout_doc = projection.lights_layout(core.engine.lights)
     app.state.stage = core
+
+    def _require_key(request: Request) -> None:
+        """403 unless the request carries the configured stage key. All
+        mutating routes hang this dependency; with no key configured the
+        stage stays open (LAN deployments)."""
+        if stage_key and request.headers.get("X-Stage-Key") != stage_key:
+            raise HTTPException(
+                403, detail="stage key required (send it in an X-Stage-Key header)"
+            )
+
+    guarded = [Depends(_require_key)]
 
     # ------------------------------------------------------------- pages
 
@@ -163,27 +187,53 @@ def register_stage(app: FastAPI, core: StageCore) -> None:
     def stage_layout() -> JSONResponse:
         return JSONResponse(layout_doc)
 
+    # ---------------------------------------------------------- metadata
+
+    @app.get("/api/stage/patterns")
+    def stage_patterns() -> JSONResponse:
+        """Registry metadata plus what the add panel needs (notes, the
+        ``loop`` flag that defaults the repeat toggle, ``has_chapters``
+        for the queued-row expander)."""
+        return JSONResponse(core.patterns_meta())
+
+    @app.get("/api/stage/chapters")
+    def stage_chapters(pattern: str) -> JSONResponse:
+        """The chapter tree of one pattern (display only — expansion
+        itself happens server-side when the entry reaches the head);
+        ``[]`` for a chapterless pattern, 404 for an unknown one."""
+        try:
+            return JSONResponse(core.chapters_of(pattern))
+        except StageError as exc:
+            raise HTTPException(404, detail=str(exc))
+
     # ------------------------------------------------------------- queue
 
     @app.get("/api/queue")
     def get_queue() -> JSONResponse:
         return JSONResponse(core.snapshot())
 
-    @app.post("/api/queue")
+    @app.post("/api/queue", dependencies=guarded)
     def append_entry(body: Dict[str, Any]) -> JSONResponse:
         try:
             return JSONResponse(core.append(body))
         except StageError as exc:
             raise HTTPException(422, detail=str(exc))
 
-    @app.delete("/api/queue/{i}")
+    @app.post("/api/queue/play_next", dependencies=guarded)
+    def play_next(body: Dict[str, Any]) -> JSONResponse:
+        try:
+            return JSONResponse(core.play_next(body))
+        except StageError as exc:
+            raise HTTPException(422, detail=str(exc))
+
+    @app.delete("/api/queue/{i}", dependencies=guarded)
     def delete_entry(i: int) -> JSONResponse:
         try:
             return JSONResponse(core.remove(i))
         except StageError as exc:
             raise HTTPException(404, detail=str(exc))
 
-    @app.post("/api/queue/move")
+    @app.post("/api/queue/move", dependencies=guarded)
     def move_entry(body: Dict[str, Any]) -> JSONResponse:
         frm, to = body.get("from"), body.get("to")
         if not isinstance(frm, int) or not isinstance(to, int):
@@ -193,13 +243,32 @@ def register_stage(app: FastAPI, core: StageCore) -> None:
         except StageError as exc:
             raise HTTPException(422, detail=str(exc))
 
-    @app.post("/api/queue/skip")
+    @app.post("/api/queue/skip", dependencies=guarded)
     def skip_entry() -> JSONResponse:
         return JSONResponse(core.skip())
 
-    @app.post("/api/queue/clear")
+    @app.post("/api/queue/clear", dependencies=guarded)
     def clear_queue() -> JSONResponse:
         return JSONResponse(core.clear())
+
+    # ----------------------------------------------------------- repeats
+
+    @app.post("/api/repeats/move", dependencies=guarded)
+    def move_repeat(body: Dict[str, Any]) -> JSONResponse:
+        frm, to = body.get("from"), body.get("to")
+        if not isinstance(frm, int) or not isinstance(to, int):
+            raise HTTPException(422, detail='body must be {"from": int, "to": int}')
+        try:
+            return JSONResponse(core.move_repeat(frm, to))
+        except StageError as exc:
+            raise HTTPException(422, detail=str(exc))
+
+    @app.delete("/api/repeats/{i}", dependencies=guarded)
+    def delete_repeat(i: int) -> JSONResponse:
+        try:
+            return JSONResponse(core.remove_repeat(i))
+        except StageError as exc:
+            raise HTTPException(404, detail=str(exc))
 
     # ------------------------------------------------------------- audio
 
