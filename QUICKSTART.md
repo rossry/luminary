@@ -8,10 +8,10 @@
 Then, with the boards on USB:
 
 ```bash
-luminary boards                        # find, verify, register
-luminary flash --max-per-strip 180     # set to that board's longest strip
-luminary map                           # interactive; explains itself
-luminary geometry                      # mapping records -> deployed geometry
+luminary boards      # find, verify, register
+luminary flash       # build, flash, verify each board answers
+luminary map         # interactive; explains itself
+luminary geometry    # mapping records -> deployed geometry
 luminary show --lights <id> --pattern aurora
 ```
 
@@ -37,9 +37,12 @@ A board that has never been flashed does not enumerate at all.
 **4096 active lights per board** — above it the board refuses the geometry and
 runs a rainbow test pattern, which is what running beads mean.
 
-Frame rate is 30 fps. `--max-per-strip` is per board and sets the ceiling
-directly (180 is worth roughly double 360), so flash 180 only where every
-strip on that board is 180 — a longer strip under it goes half dark.
+Frame rate is 30 fps. Strips are 360 LEDs unless a board's are all 180, and
+`flash` builds for 360 until the mapping says otherwise — so **flash again
+after mapping**, when it can read each board's longest strip from the records
+and build the exceptional all-180 board for 180, which is worth roughly double
+the frame rate. Setting `--max-per-strip` by hand below a board's longest
+strip leaves the rest of that strip dark.
 
 Add `--interpolate` to `geometry` if a board carries several 360-LED strips.
 

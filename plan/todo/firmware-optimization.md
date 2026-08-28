@@ -125,8 +125,9 @@ The ceiling is `show()` + DMA, both proportional to `MAX_PER_STRIP`:
 | 360 | 3.0 ms | ~71 fps |
 | 180 | 1.5 ms | ~136 fps |
 
-Raising it means shrinking `MAX_PER_STRIP` (per board, to its longest strip),
-or overlapping `show()`'s bit-planing with the DMA — which is NeoPXL8 double
+Raising it means shrinking `MAX_PER_STRIP`, which is not free to choose -- it
+is the board's longest strip, and strips are 360 unless every strip on that
+board is 180. Otherwise, overlapping `show()`'s bit-planing with the DMA — which is NeoPXL8 double
 buffering, previously measured as no gain and a wedged board. Revisit the
 interpolators only if that overlap lands and conversion becomes critical.
 

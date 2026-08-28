@@ -218,6 +218,34 @@ def cmd_boards(args: argparse.Namespace) -> int:
     return 1 if duplicates else 0
 
 
+def _mapped_strip_lengths(store_dir: Path, config: str) -> Dict[int, int]:
+    """controller -> longest strip recorded for it, from the mapping.
+
+    ``--max-per-strip`` sets the frame-rate ceiling and must be at least the
+    board's longest strip: under-setting it clamps, and half of every longer
+    strip stays dark. Most strips are 360; a board whose strips are all 180 is
+    the exception and is only knowable once it has been mapped. So the value
+    comes from the records rather than from a flag someone has to remember,
+    and boards with no records get the firmware default.
+    """
+    try:
+        from luminary.mapping.plan import Plan
+        from luminary.mapping.store import MappingStore
+
+        plan = Plan.load(config)
+        records = MappingStore(store_dir).load_records(plan)
+    except Exception:
+        return {}
+    longest: Dict[int, int] = {}
+    for board in records.values():
+        if board.controller_id is None or not board.channels:
+            continue
+        longest[board.controller_id] = max(
+            rec.density for rec in board.channels.values()
+        )
+    return longest
+
+
 def cmd_flash(args: argparse.Namespace) -> int:
     """Build and flash firmware, then prove each board came back."""
     from luminary.boards import discovery
@@ -240,12 +268,20 @@ def cmd_flash(args: argparse.Namespace) -> int:
         return 2
 
     live = discovery.boards_by_controller(candidates)
+    mapped = _mapped_strip_lengths(_store_dir(args.store, "mapping"), args.config)
     failures = 0
     for controller in targets:
+        per_strip = args.max_per_strip
+        if per_strip is None and controller in mapped:
+            per_strip = mapped[controller]
+            print(
+                f"controller {controller}: longest mapped strip is "
+                f"{per_strip}, building for that"
+            )
         result = flash_board(
             controller,
             port=live.get(controller) or registry.ports().get(controller),
-            max_per_strip=args.max_per_strip,
+            max_per_strip=per_strip,
             color_order=args.color_order,
             verify=not args.no_verify,
             log=sys.stdout,
@@ -641,7 +677,15 @@ def main(argv: Optional[list] = None) -> int:
         "--max-per-strip",
         type=int,
         default=None,
-        help="LUMINARY_MAX_PER_STRIP: set to the longest strip installed",
+        help="LUMINARY_MAX_PER_STRIP override. Default: the longest strip the "
+        "mapping recorded for that board, or the firmware's 360 if it has "
+        "not been mapped. Setting this below a board's longest strip leaves "
+        "the rest of that strip dark.",
+    )
+    flash.add_argument(
+        "--config",
+        default="4A-33",
+        help="Net config, for reading mapped strip lengths (default: 4A-33)",
     )
     flash.add_argument(
         "--color-order", default=None, help="LUMINARY_COLOR_ORDER (default NEO_GRB)"

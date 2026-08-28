@@ -61,15 +61,19 @@ boards, flash them, map them, then stream to all of them with a live preview:
 
 ```bash
 luminary boards                     # verify + register what's on USB
-luminary flash --max-per-strip 180  # build, flash, prove it came back
+luminary flash                     # build, flash, prove it came back
 luminary map                        # interactive deployment mapping
 luminary show --lights pentagon-4A-33 --pattern aurora
 ```
 
 `show` streams to the boards and mirrors the same wire bytes to
 `/preview` — one engine, so the preview is evidence of what the hardware
-received rather than a second render. Step-by-step:
-[`QUICKSTART.md`](QUICKSTART.md).
+received rather than a second render.
+
+Flash again after mapping: `--max-per-strip` must be at least a board's
+longest strip, that is 360 unless every strip on the board is 180, and which
+boards those are is only knowable once mapped. `flash` reads it from the
+records. Step-by-step: [`QUICKSTART.md`](QUICKSTART.md).
 
 In the web UI, pick a geometry and a pattern and press Play; the header
 shows live fps and bytes/light·frame so you can watch the codec work. Add

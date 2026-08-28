@@ -201,3 +201,63 @@ def test_flash_targets_default_to_controller_zero_for_a_lone_bootsel_board():
 
 def test_flash_targets_are_empty_when_nothing_is_present():
     assert targets_from({}, []) == []
+
+
+# ------------------------------------------------- mapped strip lengths
+
+
+def test_flash_takes_strip_length_from_the_mapping(tmp_path, monkeypatch):
+    """Most strips are 360; an all-180 board is the exception.
+
+    ``--max-per-strip`` sets the frame-rate ceiling and must be at least the
+    board's longest strip -- under-setting it clamps, and half of every longer
+    strip stays dark. Which boards are all-180 is only knowable after mapping,
+    so the value comes from the records rather than from a flag.
+    """
+    from luminary.cli import _mapped_strip_lengths
+    from luminary.mapping.state import BoardRecord, ChannelRecord
+
+    class _Plan:
+        pass
+
+    records = {
+        10: BoardRecord(
+            unit_vertex=10,
+            controller_id=0,
+            channels={
+                0: ChannelRecord(face=(1, 2, 3), winding="ccw", density=360),
+                1: ChannelRecord(face=(2, 3, 4), winding="ccw", density=180),
+            },
+        ),
+        9: BoardRecord(
+            unit_vertex=9,
+            controller_id=1,
+            channels={
+                0: ChannelRecord(face=(3, 4, 5), winding="ccw", density=180),
+                1: ChannelRecord(face=(4, 5, 6), winding="ccw", density=180),
+            },
+        ),
+        7: BoardRecord(unit_vertex=7, controller_id=2, channels={}),
+    }
+    monkeypatch.setattr(
+        "luminary.mapping.plan.Plan.load", staticmethod(lambda c: _Plan())
+    )
+    monkeypatch.setattr(
+        "luminary.mapping.store.MappingStore.load_records", lambda self, plan: records
+    )
+
+    longest = _mapped_strip_lengths(tmp_path, "4A-33")
+
+    # A mixed board takes its longest strip, not its shortest or its average.
+    assert longest[0] == 360
+    # The exception: every strip 180, so this one board can be built for 180.
+    assert longest[1] == 180
+    # Nothing recorded yet -- absent, so the firmware's 360 default stands.
+    assert 2 not in longest
+
+
+def test_unmapped_boards_get_the_firmware_default(tmp_path):
+    """No records at all must not silently produce a 180 build."""
+    from luminary.cli import _mapped_strip_lengths
+
+    assert _mapped_strip_lengths(tmp_path / "nope", "4A-33") == {}

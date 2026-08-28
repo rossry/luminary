@@ -105,8 +105,9 @@ This does not raise the *installation's* frame rate, which is set by its
 busiest board, but every lighter board gains that much headroom — margin for
 jitter rather than throughput.
 
-So the levers are `MAX_PER_STRIP`, set per board to that board's longest
-strip, and how many outputs each board serves. Optimising the colour pipeline
+So the levers are `MAX_PER_STRIP` — which is not free to choose, being the
+board's longest strip, 360 unless every strip on that board is 180 — and how
+many outputs each board serves. Optimising the colour pipeline
 further buys nothing until the DMA shrinks; this is why the hardware
 interpolators were investigated and not adopted.
 
