@@ -307,6 +307,9 @@ Every file here is a worked example. By what it teaches:
 | `book-two/apollo.py` | The cue-sheet show idiom: an album as a Movement list whose durations are the track lengths, crossfades as the drift tolerance — pair with the record on the stage |
 | `relay` (voice in `repertoire`) | The wiring as the medium: `CONTROLLER`/`CHANNEL`/`INDEX` make every strip a lane, and races run the serpentine in index order; per-lane state gathered to lights by `np.unique` inverse |
 | `embers` (voice in `primitives`) | Coupled figures: one wind field drives the cloud down and the sparks up, and counts gust passes per light so a coal's brightest frame is its last — physics as dramaturgy |
+| `book-two/promises.py` | A persistent motif under a whole show: every movement is `Layered(scene, THE SAME Motif)` — the temporal analogue of small_planet's spatial masks |
+| `book-two/spiegel.py` | Symmetry as the subject: every element lives on or mirrors across the geometry's own x = 0 plane, held by a mirror-pair test |
+| `book-two/koln.py` | Declared audio: `Pattern.audio` names the soundtrack, and the stage pre-selects and auto-attaches it when the file is present |
 | `book-two/overnight.py` | Nested conductors: a looping dusk-to-dawn program whose first chapter is the whole of Nocturne, by import — one name to queue when the sun goes down |
 
 `legacy/` holds pre-2.1 stateful patterns that don't meet this contract;

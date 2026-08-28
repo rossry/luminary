@@ -21,7 +21,7 @@ from typing import Any, Dict, Optional, Tuple
 import numpy as np
 
 from luminary.patterns.base import Pattern
-from luminary.patterns.easing import breath, smoothstep
+from luminary.patterns.easing import breath, env_ad, smoothstep
 from luminary.patterns.fields import fbm, ring_field, value_noise, warp
 from luminary.patterns.palettes import (
     AURORA,
@@ -534,3 +534,52 @@ class Embers(Primitive):
         weight = np.clip(level / max(self.spark_l, 1e-6), 0.0, 1.0)
         weight = np.minimum(weight, 1.0) * (level > 0.0)
         return blend_oklch(cloud, hot, np.minimum(weight, 0.95))
+
+
+class Motif(Primitive):
+    name = "motif"
+    description = "A fixed constellation that plays the same small phrase forever"
+
+    # The lattice: ``count`` anchors laid on a golden-angle descent from
+    # near the apex — designed, not random, and never moving. Every
+    # cycle_s they play their phrase in order, one pulse each, then
+    # rest. Everything else in a show happens around them; they do not
+    # change for anyone.
+    count = 7
+    cycle_s = 6.4
+    note_frac = 0.72  # the phrase occupies this much of the cycle
+    pool_deg = 4.5
+    peak_l = 0.42
+    hue = 95.0  # pale gold
+    chroma = 0.05
+    attack = 0.12
+    decay = 0.85
+
+    def render(self, lights: np.ndarray, t: float) -> np.ndarray:
+        n = lights.shape[0]
+        phi, th = phi_theta(lights)
+        sin_phi = np.sin(phi)
+        nl = np.column_stack([sin_phi * np.cos(th), sin_phi * np.sin(th), np.cos(phi)])
+        sigma = np.radians(self.pool_deg)
+
+        step = self.note_frac * self.cycle_s / self.count
+        t_in = t % self.cycle_s
+        level = np.zeros(n)
+        for i in range(self.count):
+            az = np.radians((i * 137.508) % 360.0)
+            ph = 0.55 + 1.35 * (i + 0.5) / self.count
+            axis = np.array(
+                [np.sin(ph) * np.cos(az), np.sin(ph) * np.sin(az), np.cos(ph)]
+            )
+            pool = np.exp((nl @ axis - 1.0) / (sigma**2))
+            dt = t_in - i * step
+            if dt < 0.0:
+                dt += self.cycle_s  # the previous cycle's tail
+            env = float(env_ad(dt, self.attack, self.decay))
+            level = np.maximum(level, pool * env)
+
+        out = np.empty((n, 3))
+        out[:, 0] = self.peak_l * level
+        out[:, 1] = self.chroma * np.clip(level * 1.5, 0.0, 1.0)
+        out[:, 2] = self.hue
+        return out

@@ -42,6 +42,7 @@ _GROTTO = Palette(
 class Apollo(Conductor):
     name = "apollo"
     description = "Cue-sheet show for Eno's Apollo (1983): pair with the album"
+    audio = "apollo.mp3"
     notes = (
         "The record, played by the sphere: twelve tracks, twelve scenes, "
         "49:18. Load the album into var/audio and queue them together — "

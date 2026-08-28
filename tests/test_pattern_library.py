@@ -346,6 +346,43 @@ def test_embers_wind_is_visible_and_mortal():
     assert means[230.0] < means[53.0] * 0.5  # the long drain
 
 
+def test_motif_plays_its_phrase_and_rests():
+    from luminary.patterns.primitives import Motif
+
+    lights = make_lights(n=1200, seed=8)
+    m = Motif()
+    # During the phrase the anchors pulse in sequence; between cycles
+    # the field rests near dark. Peak location advances with the notes.
+    peaks = [
+        float(m.render(lights, t)[:, 0].max()) for t in np.arange(0.1, m.cycle_s, 0.2)
+    ]
+    assert max(peaks) > 0.25
+    assert min(peaks) < 0.1  # rests between notes/cycles
+    a = m.render(lights, 2.2)
+    m.render(lights, 500.0)
+    assert np.array_equal(m.render(lights, 2.2), a)
+
+
+def test_spiegel_is_mirror_symmetric():
+    from luminary.patterns.registry import default_registry
+
+    spiegel = default_registry().get("spiegel")
+    n = 400
+    ncols = max(int(c) for c in LightColumns) + 1
+    rng = np.random.default_rng(12)
+    phi = rng.uniform(0.05, 2.2, n)
+    th = rng.uniform(0.0, np.pi, n)
+    lights = np.zeros((2 * n, ncols))
+    lights[:n, LightColumns.PHI_S] = phi
+    lights[:n, LightColumns.THETA_S] = th
+    lights[n:, LightColumns.PHI_S] = phi
+    lights[n:, LightColumns.THETA_S] = -th  # the mirror pair
+    for t in (3.0, 20.0, 47.0, 300.0):
+        out = spiegel.render(lights, t)
+        assert np.allclose(out[:n], out[n:], atol=1e-9), "mirror broken"
+        assert np.all(np.isfinite(out)) and float(out[:, 1].max()) < 0.4
+
+
 def test_starfield_meteors_burst_toward_full():
     lights = make_lights(n=1500, seed=4)
     sf = Starfield(meteor_rate=6.0)

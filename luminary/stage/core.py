@@ -290,12 +290,17 @@ class StageCore:
                 pattern = self._resolve(str(row["name"]))
                 if pattern is None:  # racing a reload; skip the ghost
                     continue
+                declared_audio = str(getattr(pattern, "audio", "") or "")
                 out.append(
                     {
                         **row,
                         "notes": str(getattr(pattern, "notes", "") or ""),
                         "loop": bool(getattr(pattern, "loop", False)),
                         "has_chapters": bool(_chapter_nodes(pattern)),
+                        "audio": declared_audio,
+                        "audio_present": bool(
+                            declared_audio and self.audio.has(declared_audio)
+                        ),
                     }
                 )
             return out
@@ -466,7 +471,10 @@ class StageCore:
         """Validate one add/play-next request into an instance entry.
         ``repeat`` left unspecified defaults to the pattern's own
         ``loop`` flag; a ``loop=True`` composition with no explicit
-        duration gets one full pass (``pattern.total``)."""
+        duration gets one full pass (``pattern.total``); audio left
+        unspecified defaults to the pattern's declared ``audio`` file
+        when it is present in the audio directory (send ``""`` for
+        explicitly none)."""
         data = dict(raw)
         explicit_repeat = data.get("repeat") is not None
         if not explicit_repeat:
@@ -475,6 +483,9 @@ class StageCore:
             entry = QueueEntry.model_validate(data)
         except ValidationError as exc:
             raise StageError(_first_error(exc))
+        explicit_no_audio = entry.audio == ""
+        if explicit_no_audio:
+            entry.audio = None
         pattern = self._resolve(entry.pattern)
         if pattern is None:
             raise StageError(f"unknown pattern {entry.pattern!r}")
@@ -482,6 +493,10 @@ class StageCore:
             raise StageError(
                 f"unknown audio file {entry.audio!r} (GET /api/audio lists them)"
             )
+        if entry.audio is None and not explicit_no_audio:
+            declared = str(getattr(pattern, "audio", "") or "")
+            if declared and self.audio.has(declared):
+                entry.audio = declared
         if not explicit_repeat:
             entry.repeat = bool(getattr(pattern, "loop", False))
         if entry.duration is None:
