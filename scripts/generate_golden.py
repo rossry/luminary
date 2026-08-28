@@ -88,15 +88,22 @@ def main() -> None:
         stream.extend(frame)
         decoder.decode(frame)
 
+    n_wire_frames = 0
     for i in range(N_FRAMES):
         t = i / FPS
+        # One expected block per wire frame: keyframe ticks emit KEYFRAME +
+        # the same-tick healing DELTA (spec §11.7.3a), and the goldens pin
+        # the decoded state after each, mid-tick state included.
         for frame in encoder.encode(trajectory(lights, t), t):
             stream.extend(frame)
             decoder.decode(frame)
-        q = decoder.active_q(0)
-        assert np.array_equal(q, encoder.states[0].q), "encoder/decoder diverged"
-        expected.extend(struct.pack("<H", q.shape[0]))
-        expected.extend(q.astype(np.uint8).tobytes())
+            q = decoder.active_q(0)
+            expected.extend(struct.pack("<H", q.shape[0]))
+            expected.extend(q.astype(np.uint8).tobytes())
+            n_wire_frames += 1
+        assert np.array_equal(
+            decoder.active_q(0), encoder.states[0].q
+        ), "encoder/decoder diverged"
 
     rgb = bytearray()
     for channel in sorted(decoder.controllers[0].channels):
@@ -115,18 +122,19 @@ def main() -> None:
     (out_dir / "meta.json").write_text(
         json.dumps(
             {
-                "n_frames": N_FRAMES,
+                "n_frames": n_wire_frames,
                 "n_active": int(lights.control_mask.sum()),
                 "controller": 0,
-                "channels": sorted(
-                    int(c) for c in decoder.controllers[0].channels
-                ),
+                "channels": sorted(int(c) for c in decoder.controllers[0].channels),
             },
             indent=2,
         )
     )
     print(f"Golden vectors written to {out_dir}")
-    print(f"  stream: {len(stream)} bytes over {N_FRAMES} frames + session")
+    print(
+        f"  stream: {len(stream)} bytes over {N_FRAMES} ticks "
+        f"({n_wire_frames} wire frames) + session"
+    )
 
 
 if __name__ == "__main__":

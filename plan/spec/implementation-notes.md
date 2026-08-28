@@ -21,10 +21,16 @@
 | `luminary/color/color.py` | §8.5 | Scalar `Color` for config parsing **only** — never per-frame |
 | `luminary/patterns/base.py` | §9.1 | `Pattern.render(lights, t: float) -> (n,3) OKLCH`, pure and vectorized |
 | `luminary/patterns/registry.py` | §9.3 | Discovery + hot reload with error isolation; compiles source directly (see §5 below) |
-| `luminary/patterns/util.py` | §9.4 | Column accessors, `seeded_random` for deterministic per-entity constants |
+| `luminary/patterns/util.py` | §9.4 | Column accessors, `seeded_random` for deterministic per-entity constants, `phi_theta` (spherical coords with a planar fallback on unfolded nets) |
+| `luminary/patterns/palettes.py` | §9.4 | `Palette` (OKLCH stops sampled by scalar fields) and `blend_oklch` — THE perceptual crossfade (OKLab vector plane); house palettes |
+| `luminary/patterns/easing.py` | §9.4 | `smoothstep`/`smootherstep`/`breath`/`env_ad`/`wrap01` — closed-form temporal shaping |
+| `luminary/patterns/fields.py` | §9.4 | Deterministic uint64-hash value noise, `fbm`, domain `warp`; `ring_field`, the shared descending-ring motif (single source for mapping visuals *and* show patterns, §2.9) |
+| `luminary/patterns/primitives.py` | §9.4 | `Primitive` (class-attribute parameter schema, validated overrides) + `Starfield`/`NoiseGlow`/`AuroraVeils`/`RingWave` — the shared parametrized voices |
+| `luminary/patterns/compose.py` | §9.1, §9.4 | `Movement` + `Conductor`: shows as stateless Patterns; searchsorted slot lookup, ≤2 child renders/frame, OKLab crossfades, `duration` as the queue-advance signal; conductors nest (a show can be a movement) |
+| `luminary/patterns/repertoire.py` | §9.4 | Importable home of the substantial book-two voices (`SmallPlanet`, `Fireflies`, `Relay`) and show builders (`nocturne_movements`) — pattern files are exec-loaded, never importable, so art lives here exactly when another show composes it (§2.9) |
 | `luminary/comms/protocol.py` | §11.4, §11.7 | Wire constants: COBS+CRC16 framing, 13-byte header (f64 `t`), quantization, keyframe/delta word packing, varints, SESSION payloads |
 | `luminary/comms/predictor.py` | §11.5 | The normative integer dead-reckoning step — shared by encoder mirror and decoder so they cannot diverge |
-| `luminary/comms/codec.py` | §11.6–§11.8 | `Encoder` (error-ranked budgeted deltas, keyframe cadence, per-controller frames) and the reference `Decoder` |
+| `luminary/comms/codec.py` | §11.6–§11.8 | `Encoder` (error-ranked budgeted deltas, keyframe cadence, per-controller frames) and the reference `Decoder`. Keyframe ticks also emit the same-tick healing DELTA (§11.7.3a) — without it, the 2 s cadence visibly pulses slow dark content (found live with Nocturne); encoder-only, so deployed decoders are unaffected |
 | `luminary/engine/engine.py` | §10 | `lights + pattern + t → wire frames`; the single pipeline assembly point; `colors_srgb8` for static renders |
 | `luminary/drivers/serial_driver.py` | §12.2 | One process, one engine, port-per-controller; baud-derived budgets; HELLO/RESYNC |
 | `luminary/drivers/websocket_driver.py` | §12.3 | Same bytes over WS; JSON control inbound (resync / set_pattern / pause / resume) |
@@ -41,6 +47,10 @@
 | `luminary/render/svg.py` | §14.5 | Static SVG of scaffolds / lights (rendered once, never per frame) |
 | `luminary/server/app.py`, `store.py` | §15 | FastAPI adapter (all exit-condition endpoints) over a content-addressed file store |
 | `luminary/server/static/decoder.js`, `color.js`, `client.js`, `glow.js` | §14.2–§14.3 | Browser decoder (conformance sibling), color math, canvas client, WebGL2 realistic cloth render (§14.3.3) |
+| `luminary/stage/core.py` | — | `StageCore`: the play-queue control plane — ONE engine over one geometry, tracklist + now-playing index, gapless `set_pattern` advance with per-entry t, duration from entry or the pattern's own `duration` attribute, hold-on-empty (loops the last pattern, never dark), `queue.json` (tmp+rename) under `<state dir>/stage/` |
+| `luminary/stage/audio.py` | — | Optional per-entry audio: player auto-detect (mpv → cvlc → ffplay; `--audio-player` overrides), one subprocess started at the entry's t=0 and terminated on skip/advance, files from `<state dir>/audio/` (bare filenames only) |
+| `luminary/stage/web.py` | — | Stage web adapter (`/stage`, `/api/queue`, `/api/audio`, `WS /api/stage` + layout): thin routes over `StageCore`, mapping-web-shaped per-socket sinks and fps ticker that idles when no sinks + no audio + queue exhausted; `--stage-lights` resolver (default: the pentagon-4A-33 capture) |
+| `luminary/server/static/stage.html`, `stage.js` | — | The stage page: canvas viewer (imports `StreamView`/`WireStream` from `mapping.js`) + queue panel; renders `/api/queue` state and sends commands, ~2 s poll — no client-side scheduling |
 | `luminary/cli.py` | §16 | `serve` / `play` / `capture` / `render` / `map` — every verb an adapter over the one engine |
 | `firmware/scorpio/lib/lumicodec/` | §13 | Plain-C++17 decoder core + Q14 fixed-point color; host-compilable, no Arduino deps |
 | `firmware/scorpio/src/main.cpp` | §13 | Arduino sketch: serial in → NeoPXL8 out (not compilable without the Arduino toolchain) |
@@ -88,7 +98,11 @@
    (`resync_sinks`); all mapping state persists through `MappingStore`
    (the demo included); the mockup paints through server-computed
    `strip_refs`; runtime-state paths resolve through
-   `luminary/statedir.py`. Where an adapter *must* carry a parallel
+   `luminary/statedir.py`; shared visual motifs live once in the
+   pattern library (`ring_field` in `luminary/patterns/fields.py`
+   serves both the mapping stage-C ring/finale waves and show
+   patterns; crossfading is `palettes.blend_oklch` wherever two color
+   fields meet). Where an adapter *must* carry a parallel
    table (the web/TUI key maps), a conformance test holds it to one
    canon (`tests/test_mapping_keys.py`) — the golden-vector philosophy.
    When adding a surface or a feature, ask: "where does this logic
@@ -131,8 +145,7 @@ python -m mypy luminary/geometry/coords.py luminary/geometry/lights.py \
   luminary/geometry/scaffold.py luminary/geometry/capture/ \
   luminary/geometry/pentagon/ luminary/color/convert.py \
   luminary/color/color.py luminary/comms/ luminary/engine/ \
-  luminary/patterns/base.py luminary/patterns/registry.py \
-  luminary/patterns/util.py luminary/render/ luminary/server/ \
+  luminary/patterns/ luminary/render/ luminary/server/ \
   luminary/drivers/ luminary/cli.py \
   --explicit-package-bases --follow-imports=silent
 ```

@@ -34,15 +34,42 @@ def test_repo_patterns_discovered():
         "tunnel_vision",
         "firelike",
         "plasma_storm",
-        # The look-dev set (2026-07): each explores one axis of the medium.
+        # book-one/ — the look-dev set (2026-07): one axis of the medium each.
         "aurora",
         "emberfall",
         "sanctum",
         "prism",
         "tidepool",
         "vespers",
+        # conifer/ — conifer egitto's set.
+        "life",
+        "pacman",
+        "serpent",
+        # book-two/ — composed from the shared primitives library.
+        "starlight",
+        "weather",
+        "veils",
+        "ringfall",
+        "nocturne",
     } <= names
     assert not registry.errors, f"pattern load errors: {registry.errors}"
+
+
+def test_discovery_is_recursive_with_exclusions(tmp_path):
+    (tmp_path / "vol").mkdir()
+    (tmp_path / "vol" / "deep").mkdir()
+    (tmp_path / "vol" / "a.py").write_text(GOOD.format(name="a", level="0.1"))
+    (tmp_path / "vol" / "deep" / "b.py").write_text(GOOD.format(name="b", level="0.2"))
+    # Excluded: _-prefixed files and directories (helpers), and legacy/.
+    (tmp_path / "vol" / "_helper.py").write_text(GOOD.format(name="h", level="0.3"))
+    (tmp_path / "_wip").mkdir()
+    (tmp_path / "_wip" / "c.py").write_text(GOOD.format(name="c", level="0.4"))
+    (tmp_path / "legacy").mkdir()
+    (tmp_path / "legacy" / "old.py").write_text(BROKEN)
+    registry = PatternRegistry([tmp_path])
+    assert set(registry.patterns) == {"a", "b"}
+    assert not registry.errors, f"exclusions leaked: {registry.errors}"
+    assert registry.get("b").name == "b"  # stem lookup reaches into subdirs
 
 
 def test_hot_reload_swaps_implementation(tmp_path):
