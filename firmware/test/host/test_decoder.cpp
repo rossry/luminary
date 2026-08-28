@@ -9,6 +9,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <fstream>
 #include <new>
 #include <string>
 #include <vector>
@@ -371,6 +372,59 @@ static int testColorPipelineWidth() {
 
 // ---------------------------------------------- presentation clock (13.9)
 
+// Replay the shared golden vector (spec 13.9). The Python reference, the
+// browser decoder and this firmware all run it, so the boards, the web viewer
+// and the local preview cannot disagree about when a frame is shown.
+static int testPresentationGolden(const std::string& dir) {
+  const std::string path = dir + "/../presentation/case1.bin";
+  std::ifstream in(path, std::ios::binary);
+  if (!in) {
+    fprintf(stderr, "presentation: cannot open %s\n", path.c_str());
+    return 1;
+  }
+  std::vector<uint8_t> blob((std::istreambuf_iterator<char>(in)),
+                            std::istreambuf_iterator<char>());
+  if (blob.size() < 12) {
+    fprintf(stderr, "presentation: vector truncated\n");
+    return 1;
+  }
+  uint32_t n, delayUs, slots;
+  std::memcpy(&n, blob.data() + 0, 4);
+  std::memcpy(&delayUs, blob.data() + 4, 4);
+  std::memcpy(&slots, blob.data() + 8, 4);
+  const size_t stride = 8 + 4 + 4 + 4 + 4 + 4;
+  if (blob.size() < 12 + (size_t)n * stride) {
+    fprintf(stderr, "presentation: vector truncated\n");
+    return 1;
+  }
+  lumicodec::PresentationClock clock;
+  for (uint32_t i = 0; i < n; i++) {
+    const uint8_t* row = blob.data() + 12 + (size_t)i * stride;
+    double t;
+    uint32_t arrival, wantInterval, wantUsable, wantDeadline;
+    int32_t wantSkew;
+    std::memcpy(&t, row + 0, 8);
+    std::memcpy(&arrival, row + 8, 4);
+    std::memcpy(&wantSkew, row + 12, 4);
+    std::memcpy(&wantInterval, row + 16, 4);
+    std::memcpy(&wantUsable, row + 20, 4);
+    std::memcpy(&wantDeadline, row + 24, 4);
+    clock.observe(t, arrival);
+    const uint32_t usable = clock.usableDelay(delayUs, (uint8_t)slots);
+    if (clock.skewUs() != wantSkew || clock.intervalUs() != wantInterval ||
+        usable != wantUsable || clock.deadline(t, usable) != wantDeadline) {
+      fprintf(stderr,
+              "presentation frame %u: skew %d/%d interval %u/%u usable %u/%u "
+              "deadline %u/%u (got/want)\n",
+              i, (int)clock.skewUs(), (int)wantSkew, clock.intervalUs(),
+              wantInterval, usable, wantUsable, clock.deadline(t, usable),
+              wantDeadline);
+      return 1;
+    }
+  }
+  return 0;
+}
+
 static int testPresentationClock() {
   const double fps = 60.0;
   const uint32_t frameUs = (uint32_t)(1e6 / fps);
@@ -441,13 +495,23 @@ static int testPresentationClock() {
             paced.intervalUs(), frameUs);
     return 1;
   }
-  if (paced.usableDelay(1000) != 1000) {
+  if (paced.usableDelay(1000, 1) != 1000) {
     fprintf(stderr, "clock: a delay inside one frame must pass through\n");
     return 1;
   }
-  if (paced.usableDelay(500000) >= frameUs) {
+  if (paced.usableDelay(500000, 1) > frameUs) {
     fprintf(stderr, "clock: delay %u us not capped below the %u us frame\n",
-            paced.usableDelay(500000), frameUs);
+            paced.usableDelay(500000, 1), frameUs);
+    return 1;
+  }
+  // Depth buys proportionally more delay: 8 slots must allow several frames
+  // of it, which is the whole point of the play-out queue.
+  const uint32_t deep = paced.usableDelay(500000, 8);
+  if (deep < frameUs * 6 || deep > frameUs * 8) {
+    fprintf(stderr,
+            "clock: 8 slots allowed %u us of delay, expected between %u and "
+            "%u\n",
+            deep, frameUs * 4, frameUs * 8);
     return 1;
   }
 
@@ -563,9 +627,10 @@ int main(int argc, char** argv) {
   if (testOversizedSessionFallback() != 0) return 1;
   if (testColorPipelineWidth() != 0) return 1;
   if (testPresentationClock() != 0) return 1;
+  if (testPresentationGolden(dir) != 0) return 1;
 
   printf("OK: %d frames bit-exact, %d strips within RGB tolerance, "
-         "5 robustness checks passed\n",
+         "6 robustness checks passed\n",
          framesChecked, stripsChecked);
   return 0;
 }

@@ -41,6 +41,21 @@ def main() -> int:
     ap.add_argument("--fps", type=float, default=60.0)
     ap.add_argument("--seconds", type=float, default=12.0)
     ap.add_argument("--budget", type=int, default=None)
+    ap.add_argument(
+        "--warmup",
+        type=float,
+        default=1.0,
+        help="Seconds of reports to discard. The clock's minimum filter only "
+        "republishes when a 64-observation window closes -- 2.1 s at 30 fps "
+        "-- so early reports measure acquisition, not steady state.",
+    )
+    ap.add_argument(
+        "--window",
+        type=int,
+        default=4,
+        help="Max frames in flight; must exceed the board's "
+        "play-out queue depth or it throttles the queue",
+    )
     args = ap.parse_args()
 
     lights = synth(args.channels, args.per_strip, args.interpolate_every)
@@ -66,13 +81,21 @@ def main() -> int:
         start = time.perf_counter()
         next_due = start
         i = 0
+        sent = 0
         while time.perf_counter() - start < args.seconds:
             now = time.perf_counter()
-            if now >= next_due:
+            # Respect an acknowledgement window. Without one this floods the
+            # board, its USB buffer backs up, and the write blocks -- which
+            # reads exactly like a board fault and is really the tool's fault
+            # (the same trap bench.py documents).
+            if now >= next_due and (sent - acks) < args.window:
                 for frame in engine.frame(i / args.fps):
                     conn.write(frame)
                 i += 1
+                sent += 1
                 next_due += interval
+            elif now >= next_due:
+                next_due += interval  # skipped: window full
             for raw in splitter.feed(conn.read(8192)):
                 try:
                     kind, _, _, payload = p.parse_frame(raw)
@@ -86,8 +109,9 @@ def main() -> int:
         conn.close()
 
     elapsed = time.perf_counter() - start
-    # The first report covers a partial, still-settling second.
-    reports = reports[1:]
+    # Reports arrive about once a second; drop the warmup window.
+    dropped = min(len(reports), max(1, int(round(args.warmup))))
+    reports = reports[dropped:]
     if not reports:
         print("no STATS frames -- is the board running instrumented firmware?")
         return 1
@@ -117,6 +141,14 @@ def main() -> int:
         f"loop max   : {max(r['loop_max_us'] for r in reports)} us"
         f"   (frame budget {budget_us:.0f} us)"
     )
+    if "queue_slots" in reports[0]:
+        slots = reports[-1]["queue_slots"]
+        queued = sum(r["queue_depth_sum"] for r in reports) / total_frames
+        late = sum(r["late_frames"] for r in reports)
+        print(
+            f"queue      : {slots} slots, {queued:.2f} deep on average, "
+            f"{late} shown late (past deadline by over a frame)"
+        )
     return 0
 
 

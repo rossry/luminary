@@ -184,6 +184,9 @@ STATS_FIELDS = (
     "show_us",
     "loop_max_us",
     "n_active",
+    "queue_depth_sum",
+    "late_frames",
+    "queue_slots",
 )
 STATS = struct.Struct("<" + "I" * len(STATS_FIELDS))
 

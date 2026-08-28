@@ -170,8 +170,13 @@ size_t buildResync(uint8_t controller, uint8_t out[64]);
 // is what makes a dropped ACK self-correcting rather than cumulative drift.
 size_t buildAck(uint8_t controller, double t, uint8_t out[64]);
 
+// Largest STATS payload, in bytes. Adding a field past this made buildStats
+// return 0 and the board fall silent -- the caller cannot tell a refused
+// frame from an idle board, so the ceiling is generous and named.
+constexpr size_t STATS_MAX_PAYLOAD = 64;
+
 // Per-phase microsecond accumulators, little-endian uint32 in the order
-// firmware/tools/phases.py expects. `out` needs 64 bytes.
+// firmware/tools/phases.py expects. `out` needs 96 bytes.
 size_t buildStats(uint8_t controller, const uint32_t* fields, uint8_t nFields,
                   uint8_t* out);
 
@@ -207,14 +212,22 @@ class PresentationClock {
   int32_t skewUs() const { return skewUs_; }
   // Smoothed host frame interval, microseconds; 0 until two frames are seen.
   uint32_t intervalUs() const { return intervalUs_; }
-  // The display delay actually usable at the current frame rate. One
-  // snapshot is in flight at a time, so holding a frame longer than a frame
-  // period stalls the pipeline rather than buffering it -- measured at
-  // 8x360: 8 ms and 20 ms both gave 56 fps, 33 ms gave 45.
-  uint32_t usableDelay(uint32_t wantUs) const;
+  // The display delay actually usable at the current frame rate, given how
+  // many play-out slots there are. With a single slot, holding a frame longer
+  // than a frame period stalls the pipeline instead of buffering it (8x360:
+  // 8 ms and 20 ms both gave 56 fps, 33 ms gave 45), so the delay had to stay
+  // under one period. Depth buys proportionally more, less one slot kept free
+  // so staging always has somewhere to go.
+  uint32_t usableDelay(uint32_t wantUs, uint8_t slots) const;
 
  private:
-  static constexpr uint16_t WINDOW = 64;  // observations per minimum window
+  // The first window is short and each one doubles up to the ceiling: fast
+  // acquisition, then slow tracking. A flat 64 put the first correction 2.1 s
+  // into a 30 fps show, and until then every frame ran on whatever queuing
+  // delay the first frame happened to carry -- about 100 frames past their
+  // deadline at startup, and none at all afterwards.
+  static constexpr uint16_t ACQUIRE_WINDOW = 4;
+  static constexpr uint16_t WINDOW = 64;
   uint32_t nominal(double t) const;
   bool have_ = false;
   double baseT_ = 0.0;
@@ -222,6 +235,7 @@ class PresentationClock {
   int32_t skewUs_ = 0;
   int32_t windowMin_ = 0;
   uint16_t windowCount_ = 0;
+  uint16_t windowTarget_ = ACQUIRE_WINDOW;
   double lastT_ = 0.0;
   uint32_t intervalUs_ = 0;
 };

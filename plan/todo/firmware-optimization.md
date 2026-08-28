@@ -65,15 +65,28 @@ and the busiest real board uses 1440 of 4096.
 
 ## Remaining, in order
 
-### 1. Deeper snapshot queue
+### 1. 60 fps at 8x360 has no margin
 
-Only one state snapshot is in flight, so the display delay must stay below a
-frame period: 8 ms and 20 ms both measured 56 fps at 8x360, 33 ms measured 45.
-The delay now adapts to the observed frame interval, which recovers the
-throughput, but real jitter absorption needs 2-3 snapshots (~34.5 KB each at
-2880 active). RAM is at 9.6% of 262144, so there is room.
+At the production 30 fps, no frame shows late once the clock has converged --
+0 of 630 at both 180 and 360 px. At 60 fps, 239 of 1201 still run late at
+8x360, and that is saturation rather than timing: the board sustains 59.9 fps
+against a 60 fps demand, so frames legitimately back up. Buying it back means
+making the board faster (the interpolators below), not tuning the clock.
 
-### 2. Hardware interpolators (INTERP0/INTERP1)
+Note `phases.py --warmup`: early reports measure acquisition, not steady
+state, and reading them together hid this distinction for a while.
+
+### 2. Deeper snapshot queue
+
+Depth is a fixed byte budget, so a 180 px build gets 8 slots and a 360 px
+build gets 4. Eight 360 px slots is 69 KB, and at 8x360 the decoder already
+holds ~104 KB of state -- reserving both left the board unable to take the
+SESSION at all. Claiming slots from the heap at runtime was tried and is
+worse: when the claim fails it retries every frame and thrashes the heap.
+Getting 8 slots at 360 px needs the slot to hold only the declared strip
+lengths rather than MAX_PER_STRIP, which is a layout change in staging.
+
+### 3. Hardware interpolators (INTERP0/INTERP1)
 
 Two `cosInterp_q14` calls per pixel are exactly what the RP2040's interpolator
 blocks do. Colour conversion is still the largest single phase.
@@ -83,6 +96,24 @@ blocks do. Colour conversion is still the largest single phase.
 Removed. `due && now - lastShowMs >= 15` hard-capped ~66 fps and quantised
 every repaint. The silence fade is now on the clock rather than a fixed step
 per repaint, so its duration no longer depends on the repaint rate.
+
+### DONE — fast clock acquisition
+
+The minimum window starts at 4 observations and doubles to 64: fast
+acquisition, then slow tracking. A flat 64 put the first correction 2.1 s into
+a 30 fps show, and until then every surface ran on whatever queuing delay its
+first frame happened to carry -- ~100 frames past their deadline at startup,
+and none once settled. First correction now lands at frame 3, and startup
+lateness at 8x360 @ 30 fps went from ~100 frames to 6.
+
+### DONE — one clock across all three surfaces
+
+`luminary/comms/presentation.py` is the reference; the C++ firmware and the
+browser decoder mirror it, and all three replay
+`firmware/golden/presentation/case1.json`. The browser client splits frames
+without applying them, queues them against the deadline, and drains on the
+animation frame -- so the web viewer and the local preview paint on the same
+schedule the boards do.
 
 ### DONE — inter-board sync
 

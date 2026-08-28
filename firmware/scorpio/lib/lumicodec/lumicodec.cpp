@@ -532,13 +532,21 @@ void PresentationClock::reset() {
   skewUs_ = 0;
   windowMin_ = 0;
   windowCount_ = 0;
+  windowTarget_ = ACQUIRE_WINDOW;
   lastT_ = 0.0;
   intervalUs_ = 0;
 }
 
-uint32_t PresentationClock::usableDelay(uint32_t wantUs) const {
+uint32_t PresentationClock::usableDelay(uint32_t wantUs, uint8_t slots) const {
   if (intervalUs_ == 0) return wantUs;
-  const uint32_t cap = (intervalUs_ * 3) / 4;
+  // Staging is eager -- core1 fills any free slot as soon as a frame is
+  // published -- so a full queue holds (slots - 1) frames ahead of the one
+  // being shown. The delay must budget for exactly that, or the frame at the
+  // tail reaches the head of the queue with its deadline already in the past
+  // and every frame reads as late. Budgeting three quarters of it did exactly
+  // that: 377 of 535 frames late at 8x360.
+  const uint32_t usable = slots > 1 ? (uint32_t)(slots - 1) : 1u;
+  const uint32_t cap = intervalUs_ * usable;
   return wantUs < cap ? wantUs : cap;
 }
 
@@ -558,6 +566,7 @@ void PresentationClock::observe(double t, uint32_t nowUs) {
     skewUs_ = 0;
     windowMin_ = 0;
     windowCount_ = 1;
+    windowTarget_ = ACQUIRE_WINDOW;
     lastT_ = t;
     return;
   }
@@ -573,10 +582,11 @@ void PresentationClock::observe(double t, uint32_t nowUs) {
   // micros() does, and the cast reinterprets it as a signed offset.
   const int32_t err = static_cast<int32_t>(nowUs - nominal(t));
   if (windowCount_ == 0 || err < windowMin_) windowMin_ = err;
-  if (++windowCount_ >= WINDOW) {
+  if (++windowCount_ >= windowTarget_) {
     skewUs_ = windowMin_;
     windowCount_ = 0;
     windowMin_ = 0;
+    windowTarget_ = windowTarget_ * 2 < WINDOW ? windowTarget_ * 2 : WINDOW;
   }
 }
 
@@ -616,8 +626,8 @@ size_t buildAck(uint8_t controller, double t, uint8_t out[64]) {
 size_t buildStats(uint8_t controller, const uint32_t* fields, uint8_t nFields,
                   uint8_t* out) {
   const size_t payloadLen = static_cast<size_t>(nFields) * 4;
-  uint8_t raw[HEADER_SIZE + 40 + 2];
-  if (payloadLen > 40) return 0;
+  uint8_t raw[HEADER_SIZE + STATS_MAX_PAYLOAD + 2];
+  if (payloadLen > STATS_MAX_PAYLOAD) return 0;
   raw[0] = PROTOCOL_VERSION;
   raw[1] = FRAME_STATS;
   raw[2] = controller;
