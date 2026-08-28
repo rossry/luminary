@@ -207,8 +207,11 @@ The sequence logic is one pure state machine: `(state, input_event) ->
   and resume across restarts, and the page's ↺ restart control clears
   them to start the sequence over.
 
-Entry point: one script (`luminary map`, flags
-`--continue`, `--trust-boards`) — details at implementation time.
+Entry point: one script (`luminary map`, flags `--continue`,
+`--trust-boards`). It serves the window and opens a browser at it; `--tui`
+selects the terminal surface instead. The window is the default because
+mapping is spatial — a terminal can say "board 1/6", but not show an operator
+standing at the sphere *which* board that is.
 
 ## Identity mapping (closes spec §19.6)
 

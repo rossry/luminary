@@ -500,18 +500,22 @@ def build_mapping_session(
 
 
 def cmd_map(args: argparse.Namespace) -> int:
+    # The browser surface is the default. Mapping is a spatial task -- which
+    # physical panel is this, which way does its strip run -- and a terminal
+    # can only say "board 1/6", which tells an operator standing at the sphere
+    # nothing. The window draws the net with the board under the cursor lit,
+    # so the screen and the hardware show the same thing.
     serve_web = None
-    if args.web:
+    if not args.tui:
         # The web surface ships separately; the TUI must not require it.
         try:
             serve_web = importlib.import_module("luminary.mapping.web").serve_mapping
         except (ImportError, AttributeError):
             print(
-                "web surface not present: luminary.mapping.web is not in this "
-                "checkout; run without --web for the terminal surface",
+                "web surface not present in this checkout; falling back to "
+                "the terminal surface",
                 file=sys.stderr,
             )
-            return 2
     try:
         core, store = build_mapping_session(args)
     except NotImplementedError as exc:
@@ -519,6 +523,20 @@ def cmd_map(args: argparse.Namespace) -> int:
         return 2
     try:
         if serve_web is not None:
+            url = f"http://{args.host}:{args.port}/"
+            # Flushed: uvicorn's banner would otherwise land first whenever
+            # stdout is a pipe rather than a terminal.
+            print(
+                f"mapping: {url}\n(arrows or WASD to choose, enter to confirm)",
+                flush=True,
+            )
+            if not args.no_browser:
+                # After the server is listening, not before: uvicorn.run
+                # blocks, so the open has to be scheduled rather than called.
+                import threading
+                import webbrowser
+
+                threading.Timer(1.0, lambda: webbrowser.open(url)).start()
             serve_web(core, store, args.host, args.port)
         else:
             try:
@@ -639,10 +657,24 @@ def main(argv: Optional[list] = None) -> int:
     )
     mapping.add_argument("--fps", type=float, default=30.0)
     mapping.add_argument(
-        "--web", action="store_true", help="Serve the web surface instead of the TUI"
+        "--tui",
+        action="store_true",
+        help="Terminal surface instead of the browser window. Mapping is "
+        "spatial; the terminal can only name the board, not show you which "
+        "one it is.",
     )
-    mapping.add_argument("--host", default="127.0.0.1", help="--web bind host")
-    mapping.add_argument("--port", type=int, default=8080, help="--web bind port")
+    # Accepted and ignored: the web surface is what you get anyway now.
+    mapping.add_argument("--web", action="store_true", help=argparse.SUPPRESS)
+    mapping.add_argument(
+        "--no-browser", action="store_true", help="Don't open a browser"
+    )
+    mapping.add_argument("--host", default="127.0.0.1", help="Bind host")
+    mapping.add_argument(
+        "--port",
+        type=int,
+        default=8090,
+        help="Bind port (default 8090, clear of serve/show on 8080)",
+    )
     mapping.set_defaults(func=cmd_map)
 
     boards = sub.add_parser(
