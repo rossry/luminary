@@ -252,7 +252,16 @@ show patterns share these exact implementations):
   neighboring movements keyed to neighboring hue families so every
   crossfade blends kin colors. Composition overhead is O(1) per frame
   (a searchsorted plus at most one blend), so conducted shows cost what
-  their movements cost.
+  their movements cost. Conductors nest — a show is a Pattern, so it
+  can be a movement of a larger show (`overnight.py` opens with the
+  whole of Nocturne as its first chapter).
+
+- **`repertoire`** — the importable home of the substantial book-two
+  voices (`SmallPlanet`, `Fireflies`, `Relay`) and show builders
+  (`nocturne_movements`). Pattern files are exec-loaded and can never
+  be imported, so the rule is: **art lives in the library exactly when
+  something else composes it**; the file here stays a thin
+  registration subclass either way.
 
 ## Reading list
 
@@ -275,10 +284,11 @@ Every file here is a worked example. By what it teaches:
 | `conifer/life.py` | A CA rule chosen by measurement, not assumption; births and deaths as directional sweeps; hue as ancestry |
 | `book-two/starlight.py`, `weather.py`, `veils.py`, `ringfall.py` | The registration idiom: a tuned voice as class-attribute overrides of a shared primitive |
 | `book-two/nocturne.py` | A conducted hour: movements, crossfade windows, palette continuity |
-| `book-two/small_planet.py` | Spatial composition: layers lerped in OKLab vec space (one conversion for six blends); seam-free sphere noise; a sub-primitive blended in by mask; geometry statics memoized on a content fingerprint |
-| `book-two/fireflies.py` | Emergent behavior in closed form: slot-hashed events whose offsets lerp toward a metronome by a coherence curve — synchrony without simulation; agent-to-light gaussian pools via one matmul |
+| `small_planet` (voice in `repertoire`) | Spatial composition: layers lerped in OKLab vec space (one conversion for six blends); seam-free sphere noise; a sub-primitive blended in by mask; geometry statics memoized on a content fingerprint |
+| `fireflies` (voice in `repertoire`) | Emergent behavior in closed form: slot-hashed events whose offsets lerp toward a metronome by a coherence curve — synchrony without simulation; agent-to-light gaussian pools via one matmul |
 | `book-two/apollo.py` | The cue-sheet show idiom: an album as a Movement list whose durations are the track lengths, crossfades as the drift tolerance — pair with the record on the stage |
-| `book-two/relay.py` | The wiring as the medium: `CONTROLLER`/`CHANNEL`/`INDEX` make every strip a lane, and races run the serpentine in index order; per-lane state gathered to lights by `np.unique` inverse |
+| `relay` (voice in `repertoire`) | The wiring as the medium: `CONTROLLER`/`CHANNEL`/`INDEX` make every strip a lane, and races run the serpentine in index order; per-lane state gathered to lights by `np.unique` inverse |
+| `book-two/overnight.py` | Nested conductors: a looping dusk-to-dawn program whose first chapter is the whole of Nocturne, by import — one name to queue when the sun goes down |
 
 `legacy/` holds pre-2.1 stateful patterns that don't meet this contract;
 `plasma_storm.py` is the worked example of converting one.
