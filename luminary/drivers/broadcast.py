@@ -160,6 +160,17 @@ class BroadcastSession:
         """
         return list(self.engine.session_frames())
 
+    def set_pattern(self, pattern: object) -> None:
+        """Swap what the installation is playing.
+
+        The page that does this is the operator's console on the base
+        station, not a viewer: `luminary play` exists to put a pattern on the
+        sphere and let you change it. A keyframe follows, because the boards
+        are mid-DELTA against the pattern that just went away.
+        """
+        self.engine.set_pattern(pattern)  # type: ignore[arg-type]
+        self.engine.request_keyframe()
+
     def request_keyframe(self) -> None:
         """Make the next frame a KEYFRAME so a joining viewer can sync.
 

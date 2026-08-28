@@ -115,6 +115,22 @@ class Client {
    * decides them. */
   async previewMode() {
     const info = await fetch("/api/preview/info").then((r) => r.json());
+    // The page drives the installation here, so it lists what it can play and
+    // sends the choice down the same socket the frames come back on.
+    const select = el("pattern");
+    if (select) {
+      const patterns = await fetch("/api/patterns").then((r) => r.json());
+      select.innerHTML = patterns
+        .filter((p) => p.ok)
+        .map(
+          (p) =>
+            `<option value="${p.name}"${p.name === info.pattern ? " selected" : ""}>` +
+            `${p.name}</option>`
+        )
+        .join("");
+      select.onchange = () =>
+        this.send({ type: "set_pattern", name: select.value });
+    }
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
     const status = el("status");
     if (status) status.textContent = `${info.pattern} @ ${info.fps} fps`;

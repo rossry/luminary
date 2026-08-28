@@ -69,10 +69,15 @@ luminary stage                                          # the play queue
 
 Both stream to the boards and open a local page carrying the same wire bytes
 — one engine, so the page is evidence of what the hardware received rather
-than a second render. `play` runs one pattern; `stage` runs the queue, with
-the control plane the main server mounts at `/stage`. `--dry-run` on `play`
-touches no hardware and reports codec stats. `show` is `play` under its older
-name.
+than a second render, and both take no arguments: the geometry comes from the
+mapping records.
+
+`play` runs one pattern and its page picks which; `stage` runs the queue, with
+the control plane the main server mounts at `/stage`. These pages are the
+operator's console rather than viewers, so unlike the demo server they steer
+the installation instead of rendering their own copy of it. `--dry-run` on
+`play` touches no hardware and reports codec stats. `show` is `play` under its
+older name.
 
 Step-by-step, from a fresh checkout: [`QUICKSTART.md`](QUICKSTART.md).
 

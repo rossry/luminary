@@ -7,6 +7,8 @@ imports this module.
 
 from __future__ import annotations
 
+import json
+
 from contextlib import AsyncExitStack, asynccontextmanager
 from pathlib import Path
 from typing import Any, AsyncIterator, Callable, Dict, Optional
@@ -322,7 +324,8 @@ def create_app(
                 return
             await websocket.accept()
             queue = session.hub.subscribe()
-            try:
+
+            async def _send() -> None:
                 for frame in session.session_frames():
                     await websocket.send_bytes(frame)
                 # A DELTA means nothing to a decoder that has not seen the
@@ -330,9 +333,46 @@ def create_app(
                 session.request_keyframe()
                 while True:
                     await websocket.send_bytes(await queue.get())
+
+            async def _receive() -> None:
+                # This page is the operator's console, not a passive viewer:
+                # `luminary play` exists to put a pattern on the sphere and
+                # let you change it from here.
+                while True:
+                    message = await websocket.receive()
+                    if message.get("type") == "websocket.disconnect":
+                        return
+                    raw = message.get("text")
+                    if not raw:
+                        continue
+                    try:
+                        control = json.loads(raw)
+                    except ValueError:
+                        continue
+                    kind = control.get("type")
+                    if kind == "set_pattern":
+                        try:
+                            session.set_pattern(registry.get(str(control.get("name"))))
+                        except (KeyError, ValueError):
+                            continue
+                    elif kind == "resync":
+                        session.request_keyframe()
+
+            import asyncio as _asyncio
+
+            sender = _asyncio.create_task(_send())
+            receiver = _asyncio.create_task(_receive())
+            try:
+                done, pending = await _asyncio.wait(
+                    {sender, receiver}, return_when=_asyncio.FIRST_COMPLETED
+                )
+                for task in pending:
+                    task.cancel()
             except (WebSocketDisconnect, RuntimeError):
                 pass
             finally:
+                for task in (sender, receiver):
+                    task.cancel()
                 session.hub.unsubscribe(queue)
 
         @app.get("/preview", response_class=HTMLResponse)
