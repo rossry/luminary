@@ -179,6 +179,29 @@ def test_nocturne_is_a_registered_hour():
         assert np.all(out[:, 1] >= 0.0) and np.all(out[:, 1] < 0.4)
 
 
+def test_apollo_matches_the_1983_cue_sheet():
+    registry = default_registry()
+    show = registry.get("apollo")
+    assert show.duration == 2958.0  # 49:18, the original edition
+    rows = show.schedule()
+    assert len(rows) == 12
+    assert rows[4]["start"] == 907.0  # An Ending (Ascent) begins at 15:07
+    assert rows[11]["start"] == 2476.0  # Stars begins at 41:16
+    assert rows[11]["duration"] == 482.0
+
+    lights = make_lights(40)
+    rng = np.random.default_rng(11)
+    lights[:, LightColumns.X] = rng.uniform(0, 240, 40)
+    lights[:, LightColumns.Y] = rng.uniform(0, 200, 40)
+    lights[:, LightColumns.PHI_S] = rng.uniform(0, 2.27, 40)
+    lights[:, LightColumns.THETA_S] = rng.uniform(-np.pi, np.pi, 40)
+    for t in (0.0, 907.0 + 15.0, 2476.0 + 240.0, 2957.0, 3000.0):
+        out = show.render(lights, t)
+        assert np.all(np.isfinite(out))
+        assert np.all(out[:, 0] >= 0.0) and np.all(out[:, 0] <= 1.0)
+        assert np.all(out[:, 1] >= 0.0) and np.all(out[:, 1] < 0.4)
+
+
 def test_registry_finds_book_two_and_volumes():
     registry = default_registry()
     names = set(registry.patterns)
