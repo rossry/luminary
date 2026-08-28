@@ -275,6 +275,7 @@ Every file here is a worked example. By what it teaches:
 | `conifer/life.py` | A CA rule chosen by measurement, not assumption; births and deaths as directional sweeps; hue as ancestry |
 | `book-two/starlight.py`, `weather.py`, `veils.py`, `ringfall.py` | The registration idiom: a tuned voice as class-attribute overrides of a shared primitive |
 | `book-two/nocturne.py` | A conducted hour: movements, crossfade windows, palette continuity |
+| `book-two/small_planet.py` | Spatial composition: layers lerped in OKLab vec space (one conversion for six blends); seam-free sphere noise; a sub-primitive blended in by mask; geometry statics memoized on a content fingerprint |
 
 `legacy/` holds pre-2.1 stateful patterns that don't meet this contract;
 `plasma_storm.py` is the worked example of converting one.
