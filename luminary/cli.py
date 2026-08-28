@@ -7,6 +7,7 @@ python -m luminary.cli render  --lights F --pattern N [-t S] -o OUT.svg
 python -m luminary.cli map     [--continue --trust-boards --controllers IDS --web]
 python -m luminary.cli boards  [--json --all-ports --no-register]
 python -m luminary.cli flash   [--controller N --max-per-strip N --build-only]
+python -m luminary.cli geometry [--config NAME --partial -o OUT]
 python -m luminary.cli show    --lights F --pattern N [--serial P --host --port]
 """
 
@@ -252,6 +253,45 @@ def cmd_flash(args: argparse.Namespace) -> int:
     return 1 if failures else 0
 
 
+def cmd_geometry(args: argparse.Namespace) -> int:
+    """Mapping records -> the geometry the installation actually has."""
+    from luminary.geometry.net import Net
+    from luminary.geometry.pentagon.mapped import (
+        MappingIncompleteError,
+        capture_mapped,
+    )
+    from luminary.mapping.plan import Plan
+    from luminary.mapping.store import MappingStore
+
+    plan = Plan.load(args.config)
+    store = MappingStore(_store_dir(args.store, "mapping"))
+    records = store.load_records(plan)
+    configs = Path(__file__).resolve().parents[1] / "configs"
+    net = Net.from_json_file(configs / f"{args.config}.json")
+
+    try:
+        lights = capture_mapped(net, plan, records, strict=not args.partial)
+    except MappingIncompleteError as exc:
+        print(f"{exc}\n(--partial builds what is mapped so far)", file=sys.stderr)
+        return 2
+
+    per = {c: len(lights.active_rows_for_controller(c)) for c in lights.controllers}
+    print(f"{lights.n} lights across controllers {lights.controllers}")
+    for controller, count in sorted(per.items()):
+        print(f"  controller {controller}: {count} active")
+
+    if args.output:
+        lights.save(args.output)
+        print(f"-> {args.output}")
+        return 0
+
+    from luminary.server.store import Store
+
+    doc_id = Store(_store_dir(args.store)).save("lights", lights.to_file_dict())
+    print(f"-> store id {doc_id}   (luminary show --lights {doc_id} --pattern ...)")
+    return 0
+
+
 def cmd_show(args: argparse.Namespace) -> int:
     """Stream to the boards and mirror the same bytes to a preview page."""
     import asyncio
@@ -398,10 +438,14 @@ def build_mapping_session(
     store.port_hints = dict(ports)
     if args.trust_boards:
         trust_boards(store, SerialBoards(ports), plan)
+    records = store.load_records(plan)
     if args.continue_ or args.trust_boards:
-        state = resume_state(plan, controllers, store.load_records(plan))
+        # --continue skips ahead to the first slot never recorded.
+        state = resume_state(plan, controllers, records)
     else:
-        state = initial_state(plan, controllers)
+        # Default: walk from the beginning, but pre-filled from the saved
+        # records, so every step that is already right is a single enter.
+        state = initial_state(plan, controllers, records)
 
     core = SessionCore(plan, net_lights, state, fps=args.fps)
     if ports:
@@ -589,6 +633,22 @@ def main(argv: Optional[list] = None) -> int:
     show.add_argument("--host", default="127.0.0.1")
     show.add_argument("--port", type=int, default=8080)
     show.set_defaults(func=cmd_show)
+
+    geometry = sub.add_parser(
+        "geometry", help="Build the deployed geometry from the mapping records"
+    )
+    geometry.add_argument(
+        "--config", default="4A-33", help="Net config name (default: 4A-33)"
+    )
+    geometry.add_argument(
+        "--partial",
+        action="store_true",
+        help="Build what is mapped so far; unmapped panels stay dark",
+    )
+    geometry.add_argument(
+        "-o", "--output", default=None, help="Write a file instead of the store"
+    )
+    geometry.set_defaults(func=cmd_geometry)
 
     render = sub.add_parser("render", help="Static SVG of a pattern at time t")
     render.add_argument("--lights", required=True, help="Lights file or store id")

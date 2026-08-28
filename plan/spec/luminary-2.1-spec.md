@@ -1259,7 +1259,17 @@ reset the board into its bootloader with the 1200 bps touch, write the UF2,
 then re-probe until the board answers with that id. The verification is the
 point: a file copy that succeeded is not the same as a board that works.
 
-16.2.8 `luminary show --lights <file|id> --pattern <name> [--serial --fps
+16.2.8 `luminary geometry [--config NAME --partial -o OUT]` — mapping records
+→ the deployed geometry (§7.3.1, closing §19.6). Each strip LED takes its
+identity from the records an operator confirmed: channel from the mapping,
+index 0 at the six-red corner, advancing along the serpentine strip path in
+the recorded winding, at the recorded density. The path and the index→beam
+bridge come from `luminary/mapping/strip_path.py`, shared with the mapping
+session, so a deployment renders the way the tool that mapped it said it
+would. An incomplete mapping is refused rather than yielding a geometry with
+holes; `--partial` is the explicit opt-in mid-commissioning.
+
+16.2.9 `luminary show --lights <file|id> --pattern <name> [--serial --fps
 --budget --host --port]` — the production surface. One engine streams to the
 boards through the serial driver and the *same wire bytes* are mirrored to a
 preview page (§12.3), so the preview is evidence of what the hardware

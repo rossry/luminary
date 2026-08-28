@@ -110,10 +110,21 @@ safe to stop at any point.
 Practise first, no hardware needed, at
 <http://localhost:8080/demo/mapping>.
 
-## 6. Show
+## 6. Build the deployed geometry
 
 ```bash
-python -m luminary.cli show --lights pentagon-4A-33 --pattern aurora
+python -m luminary.cli geometry
+```
+
+Turns the mapping records into the geometry the installation actually has —
+real `(controller, channel, index)` identities — and prints a store id. It
+refuses an incomplete mapping; `--partial` builds what exists and leaves the
+rest dark.
+
+## 7. Show
+
+```bash
+python -m luminary.cli show --lights <id from step 6> --pattern aurora
 ```
 
 Streams to every registered board and mirrors the same bytes to
@@ -134,14 +145,6 @@ A slow browser loses preview frames and never slows the boards.
   means exactly this.
 - Frame rate is 30 fps. Under load the sender shrinks per-frame DELTA detail
   to protect pacing rather than dropping frames.
-
-## Known gap: multi-board geometry
-
-`map` records the per-board YAMLs, but the pentagon capture does not yet
-consume them — it assigns every light to controller 0. Until that lands,
-`show` drives a single board. Multi-board deployments need the identity
-assignment in `luminary/geometry/pentagon/adapters.py` (`capture`, spec
-§7.3.1).
 
 ## When something breaks
 

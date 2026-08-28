@@ -223,7 +223,12 @@ def _parse_board_yaml(data: bytes, plan: Plan) -> Tuple[int, BoardRecord]:
             raise StoreError(f"channel {channel}: density {density}")
         channels[channel] = ChannelRecord(face=face, winding=winding, density=density)
     record = BoardRecord(
-        unit_vertex=unit, controller_id=controller_id, channels=channels
+        unit_vertex=unit,
+        controller_id=controller_id,
+        channels=channels,
+        # Density is a property of the strip in the channel, so it is seeded
+        # per channel on load and survives a panel being moved elsewhere.
+        densities={ch: rec.density for ch, rec in channels.items()},
     )
     return controller_id, record
 
