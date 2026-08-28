@@ -55,6 +55,7 @@ from typing import List, Tuple
 import numpy as np
 
 from luminary.patterns.base import Pattern
+from luminary.patterns.fields import ring_field
 from luminary.patterns.util import seeded_random
 
 # Per-light roles
@@ -222,15 +223,8 @@ class MappingPattern(Pattern):
 
     def _ring(self, t: float) -> Tuple[np.ndarray, np.ndarray]:
         """(intensity, hue) of the descending elevation ring, on the
-        net; each wave rotates the hue wheel by a seeded random angle."""
-        wave = int(t // _RING_PERIOD)
-        phase = (t % _RING_PERIOD) / _RING_PERIOD
-        target = phase * np.radians(130.0)  # apex past the panel rim
-        diff = self._net_phi - target
-        intensity = np.exp(-(diff**2) / (2 * np.radians(6.0) ** 2))
-        spin = 360.0 * float(seeded_random(f"map-ring-{wave}", 1)[0])
-        hue = (self._net_az + spin) % 360.0
-        return intensity, hue
+        net — THE shared ring motif (patterns.fields.ring_field)."""
+        return ring_field(self._net_phi, self._net_az, t, _RING_PERIOD)
 
     # ---------------------------------------------------------- render
 
@@ -335,13 +329,11 @@ class FinalePattern(Pattern):
         waves_end = FINALE_WAVES * FINALE_WAVE_PERIOD
         if dt < waves_end:
             wave = int(dt // FINALE_WAVE_PERIOD)
+            intensity, hue = ring_field(
+                self._net_phi, self._net_az, dt, FINALE_WAVE_PERIOD, "map-finale"
+            )
             phase = (dt % FINALE_WAVE_PERIOD) / FINALE_WAVE_PERIOD
             target = phase * np.radians(130.0)
-            intensity = np.exp(
-                -((self._net_phi - target) ** 2) / (2 * np.radians(6.0) ** 2)
-            )
-            spin = 360.0 * float(seeded_random(f"map-finale-{wave}", 1)[0])
-            hue = (self._net_az + spin) % 360.0
             # The beads have been playing the whole time (same session
             # clock, so the backdrop is continuous into the finale); the
             # last wave clears them out behind its front.

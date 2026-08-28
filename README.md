@@ -127,7 +127,17 @@ class MyPattern(Pattern):
 Rules (spec §9.1): vectorized NumPy only, and **stateless** — output depends
 only on `(lights, t)`; use `luminary.patterns.util.seeded_random` for
 per-entity constants. Files in `patterns/` are discovered on server start
-(and on any `POST /api/patterns` upload, which hot-reloads the registry).
+(recursively — the directory is organized into volumes: `book-one/`,
+`conifer/`, `book-two/`) and on any `POST /api/patterns` upload, which
+hot-reloads the registry.
+
+For composed work there is a shared library in `luminary/patterns/`:
+palettes with perceptual OKLab blending, easing, deterministic noise
+fields, parametrized primitives (`Starfield`, `NoiseGlow`, `AuroraVeils`,
+`RingWave`), and `Movement`/`Conductor` for sequencing whole shows as
+stateless patterns with crossfades (`patterns/book-two/nocturne.py` is a
+conducted hour). See the "Composing from the library" section of the
+contributor guide.
 
 **The full contributor guide is [`patterns/README.md`](patterns/README.md)**:
 the contract, the lights-array columns, statelessness idioms for events and

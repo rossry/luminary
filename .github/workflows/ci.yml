@@ -36,9 +36,9 @@ jobs:
           luminary/geometry/scaffold.py luminary/geometry/capture/
           luminary/geometry/pentagon/ luminary/color/convert.py
           luminary/color/color.py luminary/comms/ luminary/engine/
-          luminary/patterns/base.py luminary/patterns/registry.py
-          luminary/patterns/util.py luminary/render/ luminary/server/
+          luminary/patterns/ luminary/render/ luminary/server/
           luminary/drivers/ luminary/cli.py patterns/*.py
+          patterns/book-one/ patterns/book-two/ patterns/conifer/
 
       - name: mypy (2.1 modules)
         run: >
@@ -47,8 +47,7 @@ jobs:
           luminary/geometry/scaffold.py luminary/geometry/capture/
           luminary/geometry/pentagon/ luminary/color/convert.py
           luminary/color/color.py luminary/comms/ luminary/engine/
-          luminary/patterns/base.py luminary/patterns/registry.py
-          luminary/patterns/util.py luminary/render/ luminary/server/
+          luminary/patterns/ luminary/render/ luminary/server/
           luminary/drivers/ luminary/cli.py luminary/mapping/ luminary/statedir.py
           luminary/stage/
           --explicit-package-bases --follow-imports=silent
