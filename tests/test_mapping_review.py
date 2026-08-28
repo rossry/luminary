@@ -162,3 +162,125 @@ def test_recorded_density_is_offered_again_on_review(plan):
     state = _at_first_panel(plan, records)
 
     assert state.candidate_density == 360
+
+
+# --------------------------------------------------------------- absent
+
+
+def test_skipping_a_board_records_it_absent_and_moves_on(plan):
+    """A board that was not built should not block the mapping."""
+    state = initial_state(plan, list(range(len(plan.units))))
+    first = plan.units[0]
+
+    state = step(state, plan, Event.SKIP)
+
+    assert state.boards[first].absent
+    assert state.boards[first].controller_id is None
+    assert plan.units[state.board_cursor] != first, "stayed on the skipped board"
+
+
+def test_a_skipped_board_is_settled_not_pending(plan):
+    """--continue must not come back to it: absent is a decision, not a gap."""
+    state = initial_state(plan, list(range(len(plan.units))))
+    state = step(state, plan, Event.SKIP)
+    for _ in range(len(plan.units) - 1):
+        state = step(state, plan, Event.ENTER)
+
+    resumed = resume_state(
+        plan, list(range(len(plan.units))), {u: b for u, b in state.boards.items()}
+    )
+
+    assert resumed.stage == "panels", "went back to the ports stage"
+    assert plan.units[resumed.board_cursor] != plan.units[0]
+
+
+def test_choosing_a_controller_says_the_board_exists_after_all(plan):
+    state = initial_state(plan, list(range(len(plan.units))))
+    state = step(state, plan, Event.SKIP)
+    # Walk back to it the way a review pass would.
+    state = initial_state(plan, list(range(len(plan.units))), state.boards)
+    assert state.boards[plan.units[0]].absent
+
+    state = step(state, plan, Event.RIGHT)
+
+    assert not state.boards[plan.units[0]].absent
+
+
+def test_skipping_a_panel_records_it_and_frees_its_channel(plan):
+    state = _at_first_panel(plan)
+    unit = plan.units[state.board_cursor]
+    panel = plan.panels[unit][state.panel_cursor]
+    state = step(state, plan, Event.ENTER)  # record the first panel normally
+    assert any(r.face == panel.face for r in state.boards[unit].channels.values())
+
+    # Go back to it and declare it absent instead.
+    state = initial_state(plan, list(range(len(plan.units))), state.boards)
+    for _ in range(len(plan.units)):
+        state = step(state, plan, Event.ENTER)
+    state = step(state, plan, Event.SKIP)
+
+    board = state.boards[unit]
+    assert panel.face in board.absent_faces
+    assert not any(
+        r.face == panel.face for r in board.channels.values()
+    ), "an absent panel still holds a channel"
+
+
+def test_a_skipped_panel_does_not_stop_the_sequence_again(plan):
+    state = _at_first_panel(plan)
+    unit = plan.units[state.board_cursor]
+    panel = plan.panels[unit][state.panel_cursor]
+    state = step(state, plan, Event.SKIP)
+
+    resumed = resume_state(plan, list(range(len(plan.units))), state.boards)
+
+    landed = plan.panels[plan.units[resumed.board_cursor]][resumed.panel_cursor]
+    assert landed.face != panel.face
+
+
+def test_an_absent_board_has_no_strips_to_map(plan):
+    """Stage B must not walk the panels of a board that is not here.
+
+    The default pass reviews every slot, but "review everything" cannot mean
+    asking which channel each panel of a missing board is on.
+    """
+    state = initial_state(plan, list(range(len(plan.units))))
+    absent = plan.units[0]
+    state = step(state, plan, Event.SKIP)
+    for _ in range(len(plan.units) - 1):
+        state = step(state, plan, Event.ENTER)
+    assert state.stage == "panels"
+
+    visited = set()
+    for _ in range(500):
+        if state.stage != "panels":
+            break
+        visited.add(plan.units[state.board_cursor])
+        state = step(state, plan, Event.ENTER)
+
+    assert state.stage == "done"
+    assert absent not in visited, "asked for the strips of a board that is not here"
+    assert not state.boards[absent].channels
+
+
+def test_holding_enter_through_a_review_keeps_skipped_panels_skipped(plan):
+    """Re-confirming an absent panel must not resurrect it."""
+    state = _at_first_panel(plan)
+    unit = plan.units[state.board_cursor]
+    gone = plan.panels[unit][state.panel_cursor].face
+    state = step(state, plan, Event.SKIP)
+    for _ in range(500):
+        if state.stage == "done":
+            break
+        state = step(state, plan, Event.ENTER)
+
+    # Walk it again from the start, confirming everything.
+    state = initial_state(plan, list(range(len(plan.units))), state.boards)
+    for _ in range(500):
+        if state.stage == "done":
+            break
+        state = step(state, plan, Event.ENTER)
+
+    board = state.boards[unit]
+    assert gone in board.absent_faces
+    assert not any(r.face == gone for r in board.channels.values())

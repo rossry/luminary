@@ -252,7 +252,7 @@ def cmd_pattern_run(args):
     """Stream pattern to hardware via the serial driver."""
     print("Use the unified CLI for hardware output, e.g.:")
     print(
-        "  python -m luminary.cli play --lights <lights.json> "
+        "  luminary play --lights <lights.json> "
         "--pattern <name> --serial /dev/ttyACM0"
     )
     print("(Capture this config first: main.py pattern sample writes SVG; ")

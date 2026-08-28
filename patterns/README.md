@@ -188,7 +188,7 @@ a few dozen events is fine) and under ~5 ms for ~6,600 lights
 
 ```bash
 # Watch it live: serve, open the page, pick a geometry + your pattern.
-python -m luminary.cli serve --seed-demo          # http://localhost:8080
+luminary serve --seed-demo          # http://localhost:8080
 
 # Headless still frame, if you're iterating without a browser:
 python - <<'EOF'

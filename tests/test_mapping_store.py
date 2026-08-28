@@ -308,3 +308,56 @@ def test_serial_boards_raise_toward_the_handoff(plan):
         boards.read_mapping(4)
     with pytest.raises(NotImplementedError, match="plan/mapping/DESCRIPTION.md"):
         boards.write_mapping(4, b"")
+
+
+def test_an_absent_board_survives_the_round_trip(tmp_path, plan):
+    """The bug this exists to prevent: a board recorded absent came back as
+    merely unmapped, and `geometry` refused a deployment over a board the
+    operator had already said was missing.
+
+    Every other record is keyed on controller id, which an absent board does
+    not have — so it needs a home of its own.
+    """
+    from luminary.mapping.state import Event, initial_state, step
+
+    store = MappingStore(tmp_path)
+    state = initial_state(plan, list(range(len(plan.units))))
+    absent = plan.units[0]
+    state = step(state, plan, Event.SKIP)
+    for _ in range(500):
+        if state.stage == "done":
+            break
+        state = step(state, plan, Event.ENTER)
+    store.save_state(state, plan)
+
+    records = MappingStore(tmp_path).load_records(plan)
+
+    assert records[absent].absent
+    assert records[absent].controller_id is None
+    assert not records[absent].channels
+    # Every other board still mapped normally.
+    assert sum(1 for r in records.values() if r.controller_id is not None) == (
+        len(plan.units) - 1
+    )
+
+
+def test_un_absenting_a_board_clears_the_record(tmp_path, plan):
+    from luminary.mapping.state import BoardRecord, Event, initial_state, step
+
+    store = MappingStore(tmp_path)
+    state = initial_state(plan, list(range(len(plan.units))))
+    state = step(state, plan, Event.SKIP)
+    store.save_state(state, plan)
+    assert store.absent_path.exists()
+
+    # The board turns up after all: map everything from scratch.
+    state = initial_state(plan, list(range(len(plan.units))))
+    for _ in range(500):
+        if state.stage == "done":
+            break
+        state = step(state, plan, Event.ENTER)
+    store.save_state(state, plan)
+
+    assert not store.absent_path.exists(), "stale absent record left behind"
+    records = MappingStore(tmp_path).load_records(plan)
+    assert not any(r.absent for r in records.values())

@@ -17,7 +17,7 @@
       padding: .55rem .8rem; background: #16161c; border-bottom: 1px solid #26262e;
     }
     header h1 { font-size: 1rem; margin: 0 .6rem 0 0; font-weight: 600; }
-    button {
+    button, select {
       background: #22222b; color: #dcdce4; border: 1px solid #34343e;
       border-radius: 6px; padding: .35rem .6rem; font-size: .85rem; cursor: pointer;
     }
@@ -41,6 +41,7 @@
   <header>
     <h1>Luminary</h1>
     <span id="live" title="These are the bytes the boards were sent">on air</span>
+    <select id="pattern" title="What the boards are playing"></select>
     <button id="render"
             title="Toggle realistic cloth render / flat light cells">Flat cells</button>
     <span id="status">connecting</span>

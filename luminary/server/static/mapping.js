@@ -35,6 +35,7 @@ export const KEYS = {
   arrowup: "up", w: "up",
   arrowdown: "down", s: "down",
   enter: "enter", p: "enter", " ": "enter",
+  x: "skip",
 };
 
 /* Fit a layout viewBox into a canvas; world -> device transforms. */
@@ -255,7 +256,9 @@ export class Hud {
           ? `no controller free`
           : `breathing controller <b>${s.candidate_controller}</b>`
       );
-      parts.push(`<span class="dim">◀ ▶ cycle boards · ⏎ lock</span>`);
+      parts.push(
+        `<span class="dim">◀ ▶ cycle boards · ⏎ lock · x board not here</span>`
+      );
     } else if (s.stage === "panels") {
       const board = s.boards[String(s.unit_vertex)] || {};
       parts.push(`<span class="chip">stage B · panels</span>`);
@@ -267,7 +270,10 @@ export class Hud {
         `channel <b>${s.candidate_channel}</b> · ` +
         `<b>${s.candidate_density}</b> LEDs · <b>${s.candidate_winding}</b>`
       );
-      parts.push(`<span class="dim">◀ ▶ channel · ▲ density · ▼ winding · ⏎ confirm</span>`);
+      parts.push(
+        `<span class="dim">◀ ▶ channel · ▲ density · ▼ winding · ⏎ confirm · ` +
+        `x panel not here</span>`
+      );
     } else {
       parts.push(`<span class="chip done">stage C · mapped</span>`);
       parts.push(`every panel recorded — finale, then the spiral show`);

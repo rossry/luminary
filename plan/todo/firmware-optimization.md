@@ -8,7 +8,7 @@ STATS frame, spec §13.7). ACK round trip folds decode, render and DMA into
 one number and cannot say which of them moved.
 
 ```bash
-python -m luminary.cli flash --controller 0 --max-per-strip 360
+luminary flash --controller 0 --max-per-strip 360
 python firmware/tools/phases.py --port /dev/ttyACM0 --channels 8 \
     --per-strip 360 --fps 60 --seconds 10
 cd firmware/test/host && make -s && ./test_decoder ../../golden/case1
@@ -125,8 +125,9 @@ The ceiling is `show()` + DMA, both proportional to `MAX_PER_STRIP`:
 | 360 | 3.0 ms | ~71 fps |
 | 180 | 1.5 ms | ~136 fps |
 
-Raising it means shrinking `MAX_PER_STRIP` (per board, to its longest strip),
-or overlapping `show()`'s bit-planing with the DMA — which is NeoPXL8 double
+Raising it means shrinking `MAX_PER_STRIP`, which is not free to choose -- it
+is the board's longest strip, and strips are 360 unless every strip on that
+board is 180. Otherwise, overlapping `show()`'s bit-planing with the DMA — which is NeoPXL8 double
 buffering, previously measured as no gain and a wedged board. Revisit the
 interpolators only if that overlap lands and conversion becomes critical.
 

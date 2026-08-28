@@ -105,8 +105,9 @@ This does not raise the *installation's* frame rate, which is set by its
 busiest board, but every lighter board gains that much headroom — margin for
 jitter rather than throughput.
 
-So the levers are `MAX_PER_STRIP`, set per board to that board's longest
-strip, and how many outputs each board serves. Optimising the colour pipeline
+So the levers are `MAX_PER_STRIP` — which is not free to choose, being the
+board's longest strip, 360 unless every strip on that board is 180 — and how
+many outputs each board serves. Optimising the colour pipeline
 further buys nothing until the DMA shrinks; this is why the hardware
 interpolators were investigated and not adopted.
 
@@ -222,7 +223,7 @@ at the RP2040's DMA and CPU contending for the same banked SRAM:
 
 ## Building
 
-Normally you do not build by hand: `python -m luminary.cli flash
+Normally you do not build by hand: `luminary flash
 --max-per-strip <n>` builds per controller id, resets the board into its
 bootloader, writes the UF2, and then re-probes to confirm the board came back
 answering with the id it was built for. It uses the `deploy` env and passes
@@ -253,7 +254,7 @@ within ±2/255 of the Python float reference.
 
 ## Driving it
 
-    python -m luminary.cli play --lights <geometry> --pattern <name> \
+    luminary play --lights <geometry> --pattern <name> \
         --serial /dev/ttyACM0
 
 The server negotiates nothing beyond the SESSION frame; a freshly booted

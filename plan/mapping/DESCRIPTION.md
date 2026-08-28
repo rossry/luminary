@@ -110,7 +110,14 @@ mismatch in either direction reads as "only one half lit" rather than
 a subtle hue shift. ←/→ changes which channel carries the test until
 the right physical panel lights; ↑ toggles density (180/360),
 ↓ toggles winding (wrong winding shows the windmill sweeping the wrong
-way). A **single enter** confirms channel + density + winding together
+way). **x** records the panel as not here — not built, not yet hung — which
+is different from leaving it unmapped: the sequence does not return to it and
+the deployed geometry is built without it rather than refusing. Any
+directional key clears that, since choosing a channel is the operator saying
+it exists after all. In stage A, **x** does the same for a whole board — and stage B then has no
+strips to ask about, so it skips that board's panels entirely. Un-skipping the
+board in stage A brings them back. A
+**single enter** confirms channel + density + winding together
 and advances; a confirmed panel holds its wheel portion at 20% of the
 active strip's brightness until the board completes. Meanwhile every
 *unmapped* strip on the active board lights its **first 30 LEDs** with
@@ -207,8 +214,11 @@ The sequence logic is one pure state machine: `(state, input_event) ->
   and resume across restarts, and the page's ↺ restart control clears
   them to start the sequence over.
 
-Entry point: one script (`python -m luminary.cli map`, flags
-`--continue`, `--trust-boards`) — details at implementation time.
+Entry point: one script (`luminary map`, flags `--continue`,
+`--trust-boards`). It serves the window and opens a browser at it; `--tui`
+selects the terminal surface instead. The window is the default because
+mapping is spatial — a terminal can say "board 1/6", but not show an operator
+standing at the sphere *which* board that is.
 
 ## Identity mapping (closes spec §19.6)
 
@@ -220,6 +230,12 @@ lights per the recorded density (the
 `kinds`/`weights` machinery carries 360-LED panels as ACTIVE +
 INTERPOLATED if we choose to keep wire cost at 180/panel — decision at
 implementation time, measured, not assumed).
+
+Boards recorded absent have no controller id, so they cannot be keyed the way
+every other record is. They get one small `absent.yaml` listing the data units
+that are not on the sphere; it is deleted when nothing is absent. Without it an
+absent board reloads as merely unmapped, and `geometry` refuses a deployment
+over a board the operator already said was missing.
 
 ## Board-side mapping storage — HANDOFF to prod-hardware integration
 

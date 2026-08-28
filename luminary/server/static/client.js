@@ -115,16 +115,36 @@ class Client {
    * decides them. */
   async previewMode() {
     const info = await fetch("/api/preview/info").then((r) => r.json());
+    // The page drives the installation here, so it lists what it can play and
+    // sends the choice down the same socket the frames come back on.
+    const select = el("pattern");
+    if (select) {
+      const patterns = await fetch("/api/patterns").then((r) => r.json());
+      select.innerHTML = patterns
+        .filter((p) => p.ok)
+        .map(
+          (p) =>
+            `<option value="${p.name}"${p.name === info.pattern ? " selected" : ""}>` +
+            `${p.name}</option>`
+        )
+        .join("");
+      select.onchange = () =>
+        this.send({ type: "set_pattern", name: select.value });
+    }
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
     const status = el("status");
     if (status) status.textContent = `${info.pattern} @ ${info.fps} fps`;
-    await this.attach(info.lights, `${proto}//${location.host}/api/preview`);
+    // Layout comes from the session, not by store id: the running geometry
+    // may never have been stored (a deployed capture, or the default net).
+    await this.attach(null, `${proto}//${location.host}/api/preview`);
   }
 
   async attach(lightsId, url) {
     if (this.ws) this.ws.close();
 
-    this.layout = await fetch(`/api/lights/${lightsId}/layout`).then((r) => r.json());
+    const layoutUrl =
+      lightsId === null ? "/api/preview/layout" : `/api/lights/${lightsId}/layout`;
+    this.layout = await fetch(layoutUrl).then((r) => r.json());
     this.buildDrawList();
     this.decoder = new LumiDecoder();
     this.bytes = 0;
