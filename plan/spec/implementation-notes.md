@@ -26,7 +26,8 @@
 | `luminary/patterns/easing.py` | §9.4 | `smoothstep`/`smootherstep`/`breath`/`env_ad`/`wrap01` — closed-form temporal shaping |
 | `luminary/patterns/fields.py` | §9.4 | Deterministic uint64-hash value noise, `fbm`, domain `warp`; `ring_field`, the shared descending-ring motif (single source for mapping visuals *and* show patterns, §2.9) |
 | `luminary/patterns/primitives.py` | §9.4 | `Primitive` (class-attribute parameter schema, validated overrides) + `Starfield`/`NoiseGlow`/`AuroraVeils`/`RingWave` — the shared parametrized voices |
-| `luminary/patterns/compose.py` | §9.1, §9.4 | `Movement` + `Conductor`: shows as stateless Patterns; searchsorted slot lookup, ≤2 child renders/frame, OKLab crossfades, `duration` as the queue-advance signal |
+| `luminary/patterns/compose.py` | §9.1, §9.4 | `Movement` + `Conductor`: shows as stateless Patterns; searchsorted slot lookup, ≤2 child renders/frame, OKLab crossfades, `duration` as the queue-advance signal; conductors nest (a show can be a movement) |
+| `luminary/patterns/repertoire.py` | §9.4 | Importable home of the substantial book-two voices (`SmallPlanet`, `Fireflies`, `Relay`) and show builders (`nocturne_movements`) — pattern files are exec-loaded, never importable, so art lives here exactly when another show composes it (§2.9) |
 | `luminary/comms/protocol.py` | §11.4, §11.7 | Wire constants: COBS+CRC16 framing, 13-byte header (f64 `t`), quantization, keyframe/delta word packing, varints, SESSION payloads |
 | `luminary/comms/predictor.py` | §11.5 | The normative integer dead-reckoning step — shared by encoder mirror and decoder so they cannot diverge |
 | `luminary/comms/codec.py` | §11.6–§11.8 | `Encoder` (error-ranked budgeted deltas, keyframe cadence, per-controller frames) and the reference `Decoder` |

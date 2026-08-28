@@ -20,12 +20,11 @@ from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 
-from luminary.geometry.lights import LightColumns
 from luminary.patterns.base import Pattern
 from luminary.patterns.easing import breath, smoothstep
 from luminary.patterns.fields import fbm, ring_field, value_noise, warp
 from luminary.patterns.palettes import AURORA, SEA_GLASS, Palette, blend_oklch
-from luminary.patterns.util import phi_theta, seeded_random
+from luminary.patterns.util import phi_theta, plane_xy, seeded_random
 
 _RESERVED = frozenset({"name", "description"})
 
@@ -77,24 +76,6 @@ class Primitive(Pattern):
         return base
 
 
-def _plane(lights: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-    """Drawing-plane coordinates centered on the layout, long axis ~[-1, 1].
-
-    Geometry-agnostic (works on any net or fold) and scale-free, so a
-    primitive tuned on one sphere reads the same on another.
-    """
-    px = lights[:, LightColumns.X]
-    py = lights[:, LightColumns.Y]
-    cx = 0.5 * (float(np.min(px)) + float(np.max(px)))
-    cy = 0.5 * (float(np.min(py)) + float(np.max(py)))
-    scale = max(
-        1e-6,
-        0.5 * (float(np.max(px)) - float(np.min(px))),
-        0.5 * (float(np.max(py)) - float(np.min(py))),
-    )
-    return (px - cx) / scale, (py - cy) / scale
-
-
 class Starfield(Primitive):
     name = "starfield"
     description = "Sparse stars twinkling over a near-black airglow sky"
@@ -116,7 +97,7 @@ class Starfield(Primitive):
         is_star = pick < self.density
         twinkle = 0.5 - 0.5 * np.cos(2.0 * np.pi * (t * rate / self.twinkle_s + phase))
 
-        u, v = _plane(lights)
+        u, v = plane_xy(lights)
         glow = value_noise(u * 1.5 + 0.008 * t, v * 1.5 - 0.005 * t, seed=11)
         sky_level = self.sky_l * (1.0 + self.airglow * (glow - 0.5))
 
@@ -143,7 +124,7 @@ class NoiseGlow(Primitive):
     seed = 7
 
     def render(self, lights: np.ndarray, t: float) -> np.ndarray:
-        u, v = _plane(lights)
+        u, v = plane_xy(lights)
         uu = u * self.scale + t * self.speed
         vv = v * self.scale - t * self.speed * 0.71
         wu, wv = warp(uu, vv, self.seed, self.warp_amount, octaves=2)
