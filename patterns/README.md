@@ -153,6 +153,17 @@ not a monitor. The craft rules the current set follows:
   exist so a movement's parameters travel its whole duration;
   `nocturne`'s seven movements are the worked example, one dramaturgy
   each.
+- **No long flat scene.** Set `arc_s` to the movement's own duration —
+  that is what it is for, and a movement whose parameters do not travel
+  is a still image held for as long as the track lasts. Past roughly
+  six or seven minutes one arc stops being enough, because a single
+  monotone ramp over a quarter of an hour reads as flat too; there, nest
+  a `Conductor` *inside* the movement and give the stretch two or three
+  scenes. That keeps the outer cue sheet — the track boundaries — exactly
+  where the record put it, while the inside gets a shape. `koln`'s
+  sixteen-minute "revisited" (settling / the long climb / coming to rest)
+  and `apollo`'s "An Ending (Ascent)" (both words of the title, in order)
+  are the worked examples.
 - **Duty cycle.** A fully-colored field targets a *mean* around
   0.1–0.3 L; the field's own texture tops out near ~0.3–0.4. Small
   figures — stars, ring crests, candle cores — sit above the field
@@ -304,13 +315,13 @@ Every file here is a worked example. By what it teaches:
 | `book-two/nocturne.py` | A conducted night: movements timed to their own tracks (`Movement(..., audio=…)` — queued as chapters, the music changes with the act), crossfade windows, palette continuity |
 | `small_planet` (voice in `repertoire`) | Spatial composition: layers lerped in OKLab vec space (one conversion for six blends); seam-free sphere noise; a sub-primitive blended in by mask; geometry statics memoized on a content fingerprint |
 | `fireflies` (voice in `repertoire`) | Emergent behavior in closed form: slot-hashed events whose offsets lerp toward a metronome by a coherence curve — synchrony without simulation; agent-to-light gaussian pools via one matmul |
-| `book-two/apollo.py` | The cue-sheet show idiom: an album as a Movement list whose durations are the track lengths, crossfades as the drift tolerance — pair with the record on the stage |
+| `book-two/apollo.py` | The cue-sheet show idiom: an album as a Movement list whose durations are the track lengths, crossfades as the drift tolerance — pair with the record on the stage. Every track's `arc_s` is its own length, so no scene ends where it began; tracks 1, 6 and 12 share a `salt`, so the record literally closes under the sky it opened under |
 | `relay` (voice in `repertoire`) | The wiring as the medium: `CONTROLLER`/`CHANNEL`/`INDEX` make every strip a lane, and races run the serpentine in index order; per-lane state gathered to lights by `np.unique` inverse |
 | `embers` (voice in `primitives`) | Coupled figures: one wind field dims the cloud, scars it (closed-form geometric heal — damage outlives the gust), gates the coals into the banks, and times each coal's own flare tail, so a coal's brightest seconds are its last — physics as dramaturgy |
 | `starfall` (voice in `primitives`) | Departure as narrative: a hash rank maps through schedule nodes to each star's departure time — one single swell, densest just before the last star falls onto a drained-black sky — and the streak is a pure function of (t − departure); the schedule IS the story |
-| `book-two/promises.py` | A persistent motif under a whole show: every movement is `Layered(scene, THE SAME Motif)` — the temporal analogue of small_planet's spatial masks |
-| `book-two/spiegel.py` | Symmetry as the subject: every element lives on or mirrors across the geometry's own x = 0 plane, held by a mirror-pair test |
-| `book-two/koln.py` | Declared audio: `Pattern.audio` names the soundtrack, the stage pre-selects and auto-attaches it when the file is present, and the track's exact length times the entry |
+| `book-two/promises.py` | A persistent motif under a whole show: every movement is `Layered(scene, THE SAME Motif)` — the temporal analogue of small_planet's spatial masks. The scenes around it are three crests that arrive earlier and burn hotter in turn (`crest_at` 0.62 → 0.50 → 0.42): a shape spread across movements, not inside one |
+| `book-two/spiegel.py` | Symmetry as the subject: every element lives on or mirrors across the geometry's own x = 0 plane, held by a mirror-pair test. And development without dynamics — the phrases widen and lengthen (a precomputed boundary array, `searchsorted`, still pure) while nothing gets brighter: the reach is the whole arc |
+| `book-two/koln.py` | Declared audio: `Pattern.audio` names the soundtrack, the stage pre-selects and auto-attaches it when the file is present, and the track's exact length times the entry. Also nesting for length: each part over six minutes is a sub-`Conductor`, and `RingWave(meander=…)` colors each ring by when it launched, so fifteen minutes of unbroken pulse is also one continuous walk through gold |
 | `book-two/overnight.py` | Nested conductors: a looping dusk-to-dawn program whose first chapter is the whole of Nocturne, by import — one name to queue when the sun goes down |
 
 `legacy/` holds pre-2.1 stateful patterns that don't meet this contract;

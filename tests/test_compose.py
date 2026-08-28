@@ -393,3 +393,32 @@ def test_layered_keys_accent_by_its_own_light():
     half = Probe(0.25, hue=90.0)  # halfway: a perceptual blend
     out = Layered(base, half, alpha_l=0.5).render(lights, 1.0)
     assert 0.2 < float(out[0, 0]) < 0.25
+
+
+def test_promises_every_scene_carries_the_same_lattice():
+    """The piece's whole claim: one phrase, unchanged, for 46 minutes.
+
+    Nothing else holds this. The scenes were given per-movement arcs and
+    movement 7 was split into a nested pair, and the obvious way to write
+    that split — wrapping the sub-conductor in one Layered — both hides
+    the children from ``chapters()`` and makes it easy for a later edit
+    to hand one scene a lattice of its own. Walk the tree and insist on
+    object identity.
+    """
+    from luminary.patterns.compose import Conductor, Layered
+
+    show = default_registry().get("promises")
+
+    def lattices(pattern, found):
+        if isinstance(pattern, Layered):
+            found.append(pattern.accent)
+            lattices(pattern.base, found)
+        elif isinstance(pattern, Conductor):
+            for movement in pattern._movements:
+                lattices(movement.pattern, found)
+        return found
+
+    found = lattices(show, [])
+    assert len(found) == 10  # nine movements, movement 7 split in two
+    assert all(m is found[0] for m in found), "a scene got its own lattice"
+    assert found[0].cycle_s == 6.4  # and it is the phrase, not a retuning
