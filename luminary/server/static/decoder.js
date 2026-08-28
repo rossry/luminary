@@ -106,22 +106,50 @@ export class LumiDecoder {
     this._pending = [];
   }
 
-  /* Feed raw stream bytes; returns [{type, controller}] for applied frames. */
-  feed(bytes) {
-    const applied = [];
+  /* Split raw stream bytes into frame bodies WITHOUT applying them, each
+   * with the header time it carries.
+   *
+   * Presentation is scheduled on that `t` (spec §13.9), so a viewer that
+   * wants to paint on the same clock as the boards has to see the time
+   * before it decides to decode. Applying immediately and painting later
+   * would show whatever state had accumulated by paint time, not the frame
+   * that was actually due. */
+  split(bytes) {
+    const out = [];
     for (let i = 0; i < bytes.length; i++) {
       if (bytes[i] === 0) {
         if (this._pending.length) {
           const chunk = Uint8Array.from(this._pending);
           this._pending.length = 0;
           try {
-            applied.push(this.decodeFrame(cobsDecode(chunk)));
+            const body = cobsDecode(chunk);
+            if (body.length < HEADER_SIZE + 2) throw new Error("frame too short");
+            const view = new DataView(body.buffer, body.byteOffset, body.byteLength);
+            out.push({ body, type: body[1], t: view.getFloat64(3, true) });
           } catch (err) {
             this.wantResync = true;
           }
         }
       } else {
         this._pending.push(bytes[i]);
+      }
+    }
+    return out;
+  }
+
+  /* Apply one body from split(); returns {type, controller}. */
+  apply(body) {
+    return this.decodeFrame(body);
+  }
+
+  /* Feed raw stream bytes; returns [{type, controller}] for applied frames. */
+  feed(bytes) {
+    const applied = [];
+    for (const frame of this.split(bytes)) {
+      try {
+        applied.push(this.decodeFrame(frame.body));
+      } catch (err) {
+        this.wantResync = true;
       }
     }
     return applied;
@@ -296,5 +324,125 @@ export class LumiDecoder {
       // INACTIVE stays black (zeros).
     }
     return out;
+  }
+}
+
+
+/* ---------------------------------------------------------- presentation
+
+ * Maps host frame time onto a local deadline (spec §13.9), mirroring
+ * luminary/comms/presentation.py and the C++ firmware bit for bit. All three
+ * replay firmware/golden/presentation/case1.json.
+ *
+ * The boards, this viewer and the local preview are fed the identical wire
+ * stream. Painting on arrival makes each of them drift by its own decode and
+ * delivery time, so the preview stops being evidence of what the hardware is
+ * doing. Sharing this clock and the same delay makes them agree without
+ * exchanging one.
+ */
+
+const MICROS_MOD = 4294967296;
+const PRESENTATION_WINDOW = 64;
+
+function wrapMicros(v) {
+  return ((v % MICROS_MOD) + MICROS_MOD) % MICROS_MOD;
+}
+
+function signedMicros(v) {
+  const w = wrapMicros(v);
+  return w >= MICROS_MOD / 2 ? w - MICROS_MOD : w;
+}
+
+export class PresentationClock {
+  constructor() {
+    this.reset();
+  }
+
+  reset() {
+    this.have = false;
+    this.baseT = 0;
+    this.baseUs = 0;
+    this.skewUs = 0;
+    this.intervalUs = 0;
+    this._windowMin = 0;
+    this._windowCount = 0;
+    this._lastT = 0;
+  }
+
+  nominal(t) {
+    return wrapMicros(this.baseUs + Math.trunc((t - this.baseT) * 1e6));
+  }
+
+  observe(t, nowUs) {
+    if (!this.have) {
+      this.have = true;
+      this.baseT = t;
+      this.baseUs = wrapMicros(nowUs);
+      this.skewUs = 0;
+      this._windowMin = 0;
+      this._windowCount = 1;
+      this._lastT = t;
+      return;
+    }
+    const delta = (t - this._lastT) * 1e6;
+    if (delta > 0 && delta < 1e6) {
+      const sample = Math.trunc(delta);
+      this.intervalUs = this.intervalUs
+        ? Math.floor((this.intervalUs * 7 + sample) / 8)
+        : sample;
+    }
+    this._lastT = t;
+
+    // Minimum, not mean: arrival delay is the true offset plus non-negative
+    // queuing, so the floor is the offset. A mean would bake this viewer's own
+    // queuing into its estimate and it would sit at a different offset from
+    // the boards.
+    const err = signedMicros(nowUs - this.nominal(t));
+    if (this._windowCount === 0 || err < this._windowMin) this._windowMin = err;
+    this._windowCount++;
+    if (this._windowCount >= PRESENTATION_WINDOW) {
+      this.skewUs = this._windowMin;
+      this._windowCount = 0;
+      this._windowMin = 0;
+    }
+  }
+
+  /* Staging is eager, so a full queue holds (slots - 1) frames ahead of the
+   * one being shown; the delay must budget exactly that or a frame reaches
+   * the head with its deadline already past. */
+  usableDelay(wantUs, slots) {
+    if (this.intervalUs === 0) return wantUs;
+    const cap = this.intervalUs * (slots > 1 ? slots - 1 : 1);
+    return Math.min(wantUs, cap);
+  }
+
+  deadline(t, delayUs) {
+    return wrapMicros(this.nominal(t) + this.skewUs + delayUs);
+  }
+}
+
+/* Frames decoded ahead of time, painted when their deadline arrives. */
+export class PlayoutQueue {
+  constructor(depth = 4) {
+    this.depth = depth;
+    this.items = [];
+  }
+
+  push(frame, deadlineUs) {
+    if (this.items.length >= this.depth) return false;
+    this.items.push([deadlineUs, frame]);
+    return true;
+  }
+
+  due(nowUs) {
+    if (!this.items.length) return null;
+    const [deadline, frame] = this.items[0];
+    if (signedMicros(nowUs - deadline) < 0) return null;
+    this.items.shift();
+    return frame;
+  }
+
+  get length() {
+    return this.items.length;
   }
 }
