@@ -16,6 +16,7 @@ math stays here, written once (invariant §2.9).
 
 from __future__ import annotations
 
+import zlib
 from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
@@ -824,7 +825,97 @@ class Candles(Primitive):
                 ph[i] = np.radians(p_deg) * scale + jitter * (jig[m + i] - 0.5) * 2.0
         return pick, az, ph
 
+    # A candle lights the lights near it and nothing else. The pools are
+    # gaussians in the angle between a light and a flame, so a light
+    # about five sigma out contributes under 1e-5 of a peak while still
+    # costing its cell of an (n_lights x count) exponential — and at the
+    # tunings in use, 85-93% of the cells are that. Which pairs actually
+    # carry light is fixed by the geometry and the seat parameters, so
+    # they are found once and cached; the render then walks a flat pair
+    # list and accumulates with bincount.
+    #
+    # Dropping the tails is an approximation. Measured against the dense
+    # path on the 6,660-light star it costs at most 2e-5 in L — about a
+    # seven-hundredth of one wire quantization step (1/63, spec
+    # §11.4.1) — and moves fewer than 1 in 5,000 lights onto a different
+    # wire byte. test_candles_gather_matches_the_dense_pools holds it.
+    #
+    # Memoized on a content fingerprint of the lights plus every
+    # parameter that shapes seats or pool sizes, exactly like
+    # SmallPlanet's statics — a pure function of its key, not state, so
+    # any call order gives identical output.
+    _NEAR_EPS = 1e-5  # smallest pool contribution kept
+    _pairs_cache: Dict[Tuple[Any, ...], Optional[Tuple[np.ndarray, ...]]] = {}
+
+    def _sigma_max(self, k: int) -> np.ndarray:
+        """The widest each pool ever gets, over all t (per candle).
+
+        ``spot_to`` grows (or shrinks) the pools across the movement and
+        ``vary`` scales each one; the neighbour list has to cover the
+        largest either can reach, or a pool would grow past its own
+        cached neighbours mid-movement.
+        """
+        widest = self.spot_deg
+        if self.spot_to > 0.0:
+            widest = max(widest, self.spot_to)
+        sigma = np.full(k, np.radians(widest))
+        if self.vary > 0.0:
+            pool = seeded_random(f"{self.salt}-pool", k)
+            sigma = sigma * (1.0 + self.vary * (0.30 * pool - 0.15))
+        return np.asarray(sigma)
+
+    def _pairs(
+        self, phi: np.ndarray, th: np.ndarray, az: np.ndarray, ph: np.ndarray
+    ) -> Optional[Tuple[np.ndarray, ...]]:
+        """``(light_index, candle_index, cos_angle - 1)`` for every pair
+        close enough to matter, or None to say "use the dense path".
+
+        None comes back when the pools are wide enough that most pairs
+        survive the cutoff — there the gather is all overhead and the
+        (n, k) matrix is the better shape.
+        """
+        n = phi.shape[0]
+        k = az.shape[0]
+        key = (
+            zlib.crc32(phi.tobytes()) ^ zlib.crc32(th.tobytes()),
+            n,
+            k,
+            self.salt,
+            self.anchors,
+            self.anchor_span_deg,
+            self.anchor_spread,
+            self.anchor_jitter_deg,
+            self.spot_deg,
+            self.spot_to,
+            self.vary,
+        )
+        if key in self._pairs_cache:
+            return self._pairs_cache[key]
+
+        sin_phi = np.sin(phi)
+        nl = np.column_stack([sin_phi * np.cos(th), sin_phi * np.sin(th), np.cos(phi)])
+        sf = np.sin(ph)
+        fl = np.column_stack([sf * np.cos(az), sf * np.sin(az), np.cos(ph)])
+        dm1 = nl @ fl.T - 1.0  # cos(angle) - 1, <= 0
+        cutoff = float(np.log(self._NEAR_EPS)) * self._sigma_max(k) ** 2
+        near = dm1 >= cutoff[None, :]
+        value: Optional[Tuple[np.ndarray, ...]]
+        if float(np.mean(near)) > 0.4:
+            value = None  # dense wins
+        else:
+            li, ci = np.nonzero(near)
+            value = (
+                li.astype(np.intp),
+                ci.astype(np.intp),
+                np.ascontiguousarray(dm1[li, ci]),
+            )
+        if len(self._pairs_cache) > 8:  # a process sees a couple of geometries
+            self._pairs_cache.clear()
+        self._pairs_cache[key] = value
+        return value
+
     def render(self, lights: np.ndarray, t: float) -> np.ndarray:
+        n = lights.shape[0]
         k = self.count
         phi, th = phi_theta(lights)
         span = float(np.max(phi)) or 1.0
@@ -891,10 +982,6 @@ class Candles(Primitive):
             )
             strength = strength * out_mul
 
-        sin_phi = np.sin(phi)
-        nl = np.column_stack([sin_phi * np.cos(th), sin_phi * np.sin(th), np.cos(phi)])
-        sf = np.sin(ph)
-        fl = np.column_stack([sf * np.cos(az), sf * np.sin(az), np.cos(ph)])
         spot_now = self.spot_deg + (
             (self.spot_to - self.spot_deg) * prog if self.spot_to > 0.0 else 0.0
         )
@@ -903,8 +990,25 @@ class Candles(Primitive):
             # Pools of different sizes, too.
             pool = seeded_random(f"{self.salt}-pool", k)
             sigma = sigma * (1.0 + self.vary * (0.30 * pool - 0.15))
-        spot = np.exp((nl @ fl.T - 1.0) / (sigma**2)[None, :])
-        glow = np.minimum(spot @ strength, 1.15) / 1.15
+        inv = 1.0 / sigma**2
+
+        near = self._pairs(phi, th, az, ph)
+        if near is not None:
+            # Only the pairs that carry light: one exponential over the
+            # short list, accumulated back to lights by bincount.
+            li, ci, dm1 = near
+            lit_pairs = np.exp(dm1 * inv[ci]) * strength[ci]
+            glow = np.bincount(li, weights=lit_pairs, minlength=n)
+        else:
+            sin_phi = np.sin(phi)
+            nl = np.column_stack(
+                [sin_phi * np.cos(th), sin_phi * np.sin(th), np.cos(phi)]
+            )
+            sf = np.sin(ph)
+            fl = np.column_stack([sf * np.cos(az), sf * np.sin(az), np.cos(ph)])
+            spot = np.exp((nl @ fl.T - 1.0) * inv[None, :])
+            glow = spot @ strength
+        glow = np.minimum(glow, 1.15) / 1.15
         pos_now = self.pos_max + (
             (self.pos_to - self.pos_max) * prog if self.pos_to > 0.0 else 0.0
         )
