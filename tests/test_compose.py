@@ -202,10 +202,37 @@ def test_apollo_matches_the_1983_cue_sheet():
         assert np.all(out[:, 1] >= 0.0) and np.all(out[:, 1] < 0.4)
 
 
+def test_overnight_nests_the_repertoire():
+    registry = default_registry()
+    over = registry.get("overnight")
+    noc = registry.get("nocturne")
+    assert over.duration is None  # loops: the stage plays it until skipped
+    assert over.total == 13200.0  # one 3h40m pass
+    assert len(over.schedule()) == 8
+
+    lights = make_lights(50)
+    rng = np.random.default_rng(6)
+    lights[:, LightColumns.X] = rng.uniform(0, 240, 50)
+    lights[:, LightColumns.Y] = rng.uniform(0, 200, 50)
+    lights[:, LightColumns.PHI_S] = rng.uniform(0, 2.27, 50)
+    lights[:, LightColumns.THETA_S] = rng.uniform(-np.pi, np.pi, 50)
+    lights[:, LightColumns.CHANNEL] = np.repeat(np.arange(5), 10)
+    lights[:, LightColumns.INDEX] = np.tile(np.arange(10), 5)
+
+    # Chapter 1 IS nocturne — the same movement list by import, so the
+    # frames are bit-identical outside the outer crossfades.
+    assert np.array_equal(over.render(lights, 1800.0), noc.render(lights, 1800.0))
+    # The loop seam is exact: t and t + total render identically.
+    assert np.array_equal(
+        over.render(lights, 7.0), over.render(lights, 7.0 + over.total)
+    )
+
+
 def test_registry_finds_book_two_and_volumes():
     registry = default_registry()
     names = set(registry.patterns)
     # book-one (moved), conifer (moved), book-two (new) all discovered.
     assert {"aurora", "vespers", "life", "serpent"} <= names
     assert {"nocturne", "starlight", "weather", "veils", "ringfall"} <= names
+    assert {"small_planet", "fireflies", "relay", "apollo", "overnight"} <= names
     assert not registry.errors, f"pattern load errors: {registry.errors}"
