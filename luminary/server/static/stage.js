@@ -283,6 +283,7 @@ export async function initStagePage() {
   const rec = document.createElement("option");
   rec.value = REC;
   let audioPicked = false; // the VJ touched the selector: keep their choice
+  let audioInventory = { dir: "", files: [] };
 
   // Per-pattern defaults: the repeat toggle follows the pattern's own
   // loop flag; the audio selector pre-selects the declared soundtrack —
@@ -298,10 +299,16 @@ export async function initStagePage() {
       present.length < wanted.length
         ? `♪ per chapter (${present.length}/${wanted.length} here)`
         : "♪ per chapter";
-    none.textContent =
-      meta && meta.audio && !meta.audio_present
-        ? `— no audio (wants ♪ ${meta.audio}) —`
-        : "— no audio —";
+    // An empty inventory names the directory the server actually reads
+    // — the one diagnostic that matters when files sit elsewhere.
+    if (!audioInventory.files.length && audioInventory.dir) {
+      none.textContent = `— no files in ${audioInventory.dir} —`;
+    } else {
+      none.textContent =
+        meta && meta.audio && !meta.audio_present
+          ? `— no audio (wants ♪ ${meta.audio}) —`
+          : "— no audio —";
+    }
     const options = [...audioSelect.options];
     if (keep !== undefined && options.some((o) => o.value === keep && !o.hidden)) {
       audioSelect.value = keep;
@@ -332,11 +339,12 @@ export async function initStagePage() {
     if (!patternSelect.value && patternSelect.options.length) {
       patternSelect.selectedIndex = 0;
     }
+    audioInventory = audio;
     const keepAudio = audioSelect.value;
     audioSelect.replaceChildren();
     audioSelect.appendChild(none);
     audioSelect.appendChild(rec);
-    for (const file of audio) {
+    for (const file of audio.files) {
       const option = document.createElement("option");
       option.value = file.name;
       option.textContent =

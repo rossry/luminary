@@ -295,29 +295,39 @@ class Starfall(Starfield):
 
     The firmament starts full (the same salt keeps the same stars as any
     other Starfield movement). Then, newest first, each star is picked:
-    it swells into a flare over flare_rise_s, then streaks down its own
-    meridian and off the stage in fall_s, tail burning behind it — and
-    that point of sky is dark from then on. The departure schedule is a
-    story: one, then a few, then a wave of it, then a trickle, down to
-    the ``keep`` fraction of deep seniors who never fall. Pure in t: a
-    star's departure time is a hash-ranked function, so any frame can be
+    it swells into a flare over flare_rise_s, then streaks away in its
+    own hash-chosen direction — any direction — for fall_s, tail burning
+    behind it in the star's own color, burning out as it goes; that
+    point of sky is dark from then on. The shower is one single swell:
+    lone falls, then more and more, strongest just before the end,
+    until the LAST star falls (``keep`` > 0 spares that fraction of
+    deep seniors instead). With end_black_at, the sky's own floor
+    drains away underneath the final falls, so the last star burns on
+    true black — and black is what it leaves. Pure in t: a star's
+    departure time is a hash-ranked function, so any frame can be
     computed cold.
     """
 
     name = "starfall"
     description = "A full sky that empties one shooting star at a time"
 
-    keep = 0.10  # the deep seniors who stay
+    keep = 0.0  # everyone falls (raise to spare the deepest seniors)
     fall_delay = 14.0  # hold the full sky this long before the first fall
     fall_span = 175.0  # departures spread over this much local time
-    # The schedule, as (order-fraction -> time-fraction) nodes: shallow
-    # start (one at a time), the wave, then the long trickle.
-    fall_q = (0.0, 0.02, 0.10, 0.55, 0.88, 1.0)
-    fall_tf = (0.0, 0.14, 0.34, 0.55, 0.80, 1.0)
+    # The schedule, as (order-fraction -> time-fraction) nodes: the
+    # single swell — every segment's rate higher than the last, the
+    # last star exactly at the end of the span.
+    fall_q = (0.0, 0.02, 0.08, 0.25, 0.55, 1.0)
+    fall_tf = (0.0, 0.20, 0.40, 0.62, 0.82, 1.0)
     flare_rise_s = 1.7  # the doomed star swells...
-    fall_s = 1.35  # ...then is gone off the stage in this long
+    fall_s = 1.35  # ...then streaks away and burns out in this long
+    travel_deg = 75.0  # how far a shooting star carries
     trail_deg = 30.0
     fall_l = 0.95
+    # The sky itself gone by end_black_at (0 disables): the airglow
+    # floor drains over end_black_s beneath the final falls.
+    end_black_at = 0.0
+    end_black_s = 24.0
 
     def _departures(self, pick: np.ndarray) -> np.ndarray:
         """Departure time per light (inf for keepers and non-stars)."""
@@ -337,6 +347,14 @@ class Starfall(Starfield):
         twinkle = self._twinkle(t, seniority, n)
         chroma, hue = self._star_colors(n)
         sky = self._sky(lights, t, n)
+        if self.end_black_at > 0.0:
+            # The sky floor drains beneath the last falls: the final
+            # star burns on true black, and black is what it leaves.
+            hold = 1.0 - smoothstep(
+                self.end_black_at - self.end_black_s, self.end_black_at, t
+            )
+            sky[:, 0] *= hold
+            sky[:, 1] *= hold
         level = np.minimum(self.star_l * (0.55 + 0.45 * seniority), 0.95)
         # The chosen star swells toward white and burns steady — its
         # goodbye starts before it moves.
@@ -346,50 +364,83 @@ class Starfall(Starfield):
         star = np.column_stack(
             [
                 level + (self.fall_l - level) * pre**2,
-                chroma * (1.0 - 0.6 * pre),
+                chroma * (1.0 - 0.25 * pre),  # the flare keeps its color
                 hue,
             ]
         )
         weight = np.where(is_star & alive, np.maximum(twinkle, pre), 0.0)
         out = blend_oklch(sky, star, weight)
 
-        w = self._falls(lights, t, pick, T)
-        if w is not None:
-            hot = np.column_stack(
-                [np.full(n, self.fall_l), np.full(n, 0.03), np.full(n, 90.0)]
-            )
-            out = blend_oklch(out, hot, w)
+        falls = self._falls(lights, t, pick, T, chroma, hue)
+        if falls is not None:
+            w, streak = falls
+            out = blend_oklch(out, streak, w)
         return out
 
     def _falls(
-        self, lights: np.ndarray, t: float, pick: np.ndarray, T: np.ndarray
-    ) -> Optional[np.ndarray]:
-        """Blend weight of every star currently streaking off the stage."""
+        self,
+        lights: np.ndarray,
+        t: float,
+        pick: np.ndarray,
+        T: np.ndarray,
+        chroma: np.ndarray,
+        hue: np.ndarray,
+    ) -> Optional[Tuple[np.ndarray, np.ndarray]]:
+        """(weight, color) of every star currently streaking — each in
+        its own hash-chosen direction, each keeping its own blue or red,
+        burning out as it goes."""
         dt = t - T
         falling = np.flatnonzero(
             (pick < self.density) & np.isfinite(dt) & (dt >= 0.0) & (dt <= self.fall_s)
         )
         if falling.size == 0:
             return None
+        n = lights.shape[0]
         phi, th = phi_theta(lights)
-        span = float(np.max(phi)) or 1.0
         sin_phi = np.sin(np.clip(phi, 0.2, np.pi - 0.2))
+        travel = np.radians(self.travel_deg)
         trail = np.radians(self.trail_deg)
         sig_p = np.radians(1.8)
         sig_h = np.radians(1.6)
-        w: Optional[np.ndarray] = None
+        heading = seeded_random(f"{self.salt}-heading", n) * 2.0 * np.pi
+        w = np.zeros(n)
+        color = np.zeros((n, 3))
         for i in falling:
             prog = float(dt[i]) / self.fall_s
-            head = phi[i] + (1.06 * span - phi[i]) * prog**1.5
-            off = (np.mod(th - th[i] + np.pi, 2.0 * np.pi) - np.pi) * sin_phi
+            # Local chart around the star; the path runs at its own angle.
+            x = (np.mod(th - th[i] + np.pi, 2.0 * np.pi) - np.pi) * sin_phi
+            y = phi - phi[i]
+            ca, sa = float(np.cos(heading[i])), float(np.sin(heading[i]))
+            along = x * ca + y * sa
+            off = -x * sa + y * ca
+            head = travel * prog**1.5
             perp = np.exp(-(off**2) / (2.0 * sig_p**2))
-            behind = head - phi
-            seg = phi >= phi[i] - np.radians(2.0)
+            behind = head - along
+            seg = along >= -np.radians(2.0)  # nothing before the origin
             tail = np.where((behind >= 0.0) & seg, np.exp(-behind / trail), 0.0)
-            bloom = np.exp(-((phi - head) ** 2) / (2.0 * sig_h**2))
-            layer = perp * np.maximum(bloom, 0.55 * tail)
-            w = layer if w is None else np.maximum(w, layer)
-        return w
+            bloom = np.exp(-((along - head) ** 2) / (2.0 * sig_h**2))
+            burn = 1.0 - smoothstep(0.72, 1.0, prog)  # it burns out mid-sky
+            layer = perp * np.maximum(bloom, 0.55 * tail) * burn
+            wins = layer > w
+            w = np.where(wins, layer, w)
+            color[wins, 0] = self.fall_l
+            color[wins, 1] = 0.85 * float(chroma[i])
+            color[wins, 2] = float(hue[i])
+        return w, color
+
+
+class Blackout(Primitive):
+    """Nothing at all — a held black, as a movement in its own right.
+
+    A show that has truly ended wants a chapter of dark before whatever
+    comes next; the duty-cycle audit exempts this pattern by name (an
+    intentional blackout is the one legitimate dead field)."""
+
+    name = "blackout"
+    description = "Nothing at all: a held black"
+
+    def render(self, lights: np.ndarray, t: float) -> np.ndarray:
+        return np.zeros((lights.shape[0], 3))
 
 
 class NoiseGlow(Primitive):
@@ -488,6 +539,7 @@ class AuroraVeils(Primitive):
     rays = 1.0
     surge_s = 0.0
     white_hot = 0.80
+    hot_hue = 140.0  # what the burnt-through cores burn toward
     salt = "veils"
 
     def _activity(self, t: float) -> float:
@@ -576,11 +628,13 @@ class AuroraVeils(Primitive):
         position = np.clip(intensity * (0.85 + 0.30 * fringe), 0.0, 1.0)
         position = self.floor + (1.0 - self.floor) * position
         out = self.palette.sample(position)
-        # The hottest cores burn past the palette toward green-white.
+        # The hottest cores burn past the palette toward near-white,
+        # keyed by hot_hue (green-white by default; a violet-crowned
+        # tuning burns purple-white).
         hotw = smoothstep(self.white_hot, 1.0, position) * 0.75
         if float(np.max(hotw)) > 1e-4:
             pale = np.column_stack(
-                [np.full(n, 0.92), np.full(n, 0.05), np.full(n, 140.0)]
+                [np.full(n, 0.92), np.full(n, 0.05), np.full(n, self.hot_hue)]
             )
             out = blend_oklch(out, pale, hotw)
         return out
@@ -702,11 +756,26 @@ class Candles(Primitive):
     pos_to = 0.0  # >0: core position grows to this with the gathering
     flicker_s = 4.2  # each flame's slow breath
     flutter = 0.0  # fast flame-tip dance on top of the breath (~0.16)
-    # Anchors: (azimuth°, polar°) seats lit FIRST, in order, before any
-    # hash-chosen candle — the physical landmarks of the sculpture
-    # (measured in an anchor_span_deg-tall frame; scaled to fit others).
+    # Anchors: (azimuth°, polar°) seats lit FIRST, before any hash-chosen
+    # candle — the physical landmarks of the sculpture (measured in an
+    # anchor_span_deg-tall frame; scaled to fit others). anchor_spread
+    # scatters their ignitions unevenly through the early gathering
+    # (hash order, not list order) instead of all at once, and
+    # anchor_jitter_deg nudges each seat off its exact vertex so the
+    # opening never reads as a drawn diagram.
     anchors: Optional[Tuple[Tuple[float, float], ...]] = None
     anchor_span_deg = 99.48
+    anchor_spread = 0.0
+    anchor_jitter_deg = 0.0
+    # Personality — no two flames alike. ``vary`` scales per-candle
+    # vigor (some burn brighter), pool size, gutter (irregular deep
+    # dips, a few near-extinctions that recover), and a ragged edge on
+    # the snuff wave. ``ignite_flare`` overshoots each ignition (a
+    # flame catches, flares, settles — not a fade-in). ``die_frac`` of
+    # the candles quietly gutter out early: subtly different fates.
+    vary = 0.0
+    ignite_flare = 0.0
+    die_frac = 0.0
     # The sighing breath: at snuff_at a wave of still air spreads from
     # the center (the apex) to the rim over snuff_s — each flame leans
     # bright as it arrives, then goes out, leaving afterglow embers
@@ -728,20 +797,31 @@ class Candles(Primitive):
         return self.fill_from + (self.fill_to - self.fill_from) * u
 
     def _places(self, span: float) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """(pick, az, ph) for every candle seat: anchors first (tiny
-        ordered pick values — first lit, last out), hash seats after."""
+        """(pick, az, ph) for every candle seat: anchors first (their
+        picks scattered over anchor_spread in hash order — uneven,
+        unpredictable ignitions — else tiny ordered values), hash seats
+        after."""
         k = self.count
-        pick = 0.02 + 0.98 * seeded_random(f"{self.salt}-pick", k)
+        # With scattered anchors, the stray candles hold back a beat so
+        # the bones clearly open — then everyone interleaves.
+        floor = 0.075 if (self.anchors and self.anchor_spread > 0.0) else 0.02
+        pick = floor + (1.0 - floor) * seeded_random(f"{self.salt}-pick", k)
         az = seeded_random(f"{self.salt}-az", k) * 2.0 * np.pi - np.pi
         ph = 0.85 + 1.15 * seeded_random(f"{self.salt}-ph", k)
         if self.anchors:
             m = min(len(self.anchors), k)
+            scatter = seeded_random(f"{self.salt}-seat", m)
+            jig = seeded_random(f"{self.salt}-jig", 2 * m)
             scale = span / np.radians(self.anchor_span_deg)
+            jitter = np.radians(self.anchor_jitter_deg)
             for i in range(m):
                 a_deg, p_deg = self.anchors[i]
-                pick[i] = (i + 0.5) * 1e-3
-                az[i] = np.radians(a_deg)
-                ph[i] = np.radians(p_deg) * scale
+                if self.anchor_spread > 0.0:
+                    pick[i] = 0.004 + self.anchor_spread * scatter[i]
+                else:
+                    pick[i] = (i + 0.5) * 1e-3
+                az[i] = np.radians(a_deg) + jitter * (jig[i] - 0.5) * 2.0
+                ph[i] = np.radians(p_deg) * scale + jitter * (jig[m + i] - 0.5) * 2.0
         return pick, az, ph
 
     def render(self, lights: np.ndarray, t: float) -> np.ndarray:
@@ -764,12 +844,45 @@ class Candles(Primitive):
             fast = np.sin(2.0 * np.pi * f1 * t + p2) * np.sin(2.0 * np.pi * f2 * t)
             flame = flame * (1.0 - self.flutter + self.flutter * (0.5 + 0.5 * fast))
         strength = lit * flame
+        if self.ignite_flare > 0.0:
+            # A flame CATCHES: lit·(1−lit) peaks mid-ignition and is
+            # gone once the candle burns steady — a flare-and-settle,
+            # never a fade-in.
+            strength = strength * (1.0 + self.ignite_flare * 4.0 * lit * (1.0 - lit))
+        if self.vary > 0.0:
+            # No two flames alike: some burn stronger, and each gutters
+            # on its own weather — rare irregular dips, a few near-
+            # extinctions that recover.
+            vig = seeded_random(f"{self.salt}-vig", k)
+            strength = strength * (1.0 + self.vary * (0.34 * vig - 0.20))
+            g1 = 11.0 + 17.0 * seeded_random(f"{self.salt}-g1", k)
+            g2 = 19.0 + 23.0 * seeded_random(f"{self.salt}-g2", k)
+            ga = seeded_random(f"{self.salt}-ga", k) * 2.0 * np.pi
+            gb = seeded_random(f"{self.salt}-gb", k) * 2.0 * np.pi
+            g = np.sin(2.0 * np.pi * t / g1 + ga) * np.sin(2.0 * np.pi * t / g2 + gb)
+            depth = self.vary * (0.35 + 0.60 * seeded_random(f"{self.salt}-gd", k))
+            strength = strength * (1.0 - depth * smoothstep(0.55, 0.95, g))
+        if self.die_frac > 0.0 and self.arc_s > 0.0:
+            # Subtly different fates: a few candles quietly gutter out
+            # early and stay out.
+            doomed = seeded_random(f"{self.salt}-doom", k) < self.die_frac
+            die_at = self.arc_s * (0.50 + 0.45 * seeded_random(f"{self.salt}-when", k))
+            u = np.clip((t - die_at) / 7.0, 0.0, 1.0)
+            dying = 1.0 - u * u * (3.0 - 2.0 * u)
+            strength = np.where(doomed, strength * dying, strength)
 
         if self.snuff_at > 0.0 and t >= self.snuff_at:
             # The breath spreads apex to rim; each flame leans bright
-            # for a moment as it arrives, then dies to afterglow.
+            # for a moment as it arrives, then dies to afterglow. With
+            # vary, the wave's edge is ragged — some flames go early,
+            # a few hold a beat longer.
             front = (t - self.snuff_at) / self.snuff_s * (span * 1.08)
-            arrive = front - ph  # >0 once the breath has reached a candle
+            lag = (
+                self.vary * 0.12 * (seeded_random(f"{self.salt}-lag", k) - 0.35)
+                if self.vary > 0.0
+                else np.zeros(k)
+            )
+            arrive = front - ph - lag  # >0 once the breath has reached it
             lean = 1.0 + 0.55 * np.exp(-((arrive + 0.06) ** 2) / (2.0 * 0.05**2))
             out_mul = np.where(
                 arrive > 0.0,
@@ -785,8 +898,12 @@ class Candles(Primitive):
         spot_now = self.spot_deg + (
             (self.spot_to - self.spot_deg) * prog if self.spot_to > 0.0 else 0.0
         )
-        sigma = np.radians(spot_now)
-        spot = np.exp((nl @ fl.T - 1.0) / (sigma**2))
+        sigma = np.full(k, np.radians(spot_now))
+        if self.vary > 0.0:
+            # Pools of different sizes, too.
+            pool = seeded_random(f"{self.salt}-pool", k)
+            sigma = sigma * (1.0 + self.vary * (0.30 * pool - 0.15))
+        spot = np.exp((nl @ fl.T - 1.0) / (sigma**2)[None, :])
         glow = np.minimum(spot @ strength, 1.15) / 1.15
         pos_now = self.pos_max + (
             (self.pos_to - self.pos_max) * prog if self.pos_to > 0.0 else 0.0

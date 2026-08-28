@@ -98,7 +98,7 @@ against shared golden vectors (`firmware/golden/`).
 | `GET /stage` · `GET/POST /api/queue` · `DELETE /api/queue/{i}` · `POST /api/queue/{play_next,move,skip,clear}` | the stage: viewer/control page and the play-queue API (tracklist + repeats cycle + now-playing; mounted by `serve`, opt out: `--no-stage`). Mutations take the stage key when one is configured (below) |
 | `POST /api/repeats/move` · `DELETE /api/repeats/{i}` | reorder / cancel turns of the stage's repeats cycle |
 | `WS /api/stage` · `GET /api/stage/{layout,patterns,chapters?pattern=N}` | the stage's wire-codec stream (SESSION on join, `{"type":"resync"}` back), its canvas draw layout, panel pattern metadata (notes, `loop`, `has_chapters`), and one pattern's chapter tree (`[]` if chapterless) |
-| `GET /api/audio` | audio inventory (`var/audio/`): `[{name, seconds}]`, `seconds` null when unreadable |
+| `GET /api/audio` | audio inventory: `{dir, files: [{name, seconds}]}` — `dir` is the resolved directory the stage reads (the checkout's `var/audio/`), `seconds` null when unreadable |
 
 ## The stage (play queue)
 

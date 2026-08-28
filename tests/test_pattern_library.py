@@ -605,43 +605,53 @@ def test_starfield_breathes_and_colors_its_stars():
 
 
 def test_starfall_empties_the_sky_one_streak_at_a_time():
-    """The stars leave by falling: departures follow the one/few/wave/
-    trickle schedule, a falling star leaves a streak, and the keep
-    fraction never falls."""
+    """The stars leave by falling: the shower is one single swell —
+    every stretch denser than the last, the final star at the end of
+    the span — each streak in its own direction, and with end_black_at
+    the sky itself drains so the piece ends on true black."""
     from luminary.patterns.primitives import Starfall
     from luminary.patterns.util import seeded_random
 
     lights = make_lights(n=3000, seed=13)
     sf = Starfall(
-        density=0.035, star_l=0.70, sky_l=0.024, fall_delay=16.0, fall_span=181.0
+        density=0.035,
+        star_l=0.70,
+        sky_l=0.024,
+        fall_delay=16.0,
+        fall_span=174.0,
+        end_black_at=189.0,
+        end_black_s=26.0,
     )
     pick = seeded_random(f"{sf.salt}-pick", 3000)
     star = pick < sf.density
     T = sf._departures(pick)[star]
     finite = np.sort(T[np.isfinite(T)])
-    # The keepers: about the keep fraction of the population never falls.
-    assert abs(1.0 - finite.size / star.sum() - sf.keep) < 0.06
-    # The schedule has a shape: openers spaced out, the wave dense.
-    gaps = np.diff(finite)
-    openers = gaps[finite[:-1] < sf.fall_delay + 0.2 * sf.fall_span]
-    wave = gaps[
-        (finite[:-1] > sf.fall_delay + 0.4 * sf.fall_span)
-        & (finite[:-1] < sf.fall_delay + 0.6 * sf.fall_span)
+    # Everyone falls, and the last one falls at the end of the span.
+    assert finite.size == int(star.sum())
+    assert abs(float(finite[-1]) - (sf.fall_delay + sf.fall_span)) < 2.5
+    # The single swell: median gaps shrink monotonically through the
+    # shower — lone falls, then more and more, densest at the end.
+    lo = sf.fall_delay
+    thirds = [
+        np.diff(finite[(finite >= lo + a * 58.0) & (finite < lo + b * 58.0)])
+        for a, b in ((0, 1), (1, 2), (2, 3))
     ]
-    assert float(np.median(openers)) > 3.0 * float(np.median(wave))
-    # A streak: sampling right after one departure lights a trail well
-    # beyond the star's own pixel.
-    t_probe = float(finite[finite.size // 2]) + 0.5
-    frame = sf.render(lights, t_probe)
-    assert float(frame[:, 0].max()) > 0.7
-    assert int((frame[:, 0] > 0.4).sum()) > 3
-    # The sky really empties: far fewer lit stars late than early.
-    early = int((sf.render(lights, 5.0)[:, 0] > 0.25).sum())
-    late = int(
-        (sf.render(lights, sf.fall_delay + sf.fall_span + 10.0)[:, 0] > 0.25).sum()
-    )
-    assert late < early * 0.35
-    assert late >= 3  # the keepers hold
+    m1, m2, m3 = (float(np.median(g)) for g in thirds)
+    assert m1 > m2 > m3
+    assert m1 > 3.0 * m3
+    # A streak right after a departure: bright, more than a pixel, and
+    # wearing the star's own color (tinted instances keep their hue).
+    # Sparse synthetic lights can miss one head, so probe three falls.
+    frames = [
+        sf.render(lights, float(finite[j]) + 0.5)
+        for j in (finite.size // 3, finite.size // 2, 2 * finite.size // 3)
+    ]
+    assert max(float(f[:, 0].max()) for f in frames) > 0.7
+    assert max(int((f[:, 0] > 0.4).sum()) for f in frames) > 3
+    # The end: the last star has fallen and the sky itself is gone.
+    dark = sf.render(lights, sf.fall_delay + sf.fall_span + sf.fall_s + 5.0)
+    assert float(dark[:, 0].max()) < 0.02
+    assert float(dark[:, 0].mean()) < 0.002
     assert np.array_equal(sf.render(lights, 99.9), sf.render(lights, 99.9))
 
 

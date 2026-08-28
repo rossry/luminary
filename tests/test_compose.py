@@ -155,12 +155,13 @@ def test_nocturne_is_a_registered_half_hour():
     show = registry.get("nocturne")
     assert show.duration == 1784.0  # 29:44 — the acts sum to their tracks
     rows = show.schedule()
-    assert len(rows) == 7
+    assert len(rows) == 8
     assert rows[0]["start"] == 0.0
     starts = [row["start"] for row in rows]
     assert starts == sorted(starts)
     assert sum(row["duration"] for row in rows) == 1784.0
-    # Every act declares its own track (separate files in var/audio).
+    # Every act declares its own track (separate files in var/audio);
+    # the closing black is its own silent chapter.
     assert [r["audio"] for r in rows] == [
         "poa-alpina.mp3",
         "saman.mp3",
@@ -169,7 +170,9 @@ def test_nocturne_is_a_registered_half_hour():
         "cantus.mp3",
         "requiem-static-king.mp3",
         "eluvium.mp3",
+        "",
     ]
+    assert rows[7]["title"] == "blackout" and rows[7]["duration"] == 20.0
 
     lights = make_lights(60)
     rng = np.random.default_rng(9)
@@ -253,12 +256,14 @@ def test_chapters_tree_and_loop_flag():
     # OUTER timeline (rendering the outer show over [start, start+dur)
     # IS the chapter — held bit-identical by the overnight nesting test).
     subs = first["children"]
-    assert len(subs) == 7
+    assert len(subs) == 8
     assert subs[0]["start"] == 0.0 and subs[0]["title"] == "embers"
     assert subs[2]["start"] == 383.0  # nocturne III inside chapter 1
     assert subs[2]["title"] == "veils"
     assert all(c["notes"] for c in subs)  # every chapter carries liner notes
-    assert all(c["audio"].endswith(".mp3") for c in subs)  # and its track
+    # Every act carries its track; the closing black is silent.
+    assert all(c["audio"].endswith(".mp3") for c in subs[:-1])
+    assert subs[-1]["title"] == "blackout" and subs[-1]["audio"] == ""
     assert tree[1]["title"] == "small-planet"
     assert "children" not in tree[1]  # a plain-pattern chapter is a leaf
 
@@ -271,6 +276,7 @@ def test_chapters_tree_and_loop_flag():
         "rings",
         "candles",
         "starfall",
+        "blackout",
     ]
 
 
@@ -303,17 +309,20 @@ def test_duty_cycle_no_movement_black_or_blasting():
     for show in shows:
         name = show.name
         for row in show.schedule():
+            if row["pattern"] == "blackout":
+                continue  # an intentional blackout is the one legal dead field
             for frac, body in ((0.15, True), (0.40, True), (0.65, True), (0.90, False)):
                 t0 = row["start"] + row["fade"] + (row["duration"] - row["fade"]) * frac
                 samples = [show.render(lights, t0 + dt) for dt in (0.0, 2.3, 4.6, 6.9)]
                 L = np.concatenate([s[:, 0] for s in samples])
                 where = f"{name}/{row['title']}@{frac}"
-                # A movement may end on a deliberate dying fall (embers,
-                # candles): the ending floor is a whisper, never zero.
-                floor = 0.012 if body else 0.003
-                assert float(np.mean(L)) >= floor, f"{where}: effectively black"
+                # The never-dead law holds through every movement BODY;
+                # an ENDING may be a deliberate dying fall or a true
+                # blackout (embers, starfall) — accidents are what the
+                # body probes catch.
                 assert float(np.mean(L)) <= 0.42, f"{where}: full-field blast"
                 if body:
+                    assert float(np.mean(L)) >= 0.012, f"{where}: effectively black"
                     assert float(np.max(L)) >= 0.10, f"{where}: nothing alive"
 
 
