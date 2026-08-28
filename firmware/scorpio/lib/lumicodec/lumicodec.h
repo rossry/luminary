@@ -221,7 +221,13 @@ class PresentationClock {
   uint32_t usableDelay(uint32_t wantUs, uint8_t slots) const;
 
  private:
-  static constexpr uint16_t WINDOW = 64;  // observations per minimum window
+  // The first window is short and each one doubles up to the ceiling: fast
+  // acquisition, then slow tracking. A flat 64 put the first correction 2.1 s
+  // into a 30 fps show, and until then every frame ran on whatever queuing
+  // delay the first frame happened to carry -- about 100 frames past their
+  // deadline at startup, and none at all afterwards.
+  static constexpr uint16_t ACQUIRE_WINDOW = 4;
+  static constexpr uint16_t WINDOW = 64;
   uint32_t nominal(double t) const;
   bool have_ = false;
   double baseT_ = 0.0;
@@ -229,6 +235,7 @@ class PresentationClock {
   int32_t skewUs_ = 0;
   int32_t windowMin_ = 0;
   uint16_t windowCount_ = 0;
+  uint16_t windowTarget_ = ACQUIRE_WINDOW;
   double lastT_ = 0.0;
   uint32_t intervalUs_ = 0;
 };

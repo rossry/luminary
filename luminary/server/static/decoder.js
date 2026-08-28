@@ -342,6 +342,11 @@ export class LumiDecoder {
  */
 
 const MICROS_MOD = 4294967296;
+/* The first window is short and each one doubles up to the ceiling: fast
+ * acquisition, then slow tracking. A flat 64 put the first correction 2.1 s
+ * into a 30 fps show, and until then every frame ran on whatever queuing delay
+ * the first frame happened to carry. */
+const PRESENTATION_ACQUIRE = 4;
 const PRESENTATION_WINDOW = 64;
 
 function wrapMicros(v) {
@@ -366,6 +371,7 @@ export class PresentationClock {
     this.intervalUs = 0;
     this._windowMin = 0;
     this._windowCount = 0;
+    this._windowTarget = PRESENTATION_ACQUIRE;
     this._lastT = 0;
   }
 
@@ -381,6 +387,7 @@ export class PresentationClock {
       this.skewUs = 0;
       this._windowMin = 0;
       this._windowCount = 1;
+      this._windowTarget = PRESENTATION_ACQUIRE;
       this._lastT = t;
       return;
     }
@@ -400,10 +407,11 @@ export class PresentationClock {
     const err = signedMicros(nowUs - this.nominal(t));
     if (this._windowCount === 0 || err < this._windowMin) this._windowMin = err;
     this._windowCount++;
-    if (this._windowCount >= PRESENTATION_WINDOW) {
+    if (this._windowCount >= this._windowTarget) {
       this.skewUs = this._windowMin;
       this._windowCount = 0;
       this._windowMin = 0;
+      this._windowTarget = Math.min(PRESENTATION_WINDOW, this._windowTarget * 2);
     }
   }
 

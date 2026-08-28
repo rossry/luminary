@@ -65,15 +65,16 @@ and the busiest real board uses 1440 of 4096.
 
 ## Remaining, in order
 
-### 1. Presentation timing still runs late
+### 1. 60 fps at 8x360 has no margin
 
-The play-out queue is in, but a third of frames still show more than a frame
-period past their deadline (8x360 @ 60 fps: 188 of 538; @ 30 fps: 96 of 268).
-Matching the display delay to full queue occupancy rather than three quarters
-of it halved that (from 377) and is as far as it got. Suspects, unmeasured:
-the `canShow()` gate on drain can hold a frame up to a DMA (10.8 ms at
-360 px) past its deadline, and the clock's skew estimate may carry a
-systematic offset. `phases.py` reports the late count, so this is measurable.
+At the production 30 fps, no frame shows late once the clock has converged --
+0 of 630 at both 180 and 360 px. At 60 fps, 239 of 1201 still run late at
+8x360, and that is saturation rather than timing: the board sustains 59.9 fps
+against a 60 fps demand, so frames legitimately back up. Buying it back means
+making the board faster (the interpolators below), not tuning the clock.
+
+Note `phases.py --warmup`: early reports measure acquisition, not steady
+state, and reading them together hid this distinction for a while.
 
 ### 2. Deeper snapshot queue
 
@@ -95,6 +96,15 @@ blocks do. Colour conversion is still the largest single phase.
 Removed. `due && now - lastShowMs >= 15` hard-capped ~66 fps and quantised
 every repaint. The silence fade is now on the clock rather than a fixed step
 per repaint, so its duration no longer depends on the repaint rate.
+
+### DONE — fast clock acquisition
+
+The minimum window starts at 4 observations and doubles to 64: fast
+acquisition, then slow tracking. A flat 64 put the first correction 2.1 s into
+a 30 fps show, and until then every surface ran on whatever queuing delay its
+first frame happened to carry -- ~100 frames past their deadline at startup,
+and none once settled. First correction now lands at frame 3, and startup
+lateness at 8x360 @ 30 fps went from ~100 frames to 6.
 
 ### DONE — one clock across all three surfaces
 

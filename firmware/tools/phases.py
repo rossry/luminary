@@ -42,6 +42,14 @@ def main() -> int:
     ap.add_argument("--seconds", type=float, default=12.0)
     ap.add_argument("--budget", type=int, default=None)
     ap.add_argument(
+        "--warmup",
+        type=float,
+        default=1.0,
+        help="Seconds of reports to discard. The clock's minimum filter only "
+        "republishes when a 64-observation window closes -- 2.1 s at 30 fps "
+        "-- so early reports measure acquisition, not steady state.",
+    )
+    ap.add_argument(
         "--window",
         type=int,
         default=4,
@@ -101,8 +109,9 @@ def main() -> int:
         conn.close()
 
     elapsed = time.perf_counter() - start
-    # The first report covers a partial, still-settling second.
-    reports = reports[1:]
+    # Reports arrive about once a second; drop the warmup window.
+    dropped = min(len(reports), max(1, int(round(args.warmup))))
+    reports = reports[dropped:]
     if not reports:
         print("no STATS frames -- is the board running instrumented firmware?")
         return 1

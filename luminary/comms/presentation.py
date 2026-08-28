@@ -18,7 +18,13 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
 
-# Observations per minimum window before the estimate is republished.
+# Observations per minimum window before the estimate is republished. The
+# first window is short and each one doubles up to the ceiling: fast
+# acquisition, then slow tracking. A flat 64 meant the first correction landed
+# 2.1 s into a 30 fps show, and every frame until then ran on whatever queuing
+# delay the very first frame happened to carry -- about 100 frames shown past
+# their deadline at startup, and none at all afterwards.
+ACQUIRE_WINDOW = 4
 WINDOW = 64
 # micros() on the board wraps here; the reference wraps identically so the
 # three implementations agree bit for bit.
@@ -45,6 +51,7 @@ class PresentationClock:
     interval_us: int = 0
     _window_min: int = 0
     _window_count: int = 0
+    _window_target: int = ACQUIRE_WINDOW
     _last_t: float = 0.0
 
     def reset(self) -> None:
@@ -63,6 +70,7 @@ class PresentationClock:
             self.skew_us = 0
             self._window_min = 0
             self._window_count = 1
+            self._window_target = ACQUIRE_WINDOW
             self._last_t = t
             return
 
@@ -82,10 +90,11 @@ class PresentationClock:
         if self._window_count == 0 or err < self._window_min:
             self._window_min = err
         self._window_count += 1
-        if self._window_count >= WINDOW:
+        if self._window_count >= self._window_target:
             self.skew_us = self._window_min
             self._window_count = 0
             self._window_min = 0
+            self._window_target = min(WINDOW, self._window_target * 2)
 
     def usable_delay(self, want_us: int, slots: int) -> int:
         """The display delay actually affordable with ``slots`` play-out slots.

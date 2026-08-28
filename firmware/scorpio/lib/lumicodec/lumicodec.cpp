@@ -532,6 +532,7 @@ void PresentationClock::reset() {
   skewUs_ = 0;
   windowMin_ = 0;
   windowCount_ = 0;
+  windowTarget_ = ACQUIRE_WINDOW;
   lastT_ = 0.0;
   intervalUs_ = 0;
 }
@@ -565,6 +566,7 @@ void PresentationClock::observe(double t, uint32_t nowUs) {
     skewUs_ = 0;
     windowMin_ = 0;
     windowCount_ = 1;
+    windowTarget_ = ACQUIRE_WINDOW;
     lastT_ = t;
     return;
   }
@@ -580,10 +582,11 @@ void PresentationClock::observe(double t, uint32_t nowUs) {
   // micros() does, and the cast reinterprets it as a signed offset.
   const int32_t err = static_cast<int32_t>(nowUs - nominal(t));
   if (windowCount_ == 0 || err < windowMin_) windowMin_ = err;
-  if (++windowCount_ >= WINDOW) {
+  if (++windowCount_ >= windowTarget_) {
     skewUs_ = windowMin_;
     windowCount_ = 0;
     windowMin_ = 0;
+    windowTarget_ = windowTarget_ * 2 < WINDOW ? windowTarget_ * 2 : WINDOW;
   }
 }
 

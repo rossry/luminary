@@ -40,6 +40,29 @@ def test_the_reference_reproduces_its_own_vector(vector):
         ] == want
 
 
+def test_the_offset_converges_within_a_few_frames():
+    """Acquisition speed is the whole startup story.
+
+    A flat 64-observation window put the first correction 2.1 s into a 30 fps
+    show, and until then every frame ran on whatever queuing delay the first
+    frame happened to carry — about 100 frames shown past their deadline at
+    startup, and none at all once settled.
+    """
+    fps = 30.0
+    queuing = [4300, 900, 120, 0, 40, 1500, 70, 2600]
+    clock = PresentationClock()
+    corrected_at = None
+    for i in range(64):
+        t = i / fps
+        clock.observe(t, 1_000_000 + int(t * 1e6) + 1200 + queuing[i % 8])
+        if corrected_at is None and clock.skew_us:
+            corrected_at = i
+
+    assert corrected_at is not None, "never corrected"
+    assert corrected_at <= 8, f"first correction took {corrected_at} frames"
+    assert -4500 < clock.skew_us < -4100, "converged on the wrong offset"
+
+
 def test_the_offset_is_the_floor_not_the_mean():
     """Arrival delay is the true offset plus non-negative queuing.
 
