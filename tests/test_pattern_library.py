@@ -763,3 +763,109 @@ def test_aurora_crest_is_hot_and_rayed():
     # Rays: real spatial variance among the lit region, not one wash.
     lit = crest > 0.15
     assert float(np.std(crest[lit])) > 0.08
+
+
+# --------------------------------------------------- candles: the gather
+
+# Tunings that exercise every knob feeding the neighbour list: plain,
+# growing pools, per-candle pool sizes, the anchored seats, and a snuff.
+_CANDLE_TUNINGS = {
+    "plain": dict(),
+    "vary": dict(
+        vary=0.85,
+        flutter=0.16,
+        ignite_flare=0.5,
+        die_frac=0.1,
+        fill_from=0.05,
+        fill_to=0.95,
+        arc_s=300.0,
+    ),
+    "growing-pools": dict(
+        spot_deg=6.0,
+        spot_to=9.5,
+        pos_to=0.9,
+        vary=0.85,
+        fill_from=0.1,
+        fill_to=1.0,
+        arc_s=400.0,
+    ),
+    "seats-and-snuff": dict(
+        anchors=((54.0, 37.4), (-18.0, 37.4), (0.0, 90.0)),
+        anchor_spread=0.16,
+        anchor_jitter_deg=2.5,
+        vary=1.0,
+        spot_to=9.5,
+        pos_to=1.0,
+        fill_from=0.0,
+        fill_to=1.0,
+        arc_s=130.0,
+        snuff_at=138.0,
+        snuff_s=13.0,
+        floor_pos=0.05,
+    ),
+}
+
+
+@pytest.mark.parametrize("tuning", list(_CANDLE_TUNINGS), ids=list(_CANDLE_TUNINGS))
+def test_candles_gather_matches_the_dense_pools(tuning, monkeypatch):
+    """The neighbour gather must be invisible, not merely close.
+
+    Candles drops light-candle pairs whose gaussian contributes under
+    _NEAR_EPS. That is an approximation, so it needs a bound tied to
+    something real: the wire quantizes L to 1/63 (spec §11.4.1), and the
+    error has to stay far enough under one step that no light can ever
+    land on a different byte for it.
+    """
+    from luminary.patterns.primitives import Candles
+
+    lights = make_lights(n=1200, seed=5)
+    candles = Candles(**_CANDLE_TUNINGS[tuning])
+    times = (0.0, 17.0, 61.0, 140.0, 205.0, 402.0)
+
+    Candles._pairs_cache.clear()
+    sparse = [candles.render(lights, t) for t in times]
+    # The gather must actually be in use, or this test proves nothing.
+    assert Candles._pairs_cache and all(
+        v is not None for v in Candles._pairs_cache.values()
+    )
+
+    Candles._pairs_cache.clear()
+    monkeypatch.setattr(Candles, "_pairs", lambda self, *a: None)
+    dense = [candles.render(lights, t) for t in times]
+    Candles._pairs_cache.clear()
+
+    worst_l = max(
+        float(np.max(np.abs(a[:, 0] - b[:, 0]))) for a, b in zip(sparse, dense)
+    )
+    assert worst_l < (1.0 / 63.0) / 20.0, f"{worst_l:.2e} L is too coarse to hide"
+
+
+def test_candles_falls_back_to_dense_when_the_pools_are_wide():
+    """Pools wide enough to cover the sphere make the pair list bigger
+    than the matrix it replaces; there the dense path is the right one
+    and must still be taken."""
+    from luminary.patterns.primitives import Candles
+
+    lights = make_lights(n=600, seed=6)
+    Candles._pairs_cache.clear()
+    wide = Candles(spot_deg=30.0, count=90)
+    out = wide.render(lights, 4.0)
+    assert np.all(np.isfinite(out))
+    assert list(Candles._pairs_cache.values()) == [None]  # dense, deliberately
+    Candles._pairs_cache.clear()
+
+
+def test_candles_pair_cache_keys_on_what_shapes_the_pools():
+    """Two tunings that differ only in pool size must not share a list —
+    the wider one would be reading neighbours computed for the narrower
+    and would lose its outer ring."""
+    from luminary.patterns.primitives import Candles
+
+    lights = make_lights(n=800, seed=7)
+    Candles._pairs_cache.clear()
+    Candles(spot_deg=5.0).render(lights, 3.0)
+    Candles(spot_deg=11.0).render(lights, 3.0)
+    entries = [v for v in Candles._pairs_cache.values() if v is not None]
+    assert len(entries) == 2, "the pair lists collided"
+    assert len(entries[0][0]) < len(entries[1][0])  # wider pools, more pairs
+    Candles._pairs_cache.clear()
