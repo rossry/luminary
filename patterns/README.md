@@ -278,6 +278,7 @@ Every file here is a worked example. By what it teaches:
 | `book-two/small_planet.py` | Spatial composition: layers lerped in OKLab vec space (one conversion for six blends); seam-free sphere noise; a sub-primitive blended in by mask; geometry statics memoized on a content fingerprint |
 | `book-two/fireflies.py` | Emergent behavior in closed form: slot-hashed events whose offsets lerp toward a metronome by a coherence curve — synchrony without simulation; agent-to-light gaussian pools via one matmul |
 | `book-two/apollo.py` | The cue-sheet show idiom: an album as a Movement list whose durations are the track lengths, crossfades as the drift tolerance — pair with the record on the stage |
+| `book-two/relay.py` | The wiring as the medium: `CONTROLLER`/`CHANNEL`/`INDEX` make every strip a lane, and races run the serpentine in index order; per-lane state gathered to lights by `np.unique` inverse |
 
 `legacy/` holds pre-2.1 stateful patterns that don't meet this contract;
 `plasma_storm.py` is the worked example of converting one.

@@ -333,3 +333,40 @@ def test_fireflies_synchrony_breathes():
     a = flies.render(lights, 33.3)
     flies.render(lights, 500.0)
     assert np.array_equal(flies.render(lights, 33.3), a)
+
+
+# -------------------------------------------------------- composed: relay
+
+
+def test_relay_races_the_strip_order():
+    from luminary.patterns.registry import default_registry
+    from luminary.patterns.util import seeded_random
+
+    relay = default_registry().get("relay")
+    # Four synthetic strips of 60 LEDs: lanes are (controller, channel).
+    ncols = max(int(c) for c in LightColumns) + 1
+    lights = np.zeros((4 * 60, ncols))
+    lights[:, LightColumns.CHANNEL] = np.repeat(np.arange(4), 60)
+    lights[:, LightColumns.INDEX] = np.tile(np.arange(60), 4)
+    chan = lights[:, LightColumns.CHANNEL]
+
+    # Mid-race: each lane carries one compact bead, not a wash.
+    out = relay.render(lights, 6.0)
+    assert np.all(np.isfinite(out)) and float(np.max(out[:, 1])) < 0.4
+    for ch in range(4):
+        bright = int(np.sum(out[chan == ch, 0] > 0.3))
+        assert 0 < bright <= 16, f"lane {ch}: {bright} bright LEDs"
+
+    # The winner's whole lane floods just after its drawn finish time.
+    finish = relay.race_s * (0.62 + 0.33 * seeded_random(f"{relay.salt}-T-0", 4))
+    winner = int(np.argmin(finish))
+    flood = relay.render(lights, float(finish[winner]) + 0.25)
+    assert float(np.min(flood[chan == winner, 0])) > 0.15
+    assert float(np.mean(flood[chan != winner, 0])) < 0.15
+
+    # The rest phase settles dark, and the whole thing is seekable.
+    rest = relay.render(lights, relay.race_s + 3.0)
+    assert float(np.max(rest[:, 0])) < 0.12
+    a = relay.render(lights, 6.0)
+    relay.render(lights, 1234.5)
+    assert np.array_equal(relay.render(lights, 6.0), a)
