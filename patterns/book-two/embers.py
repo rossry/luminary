@@ -21,3 +21,4 @@ class EmbersScene(Embers):
     )
 
     gain_from = 0.85
+    rekindle = True
