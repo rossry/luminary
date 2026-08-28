@@ -311,36 +311,39 @@ def test_embers_wind_is_visible_and_mortal():
     from luminary.patterns.util import seeded_random
 
     lights = make_lights(n=2500, seed=6)
-    e = Embers(arc_s=480.0, swell_gain=1.25)
+    e = Embers(arc_s=240.0, swell_gain=1.25)
 
-    # Rebuild the wind mask exactly as the primitive defines it.
+    # The wind mask comes from the primitive's own helper (one source).
     from luminary.patterns.util import plane_xy
 
     u, v = plane_xy(lights)
-    a = np.radians(e.tide_angle)
-    proj = 0.5 * (u * np.cos(a) + v * np.sin(a))
-    t = 130.0
-    frac = (t / e.tide_s - proj) % 1.0
-    wind = np.exp(-(((frac - 0.5) / 0.13) ** 2))
+    # Probe mid-sweep of a gust: gust k begins at k*tide_s and crosses
+    # the sphere in sweep_s, so k*tide_s + sweep_s/2 has the front
+    # mid-layout.
+    t = 2.0 * e.tide_s + e.sweep_s / 2.0
+    wind, _passes = e._wind(u, v, t)
     crest, calm = wind > 0.7, wind < 0.05
     spark = seeded_random(f"{e.salt}-pick", lights.shape[0]) < e.spark_density
 
     L = e.render(lights, t)[:, 0]
     assert float(L[crest & ~spark].mean()) < float(L[calm & ~spark].mean()) * 0.9
     assert float(L[crest & spark].max()) > float(L[calm & spark].max()) * 1.25
+    # Between gusts the sphere is calm — the wind is sudden, not ambient.
+    quiet, _ = e._wind(u, v, 2.0 * e.tide_s + e.sweep_s + 3.0)
+    assert float(np.max(quiet)) < 1e-6
 
     def live(tt):
         return int(np.sum(e.render(lights, tt)[:, 0] * spark > 0.17))
 
-    early, late = live(40.0), live(460.0)
-    assert early > live(250.0) > late >= 0
+    early, late = live(20.0), live(230.0)
+    assert early > live(120.0) > late >= 0
     assert early > 20
 
     means = {
-        tt: float(np.mean(e.render(lights, tt)[:, 0])) for tt in (5.0, 105.0, 460.0)
+        tt: float(np.mean(e.render(lights, tt)[:, 0])) for tt in (3.0, 53.0, 230.0)
     }
-    assert means[105.0] > means[5.0] * 1.2  # the defiant swell
-    assert means[460.0] < means[105.0] * 0.5  # the long drain
+    assert means[53.0] > means[3.0] * 1.2  # the defiant swell
+    assert means[230.0] < means[53.0] * 0.5  # the long drain
 
 
 def test_starfield_meteors_burst_toward_full():

@@ -280,6 +280,7 @@ class AuroraVeils(Primitive):
     activity_floor = 0.30
     crest_width = 0.28  # bell width, fraction of the arc
     arc_s = 0.0
+    gain = 1.0  # overall curtain presence (pushes samples up the palette)
     salt = "veils"
 
     def _activity(self, t: float) -> float:
@@ -324,7 +325,7 @@ class AuroraVeils(Primitive):
             17.0 * th - t * s * 2.1 + 3.0 * np.sin(7.0 * th + t * s * 0.53)
         )
 
-        intensity = np.clip(curtain * vertical * ripple, 0.0, 1.0)
+        intensity = np.clip(curtain * vertical * ripple * self.gain, 0.0, 1.0)
         fringe = smoothstep(0.10, 0.55, above)  # how far up the ray we are
         position = np.clip(intensity * (0.50 + 0.50 * fringe), 0.0, 1.0)
         position = self.floor + (1.0 - self.floor) * position
@@ -421,11 +422,14 @@ class Embers(Primitive):
     scale = 1.8
     drift = 0.020  # feature drift, units/s
     contrast = 1.7
-    # The wind: one sphere-wide gust front crossing every tide_s seconds.
-    # It is a palpable thing — it blows the CLOUD darker (wind_dim) while
-    # it fans the SPARKS brighter (wind_fan), and every pass consumes
-    # some sparks: a spark's brightest moment is its last.
-    tide_s = 47.0
+    # The wind: a gust every tide_s seconds that SWEEPS the whole sphere
+    # in sweep_s — fast and sudden, then calm until the next one. It is
+    # a palpable thing: it blows the CLOUD darker (wind_dim) while it
+    # fans the SPARKS brighter (wind_fan), and every pass consumes some
+    # sparks — a spark's brightest moment is its last.
+    tide_s = 45.0  # seconds between gusts
+    sweep_s = 5.5  # seconds for the front to cross the sphere
+    gust_w = 0.07  # front thickness, fraction of the layout
     tide_angle = 30.0
     wind_dim = 0.55
     wind_fan = 1.1
@@ -434,6 +438,12 @@ class Embers(Primitive):
     spark_l = 0.38  # a resting coal (a figure: above the cloud's lane)
     flicker_s = 3.6
     mortality = 0.085  # fraction of spark lifetimes consumed per gust
+    # rekindle=False: deaths are final (a fire going out — net decline).
+    # rekindle=True: a standing fire — a dead coal rests dark_frac of
+    # its cycle (dark_frac/mortality gusts), then rekindles, so the
+    # population holds steady while individuals still flare and die.
+    rekindle = False
+    dark_frac = 0.30
     # The envelope: a significant swell (to swell_gain at swell_at of
     # the arc) before the long drain to gain_to. arc_s <= 0 holds at
     # gain_from with no swell.
@@ -455,21 +465,30 @@ class Embers(Primitive):
             u - self.swell_at, 1.0 - self.swell_at, self.swell_gain, self.gain_to
         )
 
+    def _wind(
+        self, u: np.ndarray, v: np.ndarray, t: float
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """(wind, passes) per light: the gust front and how many gusts
+        have crossed each light. Every tide_s a narrow front sweeps the
+        whole layout in sweep_s — sudden, then calm — and ``passes``
+        increments exactly as the front crosses a light, so a spark that
+        dies this pass dies at its brightest.
+        """
+        a = np.radians(self.tide_angle)
+        proj = 0.5 * (u * np.cos(a) + v * np.sin(a))  # ~[-0.5, 0.5]
+        k = np.floor(t / self.tide_s)
+        tau = t - k * self.tide_s
+        # The crest runs edge to edge (with clearance) in sweep_s.
+        crest = -0.62 + 1.24 * tau / self.sweep_s
+        live = 1.0 if tau <= self.sweep_s * 1.1 else 0.0
+        wind = np.exp(-(((proj - crest) / self.gust_w) ** 2)) * live
+        passes = np.maximum(k + (crest > proj), 0.0)
+        return wind, passes
+
     def render(self, lights: np.ndarray, t: float) -> np.ndarray:
         n = lights.shape[0]
         u, v = plane_xy(lights)
-
-        # The wind front, positional: phase advances with time and lags
-        # across the layout, so the crest travels. Gust passes are counted
-        # per light — floor increments exactly at the crest, so a spark
-        # that dies this pass dies at its brightest.
-        a = np.radians(self.tide_angle)
-        proj = 0.5 * (u * np.cos(a) + v * np.sin(a))  # ~[-0.5, 0.5]
-        phase = t / self.tide_s - proj
-        frac = phase - np.floor(phase)
-        wind = np.exp(-(((frac - 0.5) / 0.13) ** 2))
-        passes = np.floor(phase + 0.5)
-
+        wind, passes = self._wind(u, v, t)
         gain = self._gain(t)
 
         # The cloud, blown darker where the gust runs.
@@ -487,8 +506,14 @@ class Embers(Primitive):
         per = self.flicker_s * (0.7 + 0.6 * seeded_random(f"{self.salt}-per", n))
         ph = seeded_random(f"{self.salt}-ph", n) * 2.0 * np.pi
         is_spark = pick < self.spark_density
-        alive = life > self.mortality * np.maximum(passes, 0.0)
-        dying_next = alive & (life <= self.mortality * (np.maximum(passes, 0.0) + 1.0))
+        if self.rekindle:
+            p_now = (life + passes * self.mortality) % 1.0
+            p_next = (life + (passes + 1.0) * self.mortality) % 1.0
+            alive = p_now > self.dark_frac
+            dying_next = alive & (p_next <= self.dark_frac)
+        else:
+            alive = life > self.mortality * passes
+            dying_next = alive & (life <= self.mortality * (passes + 1.0))
         flicker = 0.85 + 0.15 * np.sin(2.0 * np.pi * (t / per) + ph)
         fan = self.wind_fan * wind * (1.0 + 0.8 * dying_next)
         level = np.where(

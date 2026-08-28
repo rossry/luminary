@@ -14,8 +14,8 @@ Contents:
   back, synchrony in closed form.
 - :class:`Relay` — bead races run on the physical wiring, heat after
   heat.
-- :func:`nocturne_movements` / :func:`nocturne` — the composed hour of
-  night, as a movement list any conductor can nest.
+- :func:`nocturne_movements` / :func:`nocturne` — the composed half
+  hour of night, as a movement list any conductor can nest.
 
 Everything obeys the pattern contract (spec §9.1): stateless,
 vectorized, pure in ``(lights, t)``.
@@ -392,7 +392,7 @@ TOLL = Palette(
 
 
 def nocturne_movements() -> List[Movement]:
-    """The hour of night, as data: seven movements, exactly 3600 s.
+    """The night, as data: seven movements, exactly 1800 s.
 
     Every movement is one action at the size of the sphere, and knows
     whether it is going somewhere, coming from somewhere, or arrived:
@@ -409,18 +409,18 @@ def nocturne_movements() -> List[Movement]:
     """
     return [
         Movement(
-            Embers(arc_s=480.0, swell_gain=1.25),
-            480.0,
-            fade=12.0,
+            Embers(arc_s=240.0, swell_gain=1.25, mortality=0.16),
+            240.0,
+            fade=10.0,
             title="dusk",
             notes=(
                 "The day's fire, and the wind that ends it. Coals glow "
                 "inside the ash-cloud; every three-quarters of a minute a "
-                "gust crosses the sphere — you can watch it: the cloud "
-                "goes dark under it while the sparks flare hot, and some "
-                "of them flare for the last time. The fire swells once, "
-                "defiant, near the start. Then: going out, gust by gust, "
-                "until only the deepest coals remain."
+                "gust sweeps the whole sphere in a five-second breath — "
+                "watch it: the cloud goes dark under it while the sparks "
+                "flare hot, and some flare for the last time. The fire "
+                "swells once, defiant, near the start. Then: going out, "
+                "gust by gust, until only the deepest coals remain."
             ),
         ),
         Movement(
@@ -431,11 +431,11 @@ def nocturne_movements() -> List[Movement]:
                 star_hue=80.0,
                 fill_from=0.04,
                 fill_to=1.0,
-                arc_s=420.0,
-                meteor_rate=0.7,
+                arc_s=210.0,
+                meteor_rate=0.9,
             ),
-            420.0,
-            fade=35.0,
+            210.0,
+            fade=20.0,
             title="first-stars",
             notes=(
                 "One star, then three, then a sky. The brightest arrived "
@@ -447,68 +447,70 @@ def nocturne_movements() -> List[Movement]:
         Movement(
             AuroraVeils(
                 palette=AURORA,
-                speed=0.8,
-                crest_at=0.62,
-                activity_floor=0.28,
-                arc_s=600.0,
+                speed=1.3,
+                crest_at=0.45,
+                activity_floor=0.50,
+                arc_s=300.0,
+                gain=1.35,
             ),
-            600.0,
-            fade=40.0,
+            300.0,
+            fade=24.0,
             title="veils",
             notes=(
                 "Weather from above: green curtains hung from the apex, "
-                "swaying on slow harmonics. The storm builds for six "
-                "minutes, crests with violet at its fringes, and lets "
-                "itself down again. One system — coming, arrived, leaving."
+                "already swaying as you arrive. The storm crests with "
+                "violet at its fringes around the second minute, then "
+                "lets itself down. One system — coming, arrived, leaving."
             ),
         ),
         Movement(
             NoiseGlow(
                 palette=SEA_GLASS,
                 scale=2.6,
-                speed=0.014,
-                contrast=1.6,
-                gain_from=0.75,
-                gain_to=0.75,
-                arc_s=480.0,
-                tide_s=53.0,
-                tide_depth=0.40,
+                speed=0.028,
+                contrast=1.45,
+                gain_from=0.95,
+                gain_to=0.95,
+                arc_s=240.0,
+                tide_s=28.0,
+                tide_depth=0.50,
                 breathe_s=0.0,
                 seed=12,
             ),
-            480.0,
-            fade=40.0,
+            240.0,
+            fade=24.0,
             title="deep-sea",
             notes=(
-                "The resting heart of the hour. Nothing is going anywhere: "
-                "this is what arrived feels like. The proof it is alive is "
-                "the swell — one sphere-wide wave every fifty-three "
-                "seconds, as large as the whole and as slow as sleep."
+                "The resting heart of the night. Nothing is going "
+                "anywhere: this is what arrived feels like. The proof it "
+                "is alive is the swell — one sphere-wide wave every "
+                "twenty-eight seconds, rich at its crest, dark in its "
+                "trough."
             ),
         ),
         Movement(
             RingWave(
-                period=16.0,
+                period=14.0,
                 sigma_deg=9.0,
                 palette=TOLL,
                 gain_from=0.12,
                 gain_to=1.0,
-                arc_s=150.0,
+                arc_s=80.0,
             ),
-            480.0,
-            fade=30.0,
+            240.0,
+            fade=18.0,
             title="rings",
             notes=(
                 "Out of the stillness, a toll. Each ring is a single "
-                "gesture the size of the sphere — sixteen seconds from "
+                "gesture the size of the sphere — fourteen seconds from "
                 "apex to rim — and each lands a little fuller than the "
                 "last. Someone is calling. Coming: toward us."
             ),
         ),
         Movement(
-            Candles(fill_from=0.03, fill_to=0.88, arc_s=540.0),
-            600.0,
-            fade=45.0,
+            Candles(fill_from=0.03, fill_to=0.88, arc_s=270.0),
+            300.0,
+            fade=26.0,
             title="candles",
             notes=(
                 "An answer: one candle. Then its neighbors. Warm pools "
@@ -520,16 +522,16 @@ def nocturne_movements() -> List[Movement]:
         Movement(
             Starfield(
                 density=0.035,
-                twinkle_s=9.0,
+                twinkle_s=7.0,
                 star_l=0.70,
                 sky_l=0.024,
                 fill_from=1.0,
                 fill_to=0.10,
-                arc_s=500.0,
-                meteor_rate=0.4,
+                arc_s=250.0,
+                meteor_rate=0.5,
             ),
-            540.0,
-            fade=45.0,
+            270.0,
+            fade=28.0,
             title="starfall",
             notes=(
                 "The same stars as before — the sky remembers its own. Now "
@@ -543,14 +545,16 @@ def nocturne_movements() -> List[Movement]:
 
 
 def nocturne() -> Conductor:
-    """The hour of night as a nestable pattern instance."""
+    """The half hour of night as a nestable pattern instance."""
     show = Conductor(nocturne_movements())
     show.name = "nocturne"
-    show.description = "An hour of night: embers, stars, veils, sea, rings, candles"
+    show.description = (
+        "Half an hour of night: embers, stars, veils, sea, rings, candles"
+    )
     show.notes = (
-        "An hour of night in seven movements, each one action at the size "
-        "of the sphere: fire drains, a sky fills, a storm crests, the sea "
-        "rests, a toll approaches, candles gather, and the same stars let "
-        "go in reverse order of arrival."
+        "Thirty minutes of night in seven movements, each one action at "
+        "the size of the sphere: fire drains, a sky fills, a storm "
+        "crests, the sea rests, a toll approaches, candles gather, and "
+        "the same stars let go in reverse order of arrival."
     )
     return show

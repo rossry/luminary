@@ -145,21 +145,21 @@ def test_conductor_is_stateless_and_seekable():
     lights[:, LightColumns.PHI_S] = rng.uniform(0, 2.2, 48)
     lights[:, LightColumns.THETA_S] = rng.uniform(-np.pi, np.pi, 48)
     a = show.render(lights, 500.0)
-    show.render(lights, 3100.0)
+    show.render(lights, 1700.0)
     show.render(lights, 12.0)
     assert np.array_equal(show.render(lights, 500.0), a)
 
 
-def test_nocturne_is_a_registered_hour():
+def test_nocturne_is_a_registered_half_hour():
     registry = default_registry()
     show = registry.get("nocturne")
-    assert show.duration == 3600.0
+    assert show.duration == 1800.0
     rows = show.schedule()
     assert len(rows) == 7
     assert rows[0]["start"] == 0.0
     starts = [row["start"] for row in rows]
     assert starts == sorted(starts)
-    assert sum(row["duration"] for row in rows) == 3600.0
+    assert sum(row["duration"] for row in rows) == 1800.0
 
     lights = make_lights(60)
     rng = np.random.default_rng(9)
@@ -171,7 +171,7 @@ def test_nocturne_is_a_registered_hour():
     probes = [0.0, 6.0]
     for row in rows[1:]:
         probes += [row["start"] - 1.0, row["start"] + row["fade"] / 2.0]
-    probes += [3599.0, 3660.0]
+    probes += [1799.0, 1860.0]
     for t in probes:
         out = show.render(lights, t)
         assert np.all(np.isfinite(out))
@@ -207,7 +207,7 @@ def test_overnight_nests_the_repertoire():
     over = registry.get("overnight")
     noc = registry.get("nocturne")
     assert over.duration is None  # loops: the stage plays it until skipped
-    assert over.total == 13200.0  # one 3h40m pass
+    assert over.total == 11400.0  # one 3h10m pass
     assert len(over.schedule()) == 8
 
     lights = make_lights(50)
@@ -221,7 +221,7 @@ def test_overnight_nests_the_repertoire():
 
     # Chapter 1 IS nocturne — the same movement list by import, so the
     # frames are bit-identical outside the outer crossfades.
-    assert np.array_equal(over.render(lights, 1800.0), noc.render(lights, 1800.0))
+    assert np.array_equal(over.render(lights, 900.0), noc.render(lights, 900.0))
     # The loop seam is exact: t and t + total render identically.
     assert np.array_equal(
         over.render(lights, 7.0), over.render(lights, 7.0 + over.total)
@@ -245,7 +245,7 @@ def test_chapters_tree_and_loop_flag():
     subs = first["children"]
     assert len(subs) == 7
     assert subs[0]["start"] == 0.0 and subs[0]["title"] == "dusk"
-    assert subs[2]["start"] == 900.0  # nocturne III inside chapter 1
+    assert subs[2]["start"] == 450.0  # nocturne III inside chapter 1
     assert subs[2]["title"] == "veils"
     assert all(c["notes"] for c in subs)  # every chapter carries liner notes
     assert tree[1]["title"] == "small-planet"
