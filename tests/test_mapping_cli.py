@@ -167,3 +167,58 @@ def test_the_word_store_never_returns():
             if ("--" + word) in line or bare.search(line):
                 offenders.append(f"{path.relative_to(REPO)}:{lineno}: {line.strip()}")
     assert not offenders, "the word came back:\n" + "\n".join(offenders[:20])
+
+
+def test_tui_loop_saves_records_and_restores_the_terminal(tmp_path, monkeypatch):
+    """Drive the real ``run_tui`` body over a pty.
+
+    Every other test in this file patches ``run_tui`` away, so nothing ever
+    executed its interior. A rename once bound the records parameter and the
+    saved termios attributes to the same local name, which sent the resume
+    refresh to ``save_state`` on a list of terminal flags: ``luminary map
+    --tui`` died before the operator's first key, and only mypy saw it. This
+    runs the loop for one keystroke instead.
+    """
+    import os
+    import pty
+    import termios
+    import threading
+
+    from luminary.cli import build_mapping_session
+    from luminary.mapping.tui import run_tui
+
+    core, records = build_mapping_session(_args(tmp_path))
+
+    saves = []
+    monkeypatch.setattr(
+        type(records), "save_state", lambda self, state, plan: saves.append(state)
+    )
+
+    controller_fd, terminal_fd = pty.openpty()
+    before = termios.tcgetattr(terminal_fd)
+    done = threading.Event()
+
+    def press_quit():
+        # Repeatedly, until the loop takes one: tty.setcbreak flushes pending
+        # input (TCSAFLUSH), so anything written before run_tui reaches it is
+        # discarded and a single pre-loop write would hang here forever.
+        while not done.wait(0.02):
+            try:
+                os.write(controller_fd, b"q")
+            except OSError:
+                return
+
+    typist = threading.Thread(target=press_quit, daemon=True)
+    typist.start()
+    try:
+        with os.fdopen(terminal_fd, "rb", buffering=0, closefd=False) as terminal:
+            monkeypatch.setattr("sys.stdin", terminal)
+            run_tui(core, records, fps=30.0)
+        # The resume refresh reached the records, not the terminal flags.
+        assert saves and saves[0] == core.state
+        assert termios.tcgetattr(terminal_fd) == before  # cbreak undone
+    finally:
+        done.set()
+        typist.join(timeout=1.0)
+        os.close(controller_fd)
+        os.close(terminal_fd)
