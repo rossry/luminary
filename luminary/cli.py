@@ -63,6 +63,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
         stage=not args.no_stage,
         stage_lights=args.stage_lights,
         audio_player=args.audio_player,
+        stage_key=args.stage_key,
     )
     uvicorn.run(app, host=args.host, port=args.port, log_level="info")
     return 0
@@ -537,6 +538,12 @@ def main(argv: Optional[list] = None) -> int:
         default=None,
         help="Stage lights geometry: store id or file path "
         "(default: the production pentagon-4A-33 capture)",
+    )
+    serve.add_argument(
+        "--stage-key",
+        default=None,
+        help="Shared key required (X-Stage-Key header) by the stage's "
+        "mutating endpoints; default: env LUMINARY_STAGE_KEY, else open",
     )
     serve.add_argument(
         "--audio-player",

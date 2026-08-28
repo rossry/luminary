@@ -7,12 +7,13 @@ main server; ``luminary/stage/audio.py`` owns the player subprocess.
 """
 
 from luminary.stage.audio import AudioPlayer, detect_player
-from luminary.stage.core import QueueEntry, StageCore, StageError
+from luminary.stage.core import QueueEntry, RepeatToken, StageCore, StageError
 
 __all__ = [
     "AudioPlayer",
     "detect_player",
     "QueueEntry",
+    "RepeatToken",
     "StageCore",
     "StageError",
 ]
