@@ -9,9 +9,10 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, AsyncIterator, Dict, Optional
+from typing import Any, AsyncIterator, Callable, Dict, Optional
 
 from fastapi import FastAPI, HTTPException, Query, UploadFile, WebSocket
+from fastapi.websockets import WebSocketDisconnect
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -34,13 +35,21 @@ def create_app(
     uploads_dir: Optional[Path] = None,
     allow_pattern_upload: bool = True,
     mapping_demo: bool = False,
+    broadcast_factory: Optional[Callable[[Any], Any]] = None,
 ) -> FastAPI:
     """Build the app. ``allow_pattern_upload=False`` hard-disables
     POST /api/patterns (403) — uploads execute in-process (spec §15.5.2), so
     shared deployments run without them and take patterns from the repo
     instead (docs/deploy.md). ``mapping_demo=True`` mounts the hardware-free
     mapping tutorial (``luminary.mapping.web``) at ``/demo/mapping``; its
-    mapping records persist under ``<store_dir>/mapping-demo/``."""
+    mapping records persist under ``<store_dir>/mapping-demo/``.
+
+    ``broadcast_factory`` turns the server into the ``luminary show`` surface:
+    called with the running event loop, it returns the
+    :class:`~luminary.drivers.broadcast.BroadcastSession` that is already
+    streaming to hardware, and ``/preview`` mirrors those exact bytes. It is a
+    factory rather than a session because the session needs the loop uvicorn
+    ends up running, which does not exist yet at app-build time."""
     store_dir = Path(store_dir or "var")
     uploads_dir = Path(uploads_dir or store_dir / "patterns-uploads")
     uploads_dir.mkdir(parents=True, exist_ok=True)
@@ -48,6 +57,27 @@ def create_app(
     registry = registry or default_registry(
         [uploads_dir] if allow_pattern_upload else []
     )
+
+    @asynccontextmanager
+    async def _broadcast_lifespan(_app: FastAPI) -> AsyncIterator[None]:
+        """Own the hardware stream for the server's lifetime.
+
+        Started here rather than at app-build time because the session's
+        fan-out posts frames to a specific event loop, and the loop that
+        matters is the one uvicorn is running.
+        """
+        session = None
+        if broadcast_factory is not None:
+            import asyncio
+
+            session = broadcast_factory(asyncio.get_running_loop())
+            _app.state.broadcast = session
+            session.start()
+        try:
+            yield
+        finally:
+            if session is not None:
+                session.stop()
 
     if mapping_demo:
         from luminary.mapping.web import create_demo_app
@@ -62,12 +92,13 @@ def create_app(
             # demo's explicitly so its frame ticker starts and stops with
             # this server.
             async with demo_app.router.lifespan_context(demo_app):
-                yield
+                async with _broadcast_lifespan(_app):
+                    yield
 
         app = FastAPI(title="Luminary", version="2.1", lifespan=_demo_lifespan)
         app.mount("/demo/mapping", demo_app, name="mapping-demo")
     else:
-        app = FastAPI(title="Luminary", version="2.1")
+        app = FastAPI(title="Luminary", version="2.1", lifespan=_broadcast_lifespan)
     app.state.store = store
     app.state.registry = registry
     app.state.uploads_dir = uploads_dir
@@ -207,6 +238,55 @@ def create_app(
         )
         session = WebSocketSession(engine, websocket, resolve_pattern=registry.get)
         await session.run()
+
+    # ----------------------------------------------------------------- preview
+
+    if broadcast_factory is not None:
+
+        @app.get("/api/preview/info")
+        def preview_info() -> Dict[str, Any]:
+            session = getattr(app.state, "broadcast", None)
+            if session is None:
+                raise HTTPException(503, detail="stream not started")
+            return {
+                "lights": session.lights_id,
+                "pattern": session.engine.pattern.name,
+                "fps": session.engine.fps,
+                "running": session.running,
+                "stats": session.stats(),
+            }
+
+        @app.websocket("/api/preview")
+        async def preview(websocket: WebSocket) -> None:
+            """Mirror the hardware stream to one viewer.
+
+            Send-only: a preview must not be able to steer the installation,
+            and the frames are whatever the boards were already sent. The
+            viewer is fed from a bounded queue, so a browser that cannot keep
+            up loses frames rather than delaying the stream loop.
+            """
+            session = getattr(app.state, "broadcast", None)
+            if session is None:
+                await websocket.close(code=4404)
+                return
+            await websocket.accept()
+            queue = session.hub.subscribe()
+            try:
+                for frame in session.session_frames():
+                    await websocket.send_bytes(frame)
+                # A DELTA means nothing to a decoder that has not seen the
+                # state it corrects, so make the next frame a keyframe.
+                session.request_keyframe()
+                while True:
+                    await websocket.send_bytes(await queue.get())
+            except (WebSocketDisconnect, RuntimeError):
+                pass
+            finally:
+                session.hub.unsubscribe(queue)
+
+        @app.get("/preview", response_class=HTMLResponse)
+        def preview_page() -> str:
+            return (_STATIC_DIR / "preview.html").read_text()
 
     # ------------------------------------------------------------------- pages
 

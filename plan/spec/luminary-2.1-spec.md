@@ -1243,6 +1243,30 @@ out.svg` — static SVG via §10.5/§14.5 (supersedes 2.0 `pattern sample`).
 16.2.5 Kept utilities: `luminary svg`, `luminary index`, `luminary validate`
 (2.0 behaviors, now over the refactored renderers).
 
+16.2.6 `luminary boards [--json --all-ports --no-register]` — enumerate USB,
+accept a device as a board only if it carries the application-mode Adafruit
+VID:PID **and** answers the §13.3 identity probe, and record what it finds in
+`var/boards.yaml` keyed on controller id. Reports the states that block a
+deployment rather than hiding them: BOOTSEL (no usable firmware), unopenable
+port (permissions), enumerated-but-silent (wrong firmware), and controller-id
+collisions between boards. Neither check alone is sufficient: VID:PID is a
+claim any device can make and says nothing about the firmware, and probing
+every port would open devices belonging to unrelated hardware.
+
+16.2.7 `luminary flash [--controller N --max-per-strip N --color-order X
+--build-only]` — build firmware with the controller id compiled in (§13.6),
+reset the board into its bootloader with the 1200 bps touch, write the UF2,
+then re-probe until the board answers with that id. The verification is the
+point: a file copy that succeeded is not the same as a board that works.
+
+16.2.8 `luminary show --lights <file|id> --pattern <name> [--serial --fps
+--budget --host --port]` — the production surface. One engine streams to the
+boards through the serial driver and the *same wire bytes* are mirrored to a
+preview page (§12.3), so the preview is evidence of what the hardware
+received, not a second render of the same pattern. The acknowledgement window
+(§11.7.6) remains the pacing authority: preview viewers are fed from bounded
+queues and lose frames rather than delaying the stream loop.
+
 ---
 
 ## 17. Testing, Tooling, and Performance
