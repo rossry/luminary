@@ -144,6 +144,24 @@ not a monitor. The craft rules the current set follows:
   usually more beautiful than fast. The geometry is mirror-symmetric
   about x = 0, and its five inner sectors sit at −90° + 36° + k·72° —
   compose with that or deliberately against it (`book-one/sanctum.py` locks to it).
+- **Slow means large.** A slow action must be correspondingly big: an
+  event that takes 40 seconds should be sphere-wide (a tide crossing
+  the whole layout, a population filling a sky), never a small thing
+  moving slowly. And every scene should be *going* somewhere, *coming*
+  from somewhere, or *arrived* somewhere — and know which. The library
+  arcs (`fill_from/to`, `gain_from/to`, `crest_at`, all over `arc_s`)
+  exist so a movement's parameters travel its whole duration;
+  `nocturne`'s seven movements are the worked example, one dramaturgy
+  each.
+- **Duty cycle.** A fully-colored field targets a *mean* around
+  0.1–0.3 L; the field's own texture tops out near ~0.3–0.4. Small
+  figures — stars, ring crests, candle cores — sit above the field
+  lane (0.5–0.8), and only point/streak events (meteors, lightning)
+  may burst toward full brightness. If you are using blank space,
+  decide deliberately which lane your bright things live in.
+  `tests/test_compose.py::test_duty_cycle_no_movement_black_or_blasting`
+  holds every conducted movement to "never effectively black, never a
+  full-field blast".
 
 ## The wire (what makes it cheap)
 

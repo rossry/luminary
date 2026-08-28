@@ -13,6 +13,11 @@ class Ringfall(RingWave):
     name = "ringfall"
     description = "A slow luminous ring tolling apex to rim, re-keyed each pass"
 
+    notes = (
+        "The ring motif slowed to a toll: one luminous band, apex to rim, "
+        "thirteen seconds a descent, a fresh hue each pass."
+    )
+
     period = 13.0
     sigma_deg = 8.0
     l_gain = 0.66

@@ -13,6 +13,12 @@ class Weather(NoiseGlow):
     name = "weather"
     description = "Sea-glass weather: warped noise banks drifting slowly"
 
+    notes = (
+        "Sea-glass banks drifting on minutes-long clocks. Features take "
+        "their time crossing; let your eyes adjust and the field starts "
+        "to breathe."
+    )
+
     scale = 2.4
     speed = 0.022
     contrast = 1.6

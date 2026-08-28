@@ -34,15 +34,15 @@ from luminary.patterns.easing import env_ad, smootherstep
 from luminary.patterns.fields import fbm, value_noise
 from luminary.patterns.palettes import (
     AURORA,
-    CANDLE,
     EMBER,
-    NIGHT_SKY,
+    Palette,
     SEA_GLASS,
     oklch_to_vec,
     vec_to_oklch,
 )
 from luminary.patterns.primitives import (
     AuroraVeils,
+    Candles,
     NoiseGlow,
     Primitive,
     RingWave,
@@ -60,6 +60,13 @@ def _vec3(l: float, c: float, h: float) -> np.ndarray:
 class SmallPlanet(Primitive):
     name = "small_planet"
     description = "A living miniature world: sun, seasons, cities, aurora, moon"
+    notes = (
+        "A world the size of your arms. Watch one full day cross it in ten "
+        "minutes: dawn on one limb, cities waking on the dark side of the "
+        "other, weather riding the trade winds between. The aurora belongs "
+        "to the winter pole; the moon is full only when it faces the sun. "
+        "Arrived: it simply turns, and keeps turning."
+    )
 
     day_s = 600.0  # one full day-night cycle, seconds
     year_s = 47 * 600.0  # seasonal tilt period (incommensurate with the day)
@@ -200,6 +207,12 @@ class SmallPlanet(Primitive):
 class Fireflies(Primitive):
     name = "fireflies"
     description = "Wandering fireflies that drift into unison and out again"
+    notes = (
+        "A dark meadow, a few dozen slow lights, each on its own clock. "
+        "Every five minutes the meadow finds itself: the flashes pull into "
+        "unison, hold a breath of synchrony, and scatter again. Coming and "
+        "going at once — watch for the moment it locks."
+    )
 
     count = 48
     interval_s = 5.2  # one flash opportunity per fly per interval
@@ -282,6 +295,13 @@ class Fireflies(Primitive):
 class Relay(Primitive):
     name = "relay"
     description = "Bead races down the physical strip order, heat after heat"
+    notes = (
+        "Every strip is a lane and the racers run the actual wiring — down "
+        "the edge, in the radial, out, around. Twenty seconds a heat: "
+        "surges, flagging, a gold flood at the line, a breath, new colors, "
+        "again. The sculpture showing you its own electricity. Best up "
+        "close."
+    )
 
     race_s = 14.0  # gun to the last plausible finish
     rest_s = 6.0  # lineup breath between heats
@@ -359,75 +379,174 @@ class Relay(Primitive):
         return out
 
 
+# The toll: night blues that brighten toward a pale crest — a ring is a
+# band, a figure, so its top sits above the full-field duty-cycle lane.
+TOLL = Palette(
+    [
+        (0.0, 0.020, 0.015, 255.0),
+        (0.5, 0.30, 0.100, 245.0),
+        (0.85, 0.60, 0.120, 235.0),
+        (1.0, 0.80, 0.070, 225.0),
+    ]
+)
+
+
 def nocturne_movements() -> List[Movement]:
     """The hour of night, as data: seven movements, exactly 3600 s.
 
-    Dusk embers cool into a starfield, aurora veils rise and give way
-    to deep-sea weather, slow rings toll through blue, candlelight
-    gathers, and the same stars return to carry the night out.
-    Neighboring movements walk neighboring hue families so every
-    crossfade blends kin colors; movements II and VII share the default
-    starfield salt on purpose — the same stars, found again at the end.
+    Every movement is one action at the size of the sphere, and knows
+    whether it is going somewhere, coming from somewhere, or arrived:
+    the day's fire drains out (going), a sky populates star by star
+    (going), an auroral storm crests and lets down (coming-arriving-
+    leaving), the deep sea rests (arrived — the still heart), a toll
+    builds out of the stillness (coming), candles gather one by one
+    (going, toward warmth), and the same stars — same salt, same
+    seniority — release in reverse order of arrival (going home).
+
+    Duty cycle: full fields hold a low lane (means well under 0.3);
+    figures — stars, ring crests, candle cores, meteors — sit above it,
+    and meteors alone burst toward full brightness.
     """
     return [
-        # I. Dusk — the last of the fire, breathing out. (8 min)
         Movement(
             NoiseGlow(
                 palette=EMBER,
                 scale=1.8,
                 speed=0.020,
                 contrast=1.7,
-                breathe_s=41.0,
+                gain_from=0.95,
+                gain_to=0.22,
+                arc_s=480.0,
+                tide_s=47.0,
+                tide_depth=0.35,
+                breathe_s=0.0,
                 seed=3,
             ),
             480.0,
             fade=12.0,
+            title="dusk",
+            notes=(
+                "The day's last fire, breathing out. A wind you cannot feel "
+                "crosses the coals every three-quarters of a minute, and "
+                "each pass leaves them a little dimmer. Going: out — "
+                "slowly, all evening at once."
+            ),
         ),
-        # II. First stars over indigo airglow. (7 min)
         Movement(
-            Starfield(density=0.030, twinkle_s=6.5, star_hue=80.0),
+            Starfield(
+                density=0.035,
+                twinkle_s=6.5,
+                star_l=0.85,
+                star_hue=80.0,
+                fill_from=0.04,
+                fill_to=1.0,
+                arc_s=420.0,
+                meteor_rate=0.7,
+            ),
             420.0,
             fade=35.0,
+            title="first-stars",
+            notes=(
+                "One star, then three, then a sky. The brightest arrived "
+                "first and hold steady; the young ones flicker at the edge "
+                "of arriving. Once a minute or so, something falls. Going: "
+                "toward fullness."
+            ),
         ),
-        # III. Veils — aurora curtains from the apex. (10 min)
-        Movement(AuroraVeils(palette=AURORA, speed=0.8), 600.0, fade=40.0),
-        # IV. Deep sea — slow warped weather in green-blue. (8 min)
+        Movement(
+            AuroraVeils(
+                palette=AURORA,
+                speed=0.8,
+                crest_at=0.62,
+                activity_floor=0.28,
+                arc_s=600.0,
+            ),
+            600.0,
+            fade=40.0,
+            title="veils",
+            notes=(
+                "Weather from above: green curtains hung from the apex, "
+                "swaying on slow harmonics. The storm builds for six "
+                "minutes, crests with violet at its fringes, and lets "
+                "itself down again. One system — coming, arrived, leaving."
+            ),
+        ),
         Movement(
             NoiseGlow(
                 palette=SEA_GLASS,
                 scale=2.6,
                 speed=0.014,
-                contrast=1.9,
-                breathe_s=53.0,
+                contrast=1.6,
+                gain_from=0.75,
+                gain_to=0.75,
+                arc_s=480.0,
+                tide_s=53.0,
+                tide_depth=0.40,
+                breathe_s=0.0,
                 seed=12,
             ),
             480.0,
             fade=40.0,
+            title="deep-sea",
+            notes=(
+                "The resting heart of the hour. Nothing is going anywhere: "
+                "this is what arrived feels like. The proof it is alive is "
+                "the swell — one sphere-wide wave every fifty-three "
+                "seconds, as large as the whole and as slow as sleep."
+            ),
         ),
-        # V. Rings tolling through night blue. (8 min)
         Movement(
-            RingWave(period=16.0, sigma_deg=9.0, palette=NIGHT_SKY),
+            RingWave(
+                period=16.0,
+                sigma_deg=9.0,
+                palette=TOLL,
+                gain_from=0.12,
+                gain_to=1.0,
+                arc_s=150.0,
+            ),
             480.0,
             fade=30.0,
-        ),
-        # VI. Candlelight gathers — the warm turn. (10 min)
-        Movement(
-            NoiseGlow(
-                palette=CANDLE,
-                scale=1.6,
-                speed=0.025,
-                contrast=1.4,
-                breathe_s=29.0,
-                seed=21,
+            title="rings",
+            notes=(
+                "Out of the stillness, a toll. Each ring is a single "
+                "gesture the size of the sphere — sixteen seconds from "
+                "apex to rim — and each lands a little fuller than the "
+                "last. Someone is calling. Coming: toward us."
             ),
+        ),
+        Movement(
+            Candles(fill_from=0.03, fill_to=0.88, arc_s=540.0),
             600.0,
             fade=45.0,
+            title="candles",
+            notes=(
+                "An answer: one candle. Then its neighbors. Warm pools "
+                "gather across the dark, each flame breathing on its own "
+                "clock, until the sphere holds a congregation of small "
+                "fires. Going: toward warmth, one light at a time."
+            ),
         ),
-        # VII. The same stars, dimmer, carrying the night out. (9 min)
         Movement(
-            Starfield(density=0.020, twinkle_s=9.0, star_l=0.50, sky_l=0.022),
+            Starfield(
+                density=0.035,
+                twinkle_s=9.0,
+                star_l=0.70,
+                sky_l=0.024,
+                fill_from=1.0,
+                fill_to=0.10,
+                arc_s=500.0,
+                meteor_rate=0.4,
+            ),
             540.0,
             fade=45.0,
+            title="starfall",
+            notes=(
+                "The same stars as before — the sky remembers its own. Now "
+                "they let go in reverse order of arrival: the newest "
+                "first, the deep ones last, until only the fixed stars "
+                "hold. Going: home. If one falls on your watch, that was "
+                "the goodbye."
+            ),
         ),
     ]
 
@@ -437,4 +556,10 @@ def nocturne() -> Conductor:
     show = Conductor(nocturne_movements())
     show.name = "nocturne"
     show.description = "An hour of night: embers, stars, veils, sea, rings, candles"
+    show.notes = (
+        "An hour of night in seven movements, each one action at the size "
+        "of the sphere: fire drains, a sky fills, a storm crests, the sea "
+        "rests, a toll approaches, candles gather, and the same stars let "
+        "go in reverse order of arrival."
+    )
     return show

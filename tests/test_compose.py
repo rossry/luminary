@@ -228,6 +228,74 @@ def test_overnight_nests_the_repertoire():
     )
 
 
+def test_chapters_tree_and_loop_flag():
+    registry = default_registry()
+    over = registry.get("overnight")
+    noc = registry.get("nocturne")
+    assert over.loop is True  # configured to repeat
+    assert noc.loop is False
+
+    tree = over.chapters()
+    assert len(tree) == 8
+    first = tree[0]
+    assert first["pattern"] == "nocturne" and first["start"] == 0.0
+    # Nested conductors expand recursively, with starts offset into the
+    # OUTER timeline (rendering the outer show over [start, start+dur)
+    # IS the chapter — held bit-identical by the overnight nesting test).
+    subs = first["children"]
+    assert len(subs) == 7
+    assert subs[0]["start"] == 0.0 and subs[0]["title"] == "dusk"
+    assert subs[2]["start"] == 900.0  # nocturne III inside chapter 1
+    assert subs[2]["title"] == "veils"
+    assert all(c["notes"] for c in subs)  # every chapter carries liner notes
+    assert tree[1]["title"] == "small-planet"
+    assert "children" not in tree[1]  # a plain-pattern chapter is a leaf
+
+    rows = noc.schedule()
+    assert [r["title"] for r in rows] == [
+        "dusk",
+        "first-stars",
+        "veils",
+        "deep-sea",
+        "rings",
+        "candles",
+        "starfall",
+    ]
+
+
+def test_duty_cycle_no_movement_black_or_blasting():
+    """Craft conformance across every conducted show: inside every
+    movement's body the sphere is neither effectively black (the Apollo
+    'Secret Place' bug: minutes of L ceilinged near the floor) nor a
+    full-field blast; endings may deliberately go out. Event-based
+    movements breathe, so each probe samples a few seconds."""
+    registry = default_registry()
+    lights = make_lights(48)
+    rng = np.random.default_rng(7)
+    n = 800
+    ncols = lights.shape[1]
+    lights = np.zeros((n, ncols))
+    lights[:, LightColumns.X] = rng.uniform(0, 240, n)
+    lights[:, LightColumns.Y] = rng.uniform(0, 200, n)
+    lights[:, LightColumns.PHI_S] = rng.uniform(0, 2.27, n)
+    lights[:, LightColumns.THETA_S] = rng.uniform(-np.pi, np.pi, n)
+    lights[:, LightColumns.CHANNEL] = np.repeat(np.arange(8), 100)
+    lights[:, LightColumns.INDEX] = np.tile(np.arange(100), 8)
+
+    for name in ("nocturne", "apollo", "overnight"):
+        show = registry.get(name)
+        for row in show.schedule():
+            for frac, body in ((0.15, True), (0.40, True), (0.65, True), (0.90, False)):
+                t0 = row["start"] + row["fade"] + (row["duration"] - row["fade"]) * frac
+                samples = [show.render(lights, t0 + dt) for dt in (0.0, 2.3, 4.6, 6.9)]
+                L = np.concatenate([s[:, 0] for s in samples])
+                where = f"{name}/{row['title']}@{frac}"
+                assert float(np.mean(L)) >= 0.012, f"{where}: effectively black"
+                assert float(np.mean(L)) <= 0.42, f"{where}: full-field blast"
+                if body:
+                    assert float(np.max(L)) >= 0.10, f"{where}: nothing alive"
+
+
 def test_registry_finds_book_two_and_volumes():
     registry = default_registry()
     names = set(registry.patterns)
