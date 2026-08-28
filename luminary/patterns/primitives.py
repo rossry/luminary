@@ -488,6 +488,7 @@ class AuroraVeils(Primitive):
     rays = 1.0
     surge_s = 0.0
     white_hot = 0.80
+    hot_hue = 140.0  # what the burnt-through cores burn toward
     salt = "veils"
 
     def _activity(self, t: float) -> float:
@@ -576,11 +577,13 @@ class AuroraVeils(Primitive):
         position = np.clip(intensity * (0.85 + 0.30 * fringe), 0.0, 1.0)
         position = self.floor + (1.0 - self.floor) * position
         out = self.palette.sample(position)
-        # The hottest cores burn past the palette toward green-white.
+        # The hottest cores burn past the palette toward near-white,
+        # keyed by hot_hue (green-white by default; a violet-crowned
+        # tuning burns purple-white).
         hotw = smoothstep(self.white_hot, 1.0, position) * 0.75
         if float(np.max(hotw)) > 1e-4:
             pale = np.column_stack(
-                [np.full(n, 0.92), np.full(n, 0.05), np.full(n, 140.0)]
+                [np.full(n, 0.92), np.full(n, 0.05), np.full(n, self.hot_hue)]
             )
             out = blend_oklch(out, pale, hotw)
         return out

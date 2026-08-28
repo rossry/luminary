@@ -399,6 +399,21 @@ TOLL = Palette(
     ]
 )
 
+# The veils' night: a violet-blue dark sky under green curtains whose
+# tops turn through blue into real purple — the crest crowns burn
+# purple-white (pair with hot_hue). AURORA keeps violet only at its
+# very tip; this palette gives the high fringes a whole violet band.
+VEILS_NIGHT = Palette(
+    [
+        (0.0, 0.030, 0.022, 240.0),
+        (0.40, 0.30, 0.130, 158.0),
+        (0.66, 0.50, 0.150, 140.0),
+        (0.80, 0.52, 0.150, 210.0),
+        (0.90, 0.58, 0.150, 305.0),
+        (1.0, 0.68, 0.120, 322.0),
+    ]
+)
+
 # The rings' journey, one color per toll: green, through blue-white and
 # purple-white, down to a warm and dimming red (the palette's own L
 # carries the dimming — late rings arrive quieter because they are red).
@@ -446,26 +461,31 @@ def nocturne_movements() -> List[Movement]:
     return [
         Movement(
             Embers(
-                arc_s=240.0,
-                swell_gain=1.25,
-                mortality=0.16,
-                dark_at=186.0,
-                dark_s=54.0,
-                dark_floor=0.10,
+                arc_s=251.0,
+                gain_from=0.40,
+                swell_gain=1.35,
+                swell_at=0.60,
+                gain_to=1.50,
+                mortality=0.06,
+                dark_at=222.0,
+                dark_s=26.0,
+                dark_floor=0.08,
             ),
             251.0,
             fade=10.0,
             title="embers",
             audio="poa-alpina.mp3",
             notes=(
-                "The day's fire, and the wind that ends it. Coals glow "
-                "inside the ash banks — never the dark between — and "
-                "every three-quarters of a minute a gust crosses the "
-                "sphere in a five-second breath: the cloud goes dark "
-                "under it and stays beaten down, healing slower than the "
-                "next gust comes, while the coals flare and hold their "
-                "flare, each for its own while. Some flare for the last "
-                "time. After the three-minute wave: the dying fall."
+                "The day's fire, and the wind that cannot put it out — "
+                "yet. Coals glow inside the ash banks, and every "
+                "three-quarters of a minute a gust crosses the sphere "
+                "in a five-second breath: the cloud goes dark under it "
+                "and stays beaten down, the coals flare and hold their "
+                "flare — and the fire comes back stronger, growing "
+                "through the first two and a half minutes faster than "
+                "the wind can take it. It burns full nearly to the end; "
+                "the last gust and the dying fall share the final half "
+                "minute."
             ),
         ),
         Movement(
@@ -497,13 +517,15 @@ def nocturne_movements() -> List[Movement]:
         ),
         Movement(
             AuroraVeils(
-                palette=AURORA,
+                palette=VEILS_NIGHT,
                 speed=1.3,
                 crest_at=0.45,
                 activity_floor=0.50,
                 arc_s=391.0,
                 gain=1.35,
                 surge_s=24.0,
+                white_hot=0.88,
+                hot_hue=318.0,
             ),
             391.0,
             fade=24.0,
@@ -511,11 +533,12 @@ def nocturne_movements() -> List[Movement]:
             audio="flight-from-the-city.mp3",
             notes=(
                 "Weather from above: curtains of rayed light hung from "
-                "the apex, their tops uneven, their shafts racing. The "
-                "storm crests near the third minute — surges race the "
-                "sphere, the cores burn green-white, violet on the high "
-                "fringes, a corona gathers at the crown — then it lets "
-                "itself down. One system: coming, arrived, leaving."
+                "the apex, their tops uneven, their shafts racing, over "
+                "a violet-blue dark. The storm crests near the third "
+                "minute — surges race the sphere, the high fringes turn "
+                "through blue into real purple, the cores burn "
+                "purple-white, a corona gathers at the crown — then it "
+                "lets itself down. One system: coming, arrived, leaving."
             ),
         ),
         Movement(
