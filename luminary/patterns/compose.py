@@ -36,7 +36,7 @@ class Movement:
     non-looping show fades in from black.
     """
 
-    __slots__ = ("pattern", "duration", "fade", "title", "notes")
+    __slots__ = ("pattern", "duration", "fade", "title", "notes", "audio")
 
     def __init__(
         self,
@@ -45,6 +45,7 @@ class Movement:
         fade: float = 10.0,
         title: Optional[str] = None,
         notes: Optional[str] = None,
+        audio: Optional[str] = None,
     ) -> None:
         if duration <= 0.0:
             raise ValueError(f"movement duration must be positive, got {duration}")
@@ -61,6 +62,10 @@ class Movement:
         # to the pattern's own notes).
         self.title = title if title is not None else pattern.name
         self.notes = notes if notes is not None else getattr(pattern, "notes", "")
+        # This movement's own soundtrack: a bare filename in the stage's
+        # audio directory. Queues playing the show as chapters attach it
+        # to this chapter when the file is present ("" = none).
+        self.audio = audio if audio is not None else ""
 
 
 class Conductor(Pattern):
@@ -107,6 +112,7 @@ class Conductor(Pattern):
                 "pattern": movement.pattern.name,
                 "title": movement.title,
                 "notes": movement.notes,
+                "audio": movement.audio,
                 "start": float(start),
                 "duration": movement.duration,
                 "fade": movement.fade,
@@ -116,7 +122,8 @@ class Conductor(Pattern):
 
     def chapters(self) -> List[Dict[str, Any]]:
         """The recursive chapter tree, for queues that play a show as its
-        chapters. One node per movement: ``title``, ``notes``,
+        chapters. One node per movement: ``title``, ``notes``, ``audio``
+        (the movement's own soundtrack file, "" for none),
         ``pattern``, ``start`` (seconds into THIS conductor's timeline —
         rendering this conductor over [start, start+duration) IS the
         chapter, crossfades included), ``duration``, ``fade``; movements
@@ -136,6 +143,7 @@ class Conductor(Pattern):
                 "title": movement.title,
                 "notes": movement.notes,
                 "pattern": movement.pattern.name,
+                "audio": movement.audio,
                 "start": float(start),
                 "duration": movement.duration,
                 "fade": movement.fade,

@@ -98,7 +98,7 @@ against shared golden vectors (`firmware/golden/`).
 | `GET /stage` · `GET/POST /api/queue` · `DELETE /api/queue/{i}` · `POST /api/queue/{play_next,move,skip,clear}` | the stage: viewer/control page and the play-queue API (tracklist + repeats cycle + now-playing; mounted by `serve`, opt out: `--no-stage`). Mutations take the stage key when one is configured (below) |
 | `POST /api/repeats/move` · `DELETE /api/repeats/{i}` | reorder / cancel turns of the stage's repeats cycle |
 | `WS /api/stage` · `GET /api/stage/{layout,patterns,chapters?pattern=N}` | the stage's wire-codec stream (SESSION on join, `{"type":"resync"}` back), its canvas draw layout, panel pattern metadata (notes, `loop`, `has_chapters`), and one pattern's chapter tree (`[]` if chapterless) |
-| `GET /api/audio` | audio files available to queue entries (`var/audio/`) |
+| `GET /api/audio` | audio inventory (`var/audio/`): `[{name, seconds}]`, `seconds` null when unreadable |
 
 ## The stage (play queue)
 
@@ -107,12 +107,22 @@ sphere geometry (`--stage-lights` overrides with a store id or lights
 file) playing a persisted tracklist, gaplessly — entries advance by
 pattern swap on the same engine, each pattern seeing t from its own
 entry's start, so long-form shows and audio cue sheets align at 0. An
-entry is `{pattern, duration, audio, repeat}`: `duration` null defers
-to the pattern's own `duration` attribute (else it plays until
-skipped); `audio` names a file in `var/audio/`, played by an
-auto-detected local player (`mpv`/`cvlc`/`ffplay`; `--audio-player CMD`
-overrides) that is started at the entry's t=0 and killed on
-skip/advance. "Play next" (`/api/queue/play_next`) inserts right after
+entry is `{pattern, duration, audio, repeat}`: `audio` names a file in
+`var/audio/`, played by an auto-detected local player
+(`mpv`/`cvlc`/`ffplay`; `--audio-player CMD` overrides) started at the
+entry's t=0. **The track times the entry**: with audio attached,
+`duration` null means the file's exact length, a longer ask is trimmed
+to it at add time, and a shorter ask cuts the entry there with a short
+audio fade-out (mpv/ffplay; others cut hard). Without audio, `duration`
+null defers to the pattern's own `duration` attribute (else it plays
+until skipped). A pattern may declare its soundtrack (`Pattern.audio`,
+a bare filename; a composition's movements may each declare their own
+via `Movement(..., audio=…)`): left unspecified, an entry picks up the
+declared file when it is present — and a composition queued with audio
+unspecified starts each chapter's own declared track at that chapter.
+The page pre-selects the declaration (`♪ per chapter` for chaptered
+shows) and marks declared-but-missing files (`wants ♪ name`).
+"Play next" (`/api/queue/play_next`) inserts right after
 the playing entry. An exhausted queue takes the next turn of the
 repeats cycle (below); with that empty too it holds the last pattern,
 looping — the sphere never goes dark — and both lists survive restarts

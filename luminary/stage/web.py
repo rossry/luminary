@@ -274,7 +274,14 @@ def register_stage(
 
     @app.get("/api/audio")
     def list_audio() -> JSONResponse:
-        return JSONResponse(core.audio.list_files())
+        """The audio inventory: [{name, seconds}] — seconds null when
+        the file's length cannot be read."""
+        return JSONResponse(
+            [
+                {"name": name, "seconds": core.audio.duration_of(name)}
+                for name in core.audio.list_files()
+            ]
+        )
 
     # ------------------------------------------------------------- stream
 

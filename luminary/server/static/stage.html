@@ -137,29 +137,28 @@
     <div id="panel">
       <div id="queue"><div class="empty">loading queue…</div></div>
       <div id="repeats-box">
-        <div class="pane-label">repeats · round-robin when the queue runs out</div>
+        <div class="pane-label">repeats</div>
         <div id="repeats"></div>
       </div>
       <form id="add-form">
         <select id="add-pattern" title="pattern"></select>
         <input id="add-duration" type="number" min="1" step="1"
-               placeholder="auto s" title="seconds (blank: pattern's own length)">
-        <select id="add-audio" title="audio file"></select>
-        <label id="repeat-label" title="re-queue automatically whenever the queue runs out">
+               placeholder="auto s" title="seconds">
+        <select id="add-audio" title="audio"></select>
+        <label id="repeat-label">
           <input type="checkbox" id="add-repeat"> repeat</label>
         <div id="buttons">
           <button type="submit" id="add-btn">＋ add to queue</button>
           <button type="button" id="play-next"
-                  title="insert right after the playing entry">▶ play next</button>
+                  title="after the playing entry">▶ play next</button>
         </div>
       </form>
     </div>
   </main>
   <footer>
-    <button id="skip" title="end the current entry (chapter) now">⏭ skip</button>
-    <button id="clear" title="drop the play-through queue (keeps playing; repeats keep cycling)">✕ clear queue</button>
+    <button id="skip" title="next chapter">⏭ skip</button>
+    <button id="clear" title="repeats stay">✕ clear queue</button>
     <input id="stage-key" type="password" placeholder="stage key"
-           title="control key (X-Stage-Key); also set by a #key=… URL fragment"
            autocomplete="off">
     <span class="legend" id="audio-note"></span>
   </footer>

@@ -146,9 +146,10 @@ function appendChapterLines(box, nodes, depth) {
     line.textContent = `${node.title} `;
     const dur = document.createElement("span");
     dur.className = "dur";
-    dur.textContent = `· ${fmtSeconds(node.duration)}`;
+    dur.textContent = `· ${fmtSeconds(node.duration)}` + (node.audio ? " ♪" : "");
     line.appendChild(dur);
-    if (node.notes) line.title = node.notes;
+    const hint = [node.notes, node.audio && `♪ ${node.audio}`].filter(Boolean);
+    if (hint.length) line.title = hint.join("\n");
     box.appendChild(line);
     if (node.children) appendChapterLines(box, node.children, depth + 1);
   }
@@ -203,7 +204,7 @@ function renderQueue(snapshot) {
   if (!entries.length) {
     const empty = document.createElement("div");
     empty.className = "empty";
-    empty.textContent = "queue is empty — the stage holds the last pattern";
+    empty.textContent = "empty";
     box.appendChild(empty);
   }
 
@@ -214,7 +215,7 @@ function renderQueue(snapshot) {
   if (!repeats || !repeats.length) {
     const empty = document.createElement("div");
     empty.className = "empty";
-    empty.textContent = "no repeats — add with ☑ repeat to keep a cycle going";
+    empty.textContent = "none";
     rbox.appendChild(empty);
   }
 
@@ -227,7 +228,7 @@ function renderQueue(snapshot) {
   liner.title = now.notes || "";
   el("audio-note").textContent = snapshot.audio_player
     ? `audio: ${snapshot.audio_player}${snapshot.audio_playing ? " · playing" : ""}`
-    : "audio disabled (no player on server)";
+    : "no player · apt install mpv";
 }
 
 /* ----------------------------------------------------------- commands */
@@ -268,63 +269,103 @@ export async function initStagePage() {
   };
   requestAnimationFrame(paintLoop);
 
-  // Dropdowns: pattern metadata from the stage (adds notes/loop/chapter
-  // flags to the registry list), audio files from var/audio.
-  const [patterns, audio] = await Promise.all([
-    getJSON("api/stage/patterns"),
-    getJSON("api/audio"),
-  ]);
+  // Dropdowns: pattern metadata from the stage (notes/loop/chapter
+  // flags/declared audio), audio inventory ({name, seconds}) from
+  // var/audio — re-fetched every few polls, so a file dropped on the
+  // server shows up without a page reload.
   const patternSelect = el("add-pattern");
-  for (const entry of patterns.filter((p) => p.ok)) {
-    patternMeta.set(entry.name, entry);
-    const option = document.createElement("option");
-    option.value = entry.name;
-    option.textContent =
-      entry.name + (entry.has_chapters ? " ▸" : "") + (entry.loop ? " ↻" : "");
-    option.title = entry.description || "";
-    patternSelect.appendChild(option);
-  }
   const audioSelect = el("add-audio");
+  const repeatBox = el("add-repeat");
+  const REC = "/chapters"; // sentinel: never a filename (separators are)
   const none = document.createElement("option");
   none.value = "";
   none.textContent = "— no audio —";
-  audioSelect.appendChild(none);
-  for (const name of audio) {
-    const option = document.createElement("option");
-    option.value = name;
-    option.textContent = `♪ ${name}`;
-    audioSelect.appendChild(option);
-  }
+  const rec = document.createElement("option");
+  rec.value = REC;
+  let audioPicked = false; // the VJ touched the selector: keep their choice
 
   // Per-pattern defaults: the repeat toggle follows the pattern's own
-  // loop flag, and the audio selector pre-selects the pattern's
-  // declared soundtrack when the file is present in var/audio. The VJ
-  // can always override either per add.
-  const repeatBox = el("add-repeat");
-  const syncPatternDefaults = () => {
+  // loop flag; the audio selector pre-selects the declared soundtrack —
+  // "per chapter" for a show whose chapters carry their own tracks,
+  // else the show's own file when present. Overridable per add.
+  const syncPatternDefaults = (keep) => {
     const meta = patternMeta.get(patternSelect.value);
     repeatBox.checked = !!(meta && meta.loop);
-    audioSelect.value = meta && meta.audio_present ? meta.audio : "";
-    if (meta && meta.audio && !meta.audio_present) {
-      none.textContent = `— no audio (wants ♪ ${meta.audio}) —`;
-    } else {
-      none.textContent = "— no audio —";
+    const wanted = (meta && meta.chapter_audio) || [];
+    const present = (meta && meta.chapter_audio_present) || [];
+    rec.hidden = !wanted.length;
+    rec.textContent =
+      present.length < wanted.length
+        ? `♪ per chapter (${present.length}/${wanted.length} here)`
+        : "♪ per chapter";
+    none.textContent =
+      meta && meta.audio && !meta.audio_present
+        ? `— no audio (wants ♪ ${meta.audio}) —`
+        : "— no audio —";
+    const options = [...audioSelect.options];
+    if (keep !== undefined && options.some((o) => o.value === keep && !o.hidden)) {
+      audioSelect.value = keep;
+      return;
     }
+    if (wanted.length) audioSelect.value = REC;
+    else audioSelect.value = meta && meta.audio_present ? meta.audio : "";
   };
-  patternSelect.addEventListener("change", syncPatternDefaults);
-  syncPatternDefaults();
+
+  async function loadChoices() {
+    const [patterns, audio] = await Promise.all([
+      getJSON("api/stage/patterns"),
+      getJSON("api/audio"),
+    ]);
+    const keepPattern = patternSelect.value;
+    patternSelect.replaceChildren();
+    patternMeta.clear();
+    for (const entry of patterns.filter((p) => p.ok)) {
+      patternMeta.set(entry.name, entry);
+      const option = document.createElement("option");
+      option.value = entry.name;
+      option.textContent =
+        entry.name + (entry.has_chapters ? " ▸" : "") + (entry.loop ? " ↻" : "");
+      option.title = entry.description || "";
+      patternSelect.appendChild(option);
+    }
+    if (keepPattern) patternSelect.value = keepPattern;
+    if (!patternSelect.value && patternSelect.options.length) {
+      patternSelect.selectedIndex = 0;
+    }
+    const keepAudio = audioSelect.value;
+    audioSelect.replaceChildren();
+    audioSelect.appendChild(none);
+    audioSelect.appendChild(rec);
+    for (const file of audio) {
+      const option = document.createElement("option");
+      option.value = file.name;
+      option.textContent =
+        `♪ ${file.name}` + (file.seconds ? ` · ${fmtSeconds(file.seconds)}` : "");
+      audioSelect.appendChild(option);
+    }
+    syncPatternDefaults(audioPicked ? keepAudio : undefined);
+  }
+
+  patternSelect.addEventListener("change", () => {
+    audioPicked = false;
+    syncPatternDefaults();
+  });
+  audioSelect.addEventListener("change", () => {
+    audioPicked = true;
+  });
+  await loadChoices();
 
   const addBody = () => {
     const duration = el("add-duration").value;
-    return {
+    const body = {
       pattern: patternSelect.value,
       duration: duration ? Number(duration) : null,
-      // The page always states its choice: "" is explicitly no audio
-      // (the server-side declared-audio default applies only when the
-      // field is omitted entirely).
-      audio: audioSelect.value,
       repeat: repeatBox.checked,
     };
+    // "" is explicitly silent; a filename is that file; "per chapter"
+    // omits the field, so the stage attaches each chapter's own track.
+    if (audioSelect.value !== REC) body.audio = audioSelect.value;
+    return body;
   };
   el("add-form").addEventListener("submit", (event) => {
     event.preventDefault();
@@ -335,12 +376,16 @@ export async function initStagePage() {
   });
   el("skip").addEventListener("click", () => post("api/queue/skip").catch(report));
   el("clear").addEventListener("click", () => {
-    if (confirm("Drop every play-through entry? (The stage keeps playing; repeats keep cycling.)")) {
+    if (confirm("Clear the queue?")) {
       post("api/queue/clear").catch(report);
     }
   });
 
   refresh = () => getJSON("api/queue").then(renderQueue).catch(report);
   await refresh();
-  setInterval(refresh, POLL_MS);
+  let poll = 0;
+  setInterval(() => {
+    refresh();
+    if (++poll % 5 === 0) loadChoices().catch(report);
+  }, POLL_MS);
 }

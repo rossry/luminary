@@ -224,6 +224,35 @@ class Album(Conductor):
                      title="coda", notes="the end"),
         ], loop=True)
 """,
+    "opera.py": """
+import numpy as np
+from luminary.patterns.compose import Conductor, Movement
+
+class _Tone:
+    def __init__(self, hue, name, notes=""):
+        self.name = name
+        self.notes = notes
+        self._hue = float(hue)
+
+    def render(self, lights, t):
+        out = np.zeros((lights.shape[0], 3))
+        out[:, 0] = 0.5
+        out[:, 1] = 0.1
+        out[:, 2] = (self._hue + t * 5.0) % 360.0
+        return out
+
+class Opera(Conductor):
+    name = "opera"
+    description = "chapters that carry their own tracks"
+
+    def __init__(self):
+        super().__init__([
+            Movement(_Tone(0.0, "o1"), 4.0, fade=0.0,
+                     title="one", audio="track1.mp3"),
+            Movement(_Tone(120.0, "o2"), 3.0, fade=0.0,
+                     title="two", audio="missing.mp3"),
+        ])
+""",
 }
 
 AUDIO_FILES = ["b side.wav", "track1.mp3"]
@@ -876,7 +905,7 @@ def test_declared_audio_defaults_into_entries(tmp_path, registry, lights):
     assert core.snapshot()["entries"][-1]["audio"] == "track1.mp3"
 
     core.append({"pattern": "scored", "audio": ""})
-    assert core.snapshot()["entries"][-1]["audio"] is None
+    assert core.snapshot()["entries"][-1]["audio"] == ""  # explicitly silent
 
     core.append({"pattern": "scored", "audio": "b side.wav"})
     assert core.snapshot()["entries"][-1]["audio"] == "b side.wav"
@@ -890,3 +919,90 @@ def test_declared_audio_defaults_into_entries(tmp_path, registry, lights):
     assert meta["unscored"]["audio"] == "nowhere.mp3"
     assert meta["unscored"]["audio_present"] is False
     assert meta["plain"]["audio"] == ""
+
+
+def test_chapter_audio_attaches_per_movement(tmp_path, registry, lights):
+    """A composition whose movements declare their own tracks: the
+    default gives every chapter its declared file (missing files skip),
+    an explicit file plays through from the first chapter, and explicit
+    silence stays silent through expansion."""
+    core, spawn, _clock = make_stage(tmp_path, registry, lights)
+
+    core.append({"pattern": "opera"})  # holding stage: expands at head
+    entries = core.snapshot()["entries"]
+    assert [e["title"] for e in entries] == ["opera/one", "opera/two"]
+    assert entries[0]["audio"] == "track1.mp3"
+    assert entries[1]["audio"] is None  # declared but missing: silent
+    assert spawn.procs and spawn.procs[-1].argv[-1].endswith("track1.mp3")
+
+    meta = {row["name"]: row for row in core.patterns_meta() if row.get("ok")}
+    assert meta["opera"]["chapter_audio"] == ["track1.mp3", "missing.mp3"]
+    assert meta["opera"]["chapter_audio_present"] == ["track1.mp3"]
+    assert meta["suite"]["chapter_audio"] == []
+
+    core.append({"pattern": "opera", "audio": ""})
+    core.append({"pattern": "opera", "audio": "b side.wav"})
+    core.skip()  # ends opera/one -> opera/two
+    core.skip()  # -> the silent instance, which expands now
+    entries = core.snapshot()["entries"]
+    silent = [e for e in entries if e["chapter"] is not None][2:4]
+    assert [e["audio"] for e in silent] == ["", ""]
+    n_spawned = len(spawn.procs)
+    core.skip()  # silent one -> silent two: no player ever starts
+    assert len(spawn.procs) == n_spawned
+    core.skip()  # -> the explicit-file instance
+    entries = core.snapshot()["entries"]
+    explicit = [e for e in entries if e["chapter"] is not None][4:6]
+    assert [e["audio"] for e in explicit] == ["b side.wav", None]
+    assert spawn.procs[-1].argv[-1].endswith("b side.wav")
+
+
+def test_audio_length_times_the_entry(tmp_path, registry, lights):
+    """With audio attached the track times the entry: auto duration is
+    the file's exact length, longer asks trim to it at add time, and a
+    shorter cut starts the player with a fade-out ending at the cut."""
+    core, _spawn, _clock = make_stage(tmp_path, registry, lights)
+    core.audio.duration_of = lambda name: 60.0 if name == "track1.mp3" else None
+
+    core.append({"pattern": "plain", "audio": "track1.mp3"})
+    assert core.snapshot()["entries"][-1]["duration"] == 60.0
+
+    core.append({"pattern": "plain", "audio": "track1.mp3", "duration": 90.0})
+    assert core.snapshot()["entries"][-1]["duration"] == 60.0  # trimmed
+
+    core.append({"pattern": "plain", "audio": "track1.mp3", "duration": 30.0})
+    assert core.snapshot()["entries"][-1]["duration"] == 30.0  # a cut is honored
+
+    # No length known (the dummy wav): the ask stands as given.
+    core.append({"pattern": "plain", "audio": "b side.wav", "duration": 90.0})
+    assert core.snapshot()["entries"][-1]["duration"] == 90.0
+
+
+def test_audio_player_lengths_and_fade_args(tmp_path):
+    """AudioPlayer reads real track lengths (a genuine wav via mutagen)
+    and bakes the fade-out into the player argv for players it knows."""
+    import wave
+
+    audio_dir = tmp_path / "audio"
+    audio_dir.mkdir()
+    with wave.open(str(audio_dir / "beep.wav"), "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(8000)
+        w.writeframes(b"\x00\x00" * 8000)  # exactly 1.0 s
+    spawn = FakeSpawn()
+    player = AudioPlayer(["mpv", "--no-video"], audio_dir, spawn=spawn)
+    assert abs(player.duration_of("beep.wav") - 1.0) < 0.01
+
+    player.duration_of = lambda name: 60.0
+    player.start("beep.wav", cut_at=30.0)
+    assert any(
+        a.startswith("--af=lavfi=[afade=t=out:st=28.00") for a in spawn.procs[-1].argv
+    )
+    player.start("beep.wav", cut_at=60.0)  # the cut IS the track end: no fade
+    assert not any("afade" in a for a in spawn.procs[-1].argv)
+
+    unknown = AudioPlayer(["fakeplay"], audio_dir, spawn=spawn)
+    unknown.duration_of = lambda name: 60.0
+    unknown.start("beep.wav", cut_at=30.0)
+    assert not any("afade" in a for a in spawn.procs[-1].argv)  # no filter known

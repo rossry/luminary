@@ -12,6 +12,13 @@ disabled, logged once here. Files live in ``<state dir>/audio/``; entry
 audio references are bare filenames inside that directory only (no path
 separators), so the queue can never reach outside it.
 
+Track lengths: :meth:`AudioPlayer.duration_of` reads a file's exact
+runtime (mutagen, falling back to ffprobe), cached by (name, mtime,
+size) — the stage uses it to time entries to their tracks. An entry cut
+shorter than its track gets a fade-out baked into the player's own
+argv at start (:meth:`AudioPlayer.start` with ``cut_at``) for the
+players that support a filter (mpv, ffplay); others cut hard.
+
 ``spawn`` is injectable (tests substitute a fake ``Popen``) — never
 spawn a real player in tests.
 """
@@ -24,9 +31,11 @@ import shlex
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Any, Callable, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
+
+_FADE_S = 2.0  # fade-out length when an entry cuts its track short
 
 # Auto-detection order: every candidate plays one file from argv and
 # exits by itself when it ends (so "audio finished" is just process exit).
@@ -69,6 +78,7 @@ class AudioPlayer:
         self.audio_dir = Path(audio_dir)
         self._spawn = spawn
         self._proc: Optional[Any] = None
+        self._durations: Dict[Tuple[str, int, int], Optional[float]] = {}
         if self.command is None:
             logger.info(
                 "stage audio disabled: no player found (looked for mpv, cvlc, "
@@ -103,16 +113,82 @@ class AudioPlayer:
             if p.is_file() and not p.name.startswith(".")
         )
 
+    def duration_of(self, filename: str) -> Optional[float]:
+        """The file's exact runtime in seconds, or None when it cannot
+        be read. mutagen first (pure Python, exact for mp3/flac/ogg/
+        wav), ffprobe as fallback; cached by (name, mtime, size)."""
+        path = self.resolve(filename)
+        if path is None:
+            return None
+        stat = path.stat()
+        key = (filename, stat.st_mtime_ns, stat.st_size)
+        if key in self._durations:
+            return self._durations[key]
+        seconds = self._probe(path)
+        self._durations[key] = seconds
+        return seconds
+
+    @staticmethod
+    def _probe(path: Path) -> Optional[float]:
+        try:
+            import mutagen
+
+            meta = mutagen.File(path)
+            length = getattr(getattr(meta, "info", None), "length", 0.0) or 0.0
+            if length > 0:
+                return float(length)
+        except Exception:
+            pass
+        if shutil.which("ffprobe"):
+            try:
+                run = subprocess.run(
+                    [
+                        "ffprobe",
+                        "-v",
+                        "error",
+                        "-show_entries",
+                        "format=duration",
+                        "-of",
+                        "default=noprint_wrappers=1:nokey=1",
+                        str(path),
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                )
+                seconds = float(run.stdout.strip())
+                if seconds > 0:
+                    return seconds
+            except Exception:
+                pass
+        return None
+
     # --------------------------------------------------------------- playback
 
     @property
     def playing(self) -> bool:
         return self._proc is not None and self._proc.poll() is None
 
-    def start(self, filename: str) -> bool:
+    def _fade_args(self, cut_at: float) -> List[str]:
+        """Player-specific argv for a fade-out ending at ``cut_at``
+        (empty when this player has no filter syntax we know)."""
+        d = min(_FADE_S, cut_at)
+        st = max(cut_at - d, 0.0)
+        assert self.command is not None
+        player = Path(self.command[0]).name
+        if player == "mpv":
+            return [f"--af=lavfi=[afade=t=out:st={st:.2f}:d={d:.2f}]"]
+        if player == "ffplay":
+            return ["-af", f"afade=t=out:st={st:.2f}:d={d:.2f}"]
+        return []
+
+    def start(self, filename: str, cut_at: Optional[float] = None) -> bool:
         """Stop whatever is playing and start ``filename``. Returns True
         when a player was actually spawned; a missing player or file is
-        logged and the entry simply plays without audio."""
+        logged and the entry simply plays without audio. ``cut_at``
+        (seconds) is where the entry will end: when that lands before
+        the track does, the player is started with a fade-out ending
+        there, so the cut is a breath instead of a chop."""
         self.stop()
         path = self.resolve(filename)
         if path is None:
@@ -124,8 +200,13 @@ class AudioPlayer:
             return False
         if self.command is None:
             return False  # disabled (already logged once at startup)
+        extra: List[str] = []
+        if cut_at is not None and cut_at > 0:
+            length = self.duration_of(filename)
+            if length is not None and cut_at < length - 0.75:
+                extra = self._fade_args(cut_at)
         self._proc = self._spawn(
-            self.command + [str(path)],
+            self.command + extra + [str(path)],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
