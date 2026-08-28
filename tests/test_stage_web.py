@@ -203,3 +203,158 @@ def test_create_app_stage_off_by_default(tmp_path):
         assert client.get("/stage").status_code == 404
         assert client.get("/api/queue").status_code == 404
         assert client.get("/api/health").status_code == 200
+
+
+def test_stage_patterns_and_chapters_endpoints(stage):
+    """Panel metadata (notes/loop/has_chapters) and the display-only
+    chapter tree come from the server — the page computes nothing."""
+    app, _core, _spawn, _clock = stage
+    with TestClient(app) as client:
+        meta = {row["name"]: row for row in client.get("/api/stage/patterns").json()}
+        assert meta["album"]["loop"] is True
+        assert meta["album"]["has_chapters"] is True
+        assert meta["suite"]["loop"] is False
+        assert meta["suite"]["has_chapters"] is True
+        assert meta["plain"]["has_chapters"] is False
+        assert meta["plain"]["notes"] == "steady and plain"
+
+        tree = client.get("/api/stage/chapters", params={"pattern": "album"}).json()
+        assert [node["title"] for node in tree] == ["dawn", "mid", "coda"]
+        assert [c["start"] for c in tree[1]["children"]] == [5.0, 9.0]
+        assert (
+            client.get("/api/stage/chapters", params={"pattern": "plain"}).json() == []
+        )
+        assert (
+            client.get("/api/stage/chapters", params={"pattern": "nope"}).status_code
+            == 404
+        )
+
+
+def test_play_next_and_repeats_http(stage):
+    app, _core, _spawn, _clock = stage
+    with TestClient(app) as client:
+        client.post("/api/queue", json={"pattern": "plain", "repeat": False})
+        client.post("/api/queue", json={"pattern": "timed", "repeat": False})
+        snap = client.post(
+            "/api/queue/play_next", json={"pattern": "suite", "repeat": True}
+        ).json()
+        assert [e["pattern"] for e in snap["entries"]] == ["plain", "suite", "timed"]
+        assert snap["now"]["index"] == 0
+        assert [t["pattern"] for t in snap["repeats"]] == ["suite"]
+        assert (
+            client.post("/api/queue/play_next", json={"pattern": "nope"}).status_code
+            == 422
+        )
+
+        # The status payload carries the chapter path + liner notes.
+        snap = client.post("/api/queue/skip").json()  # suite expands at head
+        assert snap["now"]["title"] == "suite/one"
+        assert snap["now"]["notes"] == "the first part"
+
+        # Repeats CRUD over HTTP.
+        client.post("/api/queue", json={"pattern": "album"})  # token by default
+        snap = client.get("/api/queue").json()
+        assert [t["pattern"] for t in snap["repeats"]] == ["suite", "album"]
+        snap = client.post("/api/repeats/move", json={"from": 1, "to": 0}).json()
+        assert [t["pattern"] for t in snap["repeats"]] == ["album", "suite"]
+        assert (
+            client.post("/api/repeats/move", json={"from": 0, "to": 9}).status_code
+            == 422
+        )
+        snap = client.request("DELETE", "/api/repeats/0").json()
+        assert [t["pattern"] for t in snap["repeats"]] == ["suite"]
+        assert client.request("DELETE", "/api/repeats/9").status_code == 404
+
+
+def test_stage_key_gates_mutations_only(tmp_path, registry, lights):  # noqa: F811
+    """With a key configured, every mutating endpoint 403s without the
+    X-Stage-Key header (a JSON detail the page surfaces) and works with
+    it; read-only traffic — page, layout, patterns, chapters, queue GET,
+    audio, the WS stream — is never gated."""
+    core, _spawn, _clock = make_stage(tmp_path, registry, lights)
+    app = FastAPI()
+    register_stage(app, core, stage_key="sekrit")
+    ok = {"X-Stage-Key": "sekrit"}
+    with TestClient(app) as client:
+        mutations = [
+            ("POST", "/api/queue", {"pattern": "plain", "repeat": False}),
+            ("POST", "/api/queue/play_next", {"pattern": "plain", "repeat": False}),
+            ("POST", "/api/queue/move", {"from": 0, "to": 0}),
+            ("POST", "/api/queue/skip", None),
+            ("POST", "/api/queue/clear", None),
+            ("POST", "/api/repeats/move", {"from": 0, "to": 0}),
+            ("DELETE", "/api/queue/0", None),
+            ("DELETE", "/api/repeats/0", None),
+        ]
+        for method, path, body in mutations:
+            denied = client.request(method, path, json=body)
+            assert denied.status_code == 403, (method, path)
+            assert "X-Stage-Key" in denied.json()["detail"]
+            wrong = client.request(
+                method, path, json=body, headers={"X-Stage-Key": "x"}
+            )
+            assert wrong.status_code == 403, (method, path)
+
+        # The key opens them (and only then does normal validation run).
+        assert (
+            client.post(
+                "/api/queue", json={"pattern": "plain", "repeat": False}, headers=ok
+            ).status_code
+            == 200
+        )
+        assert client.post("/api/queue/skip", headers=ok).status_code == 200
+
+        # Read-only endpoints never need the key.
+        assert client.get("/stage").status_code == 200
+        assert client.get("/api/queue").status_code == 200
+        assert client.get("/api/stage/layout").status_code == 200
+        assert client.get("/api/stage/patterns").status_code == 200
+        assert (
+            client.get("/api/stage/chapters", params={"pattern": "plain"}).status_code
+            == 200
+        )
+        assert client.get("/api/audio").status_code == 200
+        with client.websocket_connect("/api/stage") as ws:
+            frame_type, _controller = Decoder().decode(ws.receive_bytes())
+            assert frame_type == p.FRAME_SESSION
+
+
+def test_create_app_stage_key_env_fallback(tmp_path, lights, monkeypatch):  # noqa: F811
+    """serve wiring: --stage-key wins; env LUMINARY_STAGE_KEY is the
+    fallback; the production posture is the key in the unit's env."""
+    from luminary.server.app import create_app
+
+    lights_path = tmp_path / "tiny.lights.json"
+    lights.save(lights_path)
+    monkeypatch.setenv("LUMINARY_STAGE_KEY", "envkey")
+    app = create_app(
+        store_dir=tmp_path / "store", stage=True, stage_lights=str(lights_path)
+    )
+    with TestClient(app) as client:
+        assert client.post("/api/queue/skip").status_code == 403
+        assert (
+            client.post(
+                "/api/queue/skip", headers={"X-Stage-Key": "envkey"}
+            ).status_code
+            == 200
+        )
+
+    app = create_app(
+        store_dir=tmp_path / "store2",
+        stage=True,
+        stage_lights=str(lights_path),
+        stage_key="flagkey",  # the explicit flag beats the env
+    )
+    with TestClient(app) as client:
+        assert (
+            client.post(
+                "/api/queue/skip", headers={"X-Stage-Key": "envkey"}
+            ).status_code
+            == 403
+        )
+        assert (
+            client.post(
+                "/api/queue/skip", headers={"X-Stage-Key": "flagkey"}
+            ).status_code
+            == 200
+        )

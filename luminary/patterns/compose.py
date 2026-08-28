@@ -36,9 +36,16 @@ class Movement:
     non-looping show fades in from black.
     """
 
-    __slots__ = ("pattern", "duration", "fade")
+    __slots__ = ("pattern", "duration", "fade", "title", "notes")
 
-    def __init__(self, pattern: Pattern, duration: float, fade: float = 10.0) -> None:
+    def __init__(
+        self,
+        pattern: Pattern,
+        duration: float,
+        fade: float = 10.0,
+        title: Optional[str] = None,
+        notes: Optional[str] = None,
+    ) -> None:
         if duration <= 0.0:
             raise ValueError(f"movement duration must be positive, got {duration}")
         if fade < 0.0 or fade > duration:
@@ -48,6 +55,12 @@ class Movement:
         self.pattern = pattern
         self.duration = float(duration)
         self.fade = float(fade)
+        # Chapter identity for queues and status surfaces: a short title
+        # (defaults to the pattern's name) and liner notes — a few
+        # evocative sentences for whoever is running the show (defaults
+        # to the pattern's own notes).
+        self.title = title if title is not None else pattern.name
+        self.notes = notes if notes is not None else getattr(pattern, "notes", "")
 
 
 class Conductor(Pattern):
@@ -81,17 +94,58 @@ class Conductor(Pattern):
         """Length of one full pass through the movements, seconds."""
         return self._total
 
+    @property
+    def loop(self) -> bool:
+        """True if this show repeats — queues read this as "configured
+        to repeat" (the default for their repeat toggle)."""
+        return self._loop
+
     def schedule(self) -> List[Dict[str, Any]]:
         """The show sheet: one row per movement, for status surfaces."""
         return [
             {
                 "pattern": movement.pattern.name,
+                "title": movement.title,
+                "notes": movement.notes,
                 "start": float(start),
                 "duration": movement.duration,
                 "fade": movement.fade,
             }
             for movement, start in zip(self._movements, self._starts[:-1])
         ]
+
+    def chapters(self) -> List[Dict[str, Any]]:
+        """The recursive chapter tree, for queues that play a show as its
+        chapters. One node per movement: ``title``, ``notes``,
+        ``pattern``, ``start`` (seconds into THIS conductor's timeline —
+        rendering this conductor over [start, start+duration) IS the
+        chapter, crossfades included), ``duration``, ``fade``; movements
+        whose pattern is itself a Conductor carry ``children`` with
+        starts already offset into this timeline (a looping child is
+        described by its first pass)."""
+
+        def shift(node: Dict[str, Any], dt: float) -> Dict[str, Any]:
+            out = dict(node, start=float(node["start"]) + dt)
+            if "children" in node:
+                out["children"] = [shift(sub, dt) for sub in node["children"]]
+            return out
+
+        out: List[Dict[str, Any]] = []
+        for movement, start in zip(self._movements, self._starts[:-1]):
+            node: Dict[str, Any] = {
+                "title": movement.title,
+                "notes": movement.notes,
+                "pattern": movement.pattern.name,
+                "start": float(start),
+                "duration": movement.duration,
+                "fade": movement.fade,
+            }
+            if isinstance(movement.pattern, Conductor):
+                node["children"] = [
+                    shift(sub, float(start)) for sub in movement.pattern.chapters()
+                ]
+            out.append(node)
+        return out
 
     def _slot(self, t: float) -> Tuple[int, float]:
         """(movement index, movement-local time) for global time t."""

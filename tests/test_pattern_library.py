@@ -23,6 +23,7 @@ from luminary.patterns.palettes import (
 )
 from luminary.patterns.primitives import (
     AuroraVeils,
+    Candles,
     NoiseGlow,
     Primitive,
     RingWave,
@@ -215,8 +216,34 @@ def test_primitive_subclass_overrides_defaults():
 
 @pytest.mark.parametrize(
     "primitive",
-    [Starfield(), NoiseGlow(), AuroraVeils(), RingWave(), RingWave(palette=AURORA)],
-    ids=["starfield", "noiseglow", "auroraveils", "ringwave", "ringwave-palette"],
+    [
+        Starfield(),
+        Starfield(fill_from=0.1, fill_to=0.9, arc_s=200.0, meteor_rate=3.0),
+        NoiseGlow(),
+        NoiseGlow(gain_from=0.9, gain_to=0.3, arc_s=200.0, tide_s=40.0),
+        AuroraVeils(),
+        AuroraVeils(crest_at=0.6, arc_s=300.0),
+        RingWave(),
+        RingWave(palette=AURORA, gain_from=0.2, gain_to=1.0, arc_s=100.0),
+        Candles(),
+        Candles(fill_from=0.05, fill_to=0.9, arc_s=300.0),
+        __import__("luminary.patterns.primitives", fromlist=["Embers"]).Embers(
+            arc_s=400.0
+        ),
+    ],
+    ids=[
+        "starfield",
+        "starfield-arc",
+        "noiseglow",
+        "noiseglow-arc",
+        "auroraveils",
+        "auroraveils-crest",
+        "ringwave",
+        "ringwave-arc",
+        "candles",
+        "candles-arc",
+        "embers",
+    ],
 )
 def test_primitives_obey_the_contract(primitive):
     lights = make_lights()
@@ -249,6 +276,83 @@ def test_starfield_density_zero_is_all_sky():
     assert float(np.max(out[:, 0])) < 0.06  # nothing brighter than airglow
     star_lights = Starfield(density=1.0).render(lights, 1.6)
     assert float(np.max(star_lights[:, 0])) > 0.3  # somebody twinkles bright
+
+
+def test_starfield_population_swells_by_seniority():
+    """The fill arc: the sky populates without churn — every star of the
+    sparse early sky is still there in the full one, and the population
+    strictly grows (some stars stay; the fullness goes somewhere)."""
+    lights = make_lights(n=1200, seed=2)
+    sf = Starfield(fill_from=0.05, fill_to=1.0, arc_s=400.0, star_l=0.85)
+
+    def bright(t):
+        return set(np.flatnonzero(sf.render(lights, t)[:, 0] > 0.25).tolist())
+
+    early, mid, late = bright(10.0), bright(200.0), bright(390.0)
+    assert len(early) < len(mid) < len(late)
+    assert early <= mid <= late  # seniority: arrivals only, no churn
+
+    # Letting go runs in reverse: the late sky is a subset of the early
+    # one, and never empties completely — the deepest stars hold.
+    ebb = Starfield(fill_from=1.0, fill_to=0.08, arc_s=400.0, star_l=0.85)
+
+    def bright_ebb(t):
+        return set(np.flatnonzero(ebb.render(lights, t)[:, 0] > 0.25).tolist())
+
+    assert bright_ebb(390.0) <= bright_ebb(10.0)
+    assert 0 < len(bright_ebb(390.0)) < len(bright_ebb(10.0))
+
+
+def test_embers_wind_is_visible_and_mortal():
+    """The dusk physics: the gust front dims the ash-cloud while it
+    fans the sparks; each pass consumes coals (population strictly
+    declines); the envelope swells before the long drain."""
+    from luminary.patterns.primitives import Embers
+    from luminary.patterns.util import seeded_random
+
+    lights = make_lights(n=2500, seed=6)
+    e = Embers(arc_s=480.0, swell_gain=1.25)
+
+    # Rebuild the wind mask exactly as the primitive defines it.
+    from luminary.patterns.util import plane_xy
+
+    u, v = plane_xy(lights)
+    a = np.radians(e.tide_angle)
+    proj = 0.5 * (u * np.cos(a) + v * np.sin(a))
+    t = 130.0
+    frac = (t / e.tide_s - proj) % 1.0
+    wind = np.exp(-(((frac - 0.5) / 0.13) ** 2))
+    crest, calm = wind > 0.7, wind < 0.05
+    spark = seeded_random(f"{e.salt}-pick", lights.shape[0]) < e.spark_density
+
+    L = e.render(lights, t)[:, 0]
+    assert float(L[crest & ~spark].mean()) < float(L[calm & ~spark].mean()) * 0.9
+    assert float(L[crest & spark].max()) > float(L[calm & spark].max()) * 1.25
+
+    def live(tt):
+        return int(np.sum(e.render(lights, tt)[:, 0] * spark > 0.17))
+
+    early, late = live(40.0), live(460.0)
+    assert early > live(250.0) > late >= 0
+    assert early > 20
+
+    means = {
+        tt: float(np.mean(e.render(lights, tt)[:, 0])) for tt in (5.0, 105.0, 460.0)
+    }
+    assert means[105.0] > means[5.0] * 1.2  # the defiant swell
+    assert means[460.0] < means[105.0] * 0.5  # the long drain
+
+
+def test_starfield_meteors_burst_toward_full():
+    lights = make_lights(n=1500, seed=4)
+    sf = Starfield(meteor_rate=6.0)
+    peak = max(float(sf.render(lights, t)[:, 0].max()) for t in np.arange(0, 90, 0.5))
+    assert peak > 0.8  # a streak is a figure: it may burst near full
+    quiet = Starfield(meteor_rate=0.0)
+    calm = max(
+        float(quiet.render(lights, t)[:, 0].max()) for t in np.arange(0, 30, 1.0)
+    )
+    assert calm < 0.75  # without meteors the sky keeps its lane
 
 
 # ------------------------------------------------- composed: small planet

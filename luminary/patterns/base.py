@@ -23,6 +23,10 @@ class Pattern(ABC):
 
     name: str = "unnamed"
     description: str = ""
+    #: Liner notes: a few evocative sentences for whoever is running the
+    #: show — what the scene is and where it is going. Shown in italics
+    #: on viewer surfaces; empty is fine.
+    notes: str = ""
 
     @abstractmethod
     def render(self, lights: np.ndarray, t: float) -> np.ndarray:
@@ -43,5 +47,6 @@ class Pattern(ABC):
         return {
             "name": self.name,
             "description": self.description,
+            "notes": self.notes,
             "class_name": type(self).__name__,
         }

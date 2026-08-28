@@ -95,8 +95,9 @@ against shared golden vectors (`firmware/golden/`).
 | `WS /api/play?lights=ID&pattern=NAME` | wire-protocol streaming |
 | `GET /demo/mapping` | the scrambled-build mapping tutorial, mounted here by `serve` (opt out: `--no-mapping-demo`); also standalone via `python -m luminary.mapping.web` |
 | `GET …/api/mapping/layout` · `WS …/api/mapping/{window,wire,control}` | the mapping app's own API (`luminary.mapping.web`, under whatever prefix it serves at): layout+plan+state JSON; wire-codec streams; key events. A live session's window page is `/window` — its own process, `python -m luminary.cli map --web` |
-| `GET /stage` · `GET/POST /api/queue` · `DELETE /api/queue/{i}` · `POST /api/queue/{move,skip,clear}` | the stage: viewer/control page and the play-queue API (tracklist + now-playing; mounted by `serve`, opt out: `--no-stage`) |
-| `WS /api/stage` · `GET /api/stage/layout` | the stage's wire-codec stream (SESSION on join, `{"type":"resync"}` back) and its canvas draw layout |
+| `GET /stage` · `GET/POST /api/queue` · `DELETE /api/queue/{i}` · `POST /api/queue/{play_next,move,skip,clear}` | the stage: viewer/control page and the play-queue API (tracklist + repeats cycle + now-playing; mounted by `serve`, opt out: `--no-stage`). Mutations take the stage key when one is configured (below) |
+| `POST /api/repeats/move` · `DELETE /api/repeats/{i}` | reorder / cancel turns of the stage's repeats cycle |
+| `WS /api/stage` · `GET /api/stage/{layout,patterns,chapters?pattern=N}` | the stage's wire-codec stream (SESSION on join, `{"type":"resync"}` back), its canvas draw layout, panel pattern metadata (notes, `loop`, `has_chapters`), and one pattern's chapter tree (`[]` if chapterless) |
 | `GET /api/audio` | audio files available to queue entries (`var/audio/`) |
 
 ## The stage (play queue)
@@ -106,15 +107,57 @@ sphere geometry (`--stage-lights` overrides with a store id or lights
 file) playing a persisted tracklist, gaplessly — entries advance by
 pattern swap on the same engine, each pattern seeing t from its own
 entry's start, so long-form shows and audio cue sheets align at 0. An
-entry is `{pattern, duration, audio}`: `duration` null defers to the
-pattern's own `duration` attribute (else it plays until skipped);
-`audio` names a file in `var/audio/`, played by an auto-detected local
-player (`mpv`/`cvlc`/`ffplay`; `--audio-player CMD` overrides) that is
-started at the entry's t=0 and killed on skip/advance. An exhausted
-queue holds the last pattern, looping — the sphere never goes dark —
-and the whole tracklist survives restarts (`var/stage/queue.json`).
-The page is a thin adapter over `/api/queue`; every playback decision
-lives server-side in `luminary/stage/core.py`.
+entry is `{pattern, duration, audio, repeat}`: `duration` null defers
+to the pattern's own `duration` attribute (else it plays until
+skipped); `audio` names a file in `var/audio/`, played by an
+auto-detected local player (`mpv`/`cvlc`/`ffplay`; `--audio-player CMD`
+overrides) that is started at the entry's t=0 and killed on
+skip/advance. "Play next" (`/api/queue/play_next`) inserts right after
+the playing entry. An exhausted queue takes the next turn of the
+repeats cycle (below); with that empty too it holds the last pattern,
+looping — the sphere never goes dark — and both lists survive restarts
+(`var/stage/queue.json`). The page is a thin adapter over
+`/api/queue`; every playback decision lives server-side in
+`luminary/stage/core.py`.
+
+**Chapters.** A queued composition (a `Conductor` — anything answering
+`chapters()`) expands, the moment it reaches the head of the queue,
+into one entry per top-level chapter, titled `composition/chapter`;
+a nested composition expands one level again when *it* reaches the
+head (`comp/chapter/subchapter`), so the queue always shows the
+current show at chapter granularity while later chapters stay one
+level deep. Chapter entries keep the top-level pattern with an offset
+into its own timeline, so adjacent chapters advance **seamlessly** —
+no keyframe, timeline continuous, the composition's own crossfades
+and audio intact — and *skip means next chapter*. A skip is a jump,
+so it re-keyframes. Queued (not yet expanded) compositions are
+click-to-preview expanders in the page, showing the server-computed
+chapter tree; the viewer header shows the playing chapter's path with
+its liner `notes` (from `Movement`/`Pattern.notes`) beneath in
+italics. An instance of a `loop=True` composition gets one full pass
+(`pattern.total`) as its duration.
+
+**Repeats.** The stage keeps a second list: a round-robin cycle of
+`{pattern, title, audio}` tokens with its own pane and controls.
+Adding with the `repeat` box checked (its default is the pattern's own
+`loop` flag) queues one instance *and* one token; whenever the
+play-through queue runs out, the head token spawns a fresh instance
+(expanding into chapters at the head as usual) and moves to the back
+of the cycle — an overnight program repeats forever until its token is
+cancelled. "Clear queue" drops only the play-through list; the cycle
+keeps going until its tokens are removed.
+
+**Production posture.** Configure a stage key (`serve --stage-key K`,
+or env `LUMINARY_STAGE_KEY`; the flag wins) and every mutating
+endpoint (add, play-next, remove, move, skip, clear, repeats CRUD)
+requires it in an `X-Stage-Key` header — wrong or missing gets a 403
+with a JSON error the page surfaces. Read-only traffic (the page, the
+WS stream, queue/layout/patterns/chapters/audio GETs) is never gated,
+so anyone can watch. Put the key in the systemd unit's environment
+(`Environment=LUMINARY_STAGE_KEY=…`) and share the control URL only
+with VJs — the page takes the key from its footer field (persisted in
+localStorage) or once via a `#key=…` URL fragment. With no key
+configured, endpoints stay open (LAN deployments).
 
 ## Pattern development
 
