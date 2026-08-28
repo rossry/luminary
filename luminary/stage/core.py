@@ -25,10 +25,13 @@ chapters stay one level deep until they reach the head. A chapter
 entry keeps the top-level pattern name — the engine plays the
 composition itself — plus the chapter's absolute ``offset`` into that
 composition's timeline, its ``duration``, its ``title`` path, and its
-liner ``notes``; frame time is ``(now - entry start) + offset``. The
-instance's audio (if any) attaches to the first chapter only, and an
-instance of a ``loop=True`` composition gets one full pass
-(``pattern.total``) as its duration.
+liner ``notes``; frame time is ``(now - entry start) + offset``. Audio
+at expansion: an instance left to the default gives every chapter its
+own declared track (``Movement.audio``, when the file is present); an
+instance with an explicit file plays it through (first chapter only);
+an explicitly silent instance ("") stays silent. An instance of a
+``loop=True`` composition gets one full pass (``pattern.total``) as
+its duration.
 
 Gapless advance: entries swap via ``engine.set_pattern`` on the SAME
 engine and geometry — no SESSION change, no dark gap; the forced
@@ -99,9 +102,13 @@ class StageError(ValueError):
 class QueueEntry(BaseModel):
     """One tracklist entry: what to play, for how long, with what sound.
 
-    ``duration`` None defers to the pattern's own ``duration`` attribute
-    (long-form shows carry one); a pattern with neither plays until
-    skipped. ``audio`` names a file in the stage's audio directory.
+    ``audio`` names a file in the stage's audio directory ("" is
+    explicitly silent). With audio, the track times the entry:
+    ``duration`` None means the file's exact length, and an explicit
+    duration is trimmed to it at add time (shorter cuts fade the audio
+    out at the cut). Without audio, ``duration`` None defers to the
+    pattern's own ``duration`` attribute (long-form shows carry one);
+    a pattern with neither plays until skipped.
 
     Chapter fields: ``offset`` is where this entry starts on its
     pattern's own timeline (0 for a whole pattern; a chapter's absolute
@@ -182,6 +189,24 @@ def _chapter_nodes(pattern: Pattern) -> List[Dict[str, Any]]:
         logger.exception("stage: %s.chapters() failed", pattern.name)
         return []
     return list(nodes) if isinstance(nodes, list) else []
+
+
+def _chapter_audio(pattern: Pattern) -> List[str]:
+    """Every distinct audio file the pattern's chapter tree declares, in
+    play order — the show's recommended per-chapter soundtrack."""
+    out: List[str] = []
+
+    def walk(nodes: List[Dict[str, Any]]) -> None:
+        for node in nodes:
+            name = str(node.get("audio") or "")
+            if name and name not in out:
+                out.append(name)
+            children = node.get("children")
+            if isinstance(children, list):
+                walk(children)
+
+    walk(_chapter_nodes(pattern))
+    return out
 
 
 class StageCore:
@@ -291,6 +316,7 @@ class StageCore:
                 if pattern is None:  # racing a reload; skip the ghost
                     continue
                 declared_audio = str(getattr(pattern, "audio", "") or "")
+                wanted = _chapter_audio(pattern)
                 out.append(
                     {
                         **row,
@@ -301,6 +327,10 @@ class StageCore:
                         "audio_present": bool(
                             declared_audio and self.audio.has(declared_audio)
                         ),
+                        "chapter_audio": wanted,
+                        "chapter_audio_present": [
+                            name for name in wanted if self.audio.has(name)
+                        ],
                     }
                 )
             return out
@@ -472,9 +502,10 @@ class StageCore:
         ``repeat`` left unspecified defaults to the pattern's own
         ``loop`` flag; a ``loop=True`` composition with no explicit
         duration gets one full pass (``pattern.total``); audio left
-        unspecified defaults to the pattern's declared ``audio`` file
-        when it is present in the audio directory (send ``""`` for
-        explicitly none)."""
+        unspecified means "as declared" — the pattern's own ``audio``
+        file when present, and for a composition whose chapters declare
+        their own tracks, each chapter's file at expansion. ``""`` is
+        explicitly silent and stays silent through expansion."""
         data = dict(raw)
         explicit_repeat = data.get("repeat") is not None
         if not explicit_repeat:
@@ -483,22 +514,29 @@ class StageCore:
             entry = QueueEntry.model_validate(data)
         except ValidationError as exc:
             raise StageError(_first_error(exc))
-        explicit_no_audio = entry.audio == ""
-        if explicit_no_audio:
-            entry.audio = None
         pattern = self._resolve(entry.pattern)
         if pattern is None:
             raise StageError(f"unknown pattern {entry.pattern!r}")
-        if entry.audio is not None and not self.audio.has(entry.audio):
+        if entry.audio and not self.audio.has(entry.audio):
             raise StageError(
                 f"unknown audio file {entry.audio!r} (GET /api/audio lists them)"
             )
-        if entry.audio is None and not explicit_no_audio:
+        if entry.audio is None and not _chapter_audio(pattern):
             declared = str(getattr(pattern, "audio", "") or "")
             if declared and self.audio.has(declared):
                 entry.audio = declared
         if not explicit_repeat:
             entry.repeat = bool(getattr(pattern, "loop", False))
+        if entry.audio:
+            # The track times the entry: auto duration is the file's
+            # exact length, and an explicit duration can only cut it
+            # shorter (the cut gets a fade at playback), never outlive
+            # it — a longer ask trims to the track here at add time.
+            length = self.audio.duration_of(entry.audio)
+            if length is not None and length > 0:
+                entry.duration = (
+                    length if entry.duration is None else min(entry.duration, length)
+                )
         if entry.duration is None:
             entry.duration = _loop_total(pattern)
         return entry
@@ -593,7 +631,7 @@ class StageCore:
             QueueEntry(
                 pattern=entry.pattern,
                 duration=float(child["duration"]),
-                audio=entry.audio if j == 0 else None,
+                audio=self._chapter_entry_audio(entry, child, j),
                 offset=float(child["start"]),
                 title=f"{base_title}/{child['title']}",
                 notes=str(child.get("notes") or ""),
@@ -603,6 +641,20 @@ class StageCore:
             for j, child in enumerate(children)
         ]
         return True
+
+    def _chapter_entry_audio(
+        self, entry: QueueEntry, child: Dict[str, Any], j: int
+    ) -> Optional[str]:
+        """A chapter entry's audio at expansion. An instance left to the
+        default (None) gives every chapter its own declared track when
+        the file is present; an explicit file plays through (attached to
+        the first chapter only); explicit silence ("") stays silent."""
+        if entry.audio is None:
+            declared = str(child.get("audio") or "")
+            return declared if declared and self.audio.has(declared) else None
+        if entry.audio == "":
+            return ""
+        return entry.audio if j == 0 else None
 
     def _start_entry(self, i: int, *, seam: Optional[_Seam] = None) -> None:
         """Start ``entries[i]`` on the SAME engine. A composition
@@ -640,17 +692,19 @@ class StageCore:
             assert seam is not None
             # One continuous timeline: t keeps flowing through the
             # boundary, so the composition's own crossfade carries the
-            # transition and the wire needs only deltas.
+            # transition and the wire needs only deltas. A chapter with
+            # its own track starts it at the boundary; an audio-less
+            # chapter (None) lets whatever is playing play on.
             self._entry_start = seam.clock
-            if entry.audio is not None:  # chapters carry none past the first
+            if entry.audio:
                 self.audio.stop()
-                self.audio.start(entry.audio)
+                self.audio.start(entry.audio, cut_at=entry.duration)
         else:
             self.engine.set_pattern(pattern)
             self._entry_start = self._clock()
             self.audio.stop()
-            if entry.audio is not None:
-                self.audio.start(entry.audio)
+            if entry.audio:
+                self.audio.start(entry.audio, cut_at=entry.duration)
         self._playing_pattern = pattern.name
         self._playing_title = entry.title or pattern.name
         self._playing_notes = (

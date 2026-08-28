@@ -29,7 +29,7 @@ from typing import Any, Dict, List, Tuple
 import numpy as np
 
 from luminary.geometry.lights import LightColumns
-from luminary.patterns.compose import Conductor, Movement
+from luminary.patterns.compose import Conductor, Layered, Movement
 from luminary.patterns.easing import env_ad, smootherstep
 from luminary.patterns.fields import fbm, value_noise
 from luminary.patterns.palettes import (
@@ -46,6 +46,7 @@ from luminary.patterns.primitives import (
     NoiseGlow,
     Primitive,
     RingWave,
+    Starfall,
     Starfield,
 )
 from luminary.patterns.util import phi_theta, plane_xy, seeded_random
@@ -390,57 +391,99 @@ TOLL = Palette(
     ]
 )
 
+# The rings' journey, one color per toll: green, through blue-white and
+# purple-white, down to a warm and dimming red (the palette's own L
+# carries the dimming — late rings arrive quieter because they are red).
+RING_MEANDER = Palette(
+    [
+        (0.0, 0.50, 0.130, 150.0),
+        (0.33, 0.72, 0.060, 225.0),
+        (0.62, 0.68, 0.070, 300.0),
+        (1.0, 0.30, 0.110, 30.0),
+    ]
+)
+
+# The sculpture's own landmarks, measured from the folded 4A-33 net
+# (azimuth°, polar° in a 99.48°-span frame): the four hexagon centers —
+# the only vertices where six triangle-panels meet — with the
+# center-front point completing their ring at the opening, then the
+# tips of the four arms.
+SEATS = (
+    (54.0, 37.38),
+    (-18.0, 37.38),
+    (-162.0, 37.38),
+    (126.0, 37.38),
+    (-90.0, 37.38),
+    (54.0, 58.28),
+    (126.0, 58.28),
+    (0.0, 90.0),
+    (180.0, 90.0),
+)
+
 
 def nocturne_movements() -> List[Movement]:
-    """The night, as data: seven movements, exactly 1800 s.
+    """The night, as data: seven movements, 1784 s (29:44).
 
     Every movement is one action at the size of the sphere, and knows
-    whether it is going somewhere, coming from somewhere, or arrived:
-    the day's fire drains out (going), a sky populates star by star
-    (going), an auroral storm crests and lets down (coming-arriving-
-    leaving), the deep sea rests (arrived — the still heart), a toll
-    builds out of the stillness (coming), candles gather one by one
-    (going, toward warmth), and the same stars — same salt, same
-    seniority — release in reverse order of arrival (going home).
+    whether it is going somewhere, coming from somewhere, or arrived.
+    Each is timed to its own track (the curated set — filenames and
+    sources in ``patterns/book-two/nocturne.py``) and declares it as
+    ``Movement.audio``, so a stage playing the show as chapters starts
+    each act's music at the act.
 
     Duty cycle: full fields hold a low lane (means well under 0.3);
-    figures — stars, ring crests, candle cores, meteors — sit above it,
-    and meteors alone burst toward full brightness.
+    figures — stars, ring crests, candle cores, falling stars — sit
+    above it, and only streaks burst toward full brightness.
     """
     return [
         Movement(
-            Embers(arc_s=240.0, swell_gain=1.25, mortality=0.16),
-            240.0,
+            Embers(
+                arc_s=240.0,
+                swell_gain=1.25,
+                mortality=0.16,
+                dark_at=186.0,
+                dark_s=54.0,
+                dark_floor=0.10,
+            ),
+            251.0,
             fade=10.0,
-            title="dusk",
+            title="embers",
+            audio="nocturne-embers.mp3",
             notes=(
                 "The day's fire, and the wind that ends it. Coals glow "
-                "inside the ash-cloud; every three-quarters of a minute a "
-                "gust sweeps the whole sphere in a five-second breath — "
-                "watch it: the cloud goes dark under it while the sparks "
-                "flare hot, and some flare for the last time. The fire "
-                "swells once, defiant, near the start. Then: going out, "
-                "gust by gust, until only the deepest coals remain."
+                "inside the ash banks — never the dark between — and "
+                "every three-quarters of a minute a gust crosses the "
+                "sphere in a five-second breath: the cloud goes dark "
+                "under it and stays beaten down, healing slower than the "
+                "next gust comes, while the coals flare and hold their "
+                "flare, each for its own while. Some flare for the last "
+                "time. After the three-minute wave: the dying fall."
             ),
         ),
         Movement(
             Starfield(
                 density=0.035,
                 twinkle_s=6.5,
-                star_l=0.85,
-                star_hue=80.0,
+                star_l=0.88,
                 fill_from=0.04,
                 fill_to=1.0,
-                arc_s=210.0,
+                arc_s=132.0,
                 meteor_rate=0.9,
+                tint=1.0,
+                flutter=0.10,
+                sparse_boost=0.45,
+                swell=0.25,
+                churn=0.30,
             ),
-            210.0,
-            fade=20.0,
+            132.0,
+            fade=12.0,
             title="first-stars",
+            audio="nocturne-first-stars.mp3",
             notes=(
-                "One star, then three, then a sky. The brightest arrived "
-                "first and hold steady; the young ones flicker at the edge "
-                "of arriving. Once a minute or so, something falls. Going: "
+                "One star, then three, then a sky. While it is nearly "
+                "empty the few that are on burn nearly full — and short-"
+                "lived stars rise and fall all through it, warm gold to "
+                "blue-white, while the deep ones rise and rise. Going: "
                 "toward fullness."
             ),
         ),
@@ -450,95 +493,144 @@ def nocturne_movements() -> List[Movement]:
                 speed=1.3,
                 crest_at=0.45,
                 activity_floor=0.50,
-                arc_s=300.0,
+                arc_s=391.0,
                 gain=1.35,
+                surge_s=24.0,
             ),
-            300.0,
+            391.0,
             fade=24.0,
             title="veils",
+            audio="nocturne-veils.mp3",
             notes=(
-                "Weather from above: green curtains hung from the apex, "
-                "already swaying as you arrive. The storm crests with "
-                "violet at its fringes around the second minute, then "
-                "lets itself down. One system — coming, arrived, leaving."
+                "Weather from above: curtains of rayed light hung from "
+                "the apex, their tops uneven, their shafts racing. The "
+                "storm crests near the third minute — surges race the "
+                "sphere, the cores burn green-white, violet on the high "
+                "fringes, a corona gathers at the crown — then it lets "
+                "itself down. One system: coming, arrived, leaving."
             ),
         ),
         Movement(
-            NoiseGlow(
-                palette=SEA_GLASS,
-                scale=2.6,
-                speed=0.028,
-                contrast=1.45,
-                gain_from=0.95,
-                gain_to=0.95,
-                arc_s=240.0,
-                tide_s=28.0,
-                tide_depth=0.50,
-                breathe_s=0.0,
-                seed=12,
+            Layered(
+                NoiseGlow(
+                    palette=SEA_GLASS,
+                    scale=2.6,
+                    speed=0.028,
+                    contrast=1.45,
+                    gain_from=0.95,
+                    gain_to=0.95,
+                    arc_s=194.0,
+                    tide_s=28.0,
+                    tide_depth=0.50,
+                    tide2_s=41.0,
+                    tide2_depth=0.35,
+                    tide2_angle=115.0,
+                    breathe_s=0.0,
+                    seed=12,
+                ),
+                Starfield(
+                    density=0.02,
+                    fill_from=0.0,
+                    fill_to=0.0,
+                    sky_l=0.0,
+                    star_l=0.60,
+                    star_hue=185.0,
+                    tint=0.0,
+                    twinkle_s=3.5,
+                    flutter=0.12,
+                    churn=0.30,
+                    churn_life_s=7.0,
+                    churn_l=0.85,
+                    salt="plankton",
+                ),
             ),
-            240.0,
+            194.0,
             fade=24.0,
             title="deep-sea",
+            audio="nocturne-deep-sea.mp3",
             notes=(
-                "The resting heart of the night. Nothing is going "
-                "anywhere: this is what arrived feels like. The proof it "
-                "is alive is the swell — one sphere-wide wave every "
-                "twenty-eight seconds, rich at its crest, dark in its "
-                "trough."
+                "The resting heart of the night. Two sphere-wide swells "
+                "cross each other — every wave arrives differently — and "
+                "plankton motes glow up and fade through the banks, "
+                "cyan points on the green-dark. Nothing is going "
+                "anywhere: this is what arrived feels like."
             ),
         ),
         Movement(
             RingWave(
                 period=14.0,
-                sigma_deg=9.0,
-                palette=TOLL,
-                gain_from=0.12,
+                sigma_deg=6.0,
+                launch_s=7.0,
+                start_at=7.0,
+                gain_from=0.22,
                 gain_to=1.0,
-                arc_s=80.0,
+                arc_s=110.0,
+                meander=RING_MEANDER,
+                meander_s=439.0,
             ),
-            240.0,
+            439.0,
             fade=18.0,
             title="rings",
+            audio="nocturne-rings.mp3",
             notes=(
-                "Out of the stillness, a toll. Each ring is a single "
-                "gesture the size of the sphere — fourteen seconds from "
-                "apex to rim — and each lands a little fuller than the "
-                "last. Someone is calling. Coming: toward us."
+                "Out of the stillness, a toll every seven seconds, each "
+                "ring still taking its slow fourteen from apex to rim — "
+                "two always share the sphere. Their color is a journey: "
+                "green, through blue-white, purple-white, down to a warm "
+                "red that dims as the lament does. Someone is calling, "
+                "and then the calling is over."
             ),
         ),
         Movement(
-            Candles(fill_from=0.03, fill_to=0.88, arc_s=270.0),
-            300.0,
-            fade=26.0,
+            Candles(
+                anchors=SEATS,
+                fill_from=0.0,
+                fill_to=1.0,
+                arc_s=130.0,
+                fill_gamma=0.75,
+                spot_to=9.5,
+                pos_to=1.0,
+                flutter=0.16,
+                snuff_at=138.0,
+                snuff_s=13.0,
+                floor_pos=0.05,
+            ),
+            166.0,
+            fade=14.0,
             title="candles",
+            audio="nocturne-candles.mp3",
             notes=(
-                "An answer: one candle. Then its neighbors. Warm pools "
-                "gather across the dark, each flame breathing on its own "
-                "clock, until the sphere holds a congregation of small "
-                "fires. Going: toward warmth, one light at a time."
+                "An answer: flames at the sculpture's own bones — the "
+                "four hexagon hearts, the center-front, the arm tips — "
+                "then everywhere, fast, each flame panting on its own "
+                "clock. It swells to a roaring wave of fire; then one "
+                "sighing breath spreads from the crown and takes every "
+                "flame with it, each leaning bright as it goes, and the "
+                "dark it leaves is full of stars."
             ),
         ),
         Movement(
-            Starfield(
+            Starfall(
                 density=0.035,
                 twinkle_s=7.0,
                 star_l=0.70,
                 sky_l=0.024,
-                fill_from=1.0,
-                fill_to=0.10,
-                arc_s=250.0,
-                meteor_rate=0.5,
+                tint=1.0,
+                flutter=0.10,
+                fall_delay=16.0,
+                fall_span=181.0,
             ),
-            270.0,
-            fade=28.0,
+            211.0,
+            fade=16.0,
             title="starfall",
+            audio="nocturne-starfall.mp3",
             notes=(
-                "The same stars as before — the sky remembers its own. Now "
-                "they let go in reverse order of arrival: the newest "
-                "first, the deep ones last, until only the fixed stars "
-                "hold. Going: home. If one falls on your watch, that was "
-                "the goodbye."
+                "The same stars as before — the sky remembers its own. "
+                "Then one is chosen: it swells, and falls, streaking off "
+                "the stage. Then a few. Then a wave of them, raining "
+                "off the sphere; then a trickle; then the handful of "
+                "fixed stars that will not fall, holding. If you make a "
+                "wish, make it early."
             ),
         ),
     ]
@@ -552,10 +644,11 @@ def nocturne() -> Conductor:
         "Half an hour of night: embers, stars, veils, sea, rings, candles"
     )
     show.notes = (
-        "Thirty minutes of night in seven movements, each one action at "
+        "A half hour of night in seven movements, each one action at "
         "the size of the sphere: fire drains, a sky fills, a storm "
-        "crests, the sea rests, a toll approaches, candles gather, and "
-        "the same stars let go in reverse order of arrival."
+        "crests, the sea rests, a toll passes through every color of "
+        "night, candles roar and are breathed out, and the stars fall. "
+        "Each act carries its own track — queue it as chapters and the "
+        "music changes with the act."
     )
-    show.audio = "nocturne.mp3"  # the curated set: see book-two/nocturne.py
     return show

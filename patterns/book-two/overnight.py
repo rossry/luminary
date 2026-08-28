@@ -26,11 +26,12 @@ class Overnight(Conductor):
     )
 
     def __init__(self) -> None:
+        night = nocturne()  # its own total: retimed acts never drift here
         super().__init__(
             [
                 Movement(
-                    nocturne(),
-                    1800.0,
+                    night,
+                    night.total,
                     fade=25.0,
                     title="nocturne",
                     notes=(

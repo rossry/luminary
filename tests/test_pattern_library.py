@@ -304,33 +304,70 @@ def test_starfield_population_swells_by_seniority():
 
 
 def test_embers_wind_is_visible_and_mortal():
-    """The dusk physics: the gust front dims the ash-cloud while it
-    fans the sparks; each pass consumes coals (population strictly
-    declines); the envelope swells before the long drain."""
+    """The embers physics: sparks live in the cloud banks (never spread
+    evenly); the gust front dims the cloud and the damage heals only
+    slowly (still beaten down when the next gust comes); fanned coals
+    hold their flare for seconds after the front passes; each pass
+    consumes coals; the envelope swells before the long drain; dark_at
+    fades the act out."""
+    from luminary.patterns.fields import fbm, warp
     from luminary.patterns.primitives import Embers
-    from luminary.patterns.util import seeded_random
+    from luminary.patterns.util import plane_xy, seeded_random
 
-    lights = make_lights(n=2500, seed=6)
+    lights = make_lights(n=4000, seed=6)
     e = Embers(arc_s=240.0, swell_gain=1.25)
-
-    # The wind mask comes from the primitive's own helper (one source).
-    from luminary.patterns.util import plane_xy
-
+    n = lights.shape[0]
     u, v = plane_xy(lights)
-    # Probe mid-sweep of a gust: gust k begins at k*tide_s and crosses
-    # the sphere in sweep_s, so k*tide_s + sweep_s/2 has the front
-    # mid-layout.
-    t = 2.0 * e.tide_s + e.sweep_s / 2.0
-    wind, _passes = e._wind(u, v, t)
-    crest, calm = wind > 0.7, wind < 0.05
-    spark = seeded_random(f"{e.salt}-pick", lights.shape[0]) < e.spark_density
+    spark = seeded_random(f"{e.salt}-pick", n) < e.spark_density
 
+    def cloud_field(t):
+        uu = u * e.scale + t * e.drift
+        vv = v * e.scale - t * e.drift * 0.71
+        wu, wv = warp(uu, vv, e.seed, 1.1, octaves=2)
+        return np.clip(fbm(wu, wv, e.seed + 10, octaves=3), 0.0, 1.0) ** e.contrast
+
+    # Sparks are in the clouds: the field under lit sparks runs far
+    # above the ambient field (stochastic density follows the banks).
+    t0 = 30.0
+    L0 = e.render(lights, t0)[:, 0]
+    lit = spark & (L0 > 0.25)
+    field = cloud_field(t0)
+    assert lit.sum() > 12
+    assert float(field[lit].mean()) > float(field.mean()) * 1.5
+
+    # The gust front dims the cloud under it, and the wind helper is
+    # the one source of the front (mid-sweep of gust 2 here).
+    t = 2.0 * e.tide_s + e.sweep_s / 2.0
+    wind, _passes, _since = e._wind(u, v, t)
+    crest, calm = wind > 0.7, wind < 0.05
     L = e.render(lights, t)[:, 0]
     assert float(L[crest & ~spark].mean()) < float(L[calm & ~spark].mean()) * 0.9
-    assert float(L[crest & spark].max()) > float(L[calm & spark].max()) * 1.25
-    # Between gusts the sphere is calm — the wind is sudden, not ambient.
-    quiet, _ = e._wind(u, v, 2.0 * e.tide_s + e.sweep_s + 3.0)
+    # Between gusts the FRONT is gone (sudden, not ambient)...
+    quiet, _p, _s = e._wind(u, v, 2.0 * e.tide_s + e.sweep_s + 3.0)
     assert float(np.max(quiet)) < 1e-6
+    # ...but the scar stays: the beaten-down cloud has healed only
+    # partway by the eve of the next gust.
+    hi = ~spark & (field > np.quantile(field, 0.75))
+    before = float(e.render(lights, e.tide_s - 1.5)[hi, 0].mean())
+    after = float(e.render(lights, e.tide_s + e.sweep_s + 4.0)[hi, 0].mean())
+    eve = float(e.render(lights, 2.0 * e.tide_s - 1.5)[hi, 0].mean())
+    assert after < before * 0.85  # the pass beat the cloud down
+    assert eve < before * 0.95  # and it has NOT sprung back by the next
+
+    # A fanned coal holds its flare for seconds after the front passes.
+    a = np.radians(e.tide_angle)
+    proj = 0.5 * (u * np.cos(a) + v * np.sin(a))
+    tails = e.flare_s * (0.5 + 1.1 * seeded_random(f"{e.salt}-tail", n))
+    life = seeded_random(f"{e.salt}-life", n)
+    coals = np.flatnonzero(spark & (life > 0.8) & (field > 0.35) & (tails > 4.5))
+    assert coals.size > 0
+    i = int(coals[0])
+    cross = 2.0 * e.tide_s + float(
+        np.clip((proj[i] + 0.62) * e.sweep_s / 1.24, 0.0, e.sweep_s)
+    )
+    resting = float(e.render(lights, cross - 4.0)[i, 0])
+    flared = float(e.render(lights, cross + 2.5)[i, 0])
+    assert flared > resting * 1.3  # still flaring seconds after the pass
 
     def live(tt):
         return int(np.sum(e.render(lights, tt)[:, 0] * spark > 0.17))
@@ -344,6 +381,11 @@ def test_embers_wind_is_visible_and_mortal():
     }
     assert means[53.0] > means[3.0] * 1.2  # the defiant swell
     assert means[230.0] < means[53.0] * 0.5  # the long drain
+
+    # The dying fall: past dark_at the whole scene fades toward dark.
+    dying = Embers(arc_s=240.0, dark_at=186.0, dark_s=54.0, dark_floor=0.10)
+    lit_now = float(np.mean(Embers(arc_s=240.0).render(lights, 245.0)[:, 0]))
+    assert float(np.mean(dying.render(lights, 245.0)[:, 0])) < lit_now * 0.25
 
 
 def test_motif_plays_its_phrase_and_rests():
@@ -514,3 +556,200 @@ def test_relay_races_the_strip_order():
     a = relay.render(lights, 6.0)
     relay.render(lights, 1234.5)
     assert np.array_equal(relay.render(lights, 6.0), a)
+
+
+def test_starfield_breathes_and_colors_its_stars():
+    """First-stars physics: churn stars rise AND fall on their own
+    clocks; tint spreads star color warm-to-blue; a sparse sky runs its
+    lit stars brighter than a full one runs them."""
+    from luminary.patterns.primitives import Starfield
+
+    lights = make_lights(n=3000, seed=12)
+    s = Starfield(
+        density=0.035,
+        star_l=0.88,
+        fill_from=0.04,
+        fill_to=1.0,
+        arc_s=132.0,
+        tint=1.0,
+        flutter=0.10,
+        sparse_boost=0.45,
+        churn=0.30,
+    )
+    # An ephemeral: somewhere lit now that is dark a window later and
+    # was dark a window before (rise and fall, not one-way).
+    env_now = s._churn(40.0, 3000)
+    i = int(np.flatnonzero(env_now > 0.9)[0])
+    span = s.churn_life_s
+    assert (
+        s._churn(40.0 - 2.0 * span, 3000)[i] < 0.9
+        or s._churn(40.0 + 2.0 * span, 3000)[i] < 0.9
+    )
+    # Tint: both warm and cool stars exist in one frame.
+    f = s.render(lights, 100.0)
+    hot = f[:, 0] > 0.3
+    hues = f[hot, 2]
+    assert ((hues < 90.0) | (hues > 330.0)).any() and (
+        (hues > 180.0) & (hues < 300.0)
+    ).any()
+    # Sparse duty: the brightest star early (sky nearly empty) beats the
+    # brightest at the same twinkle phase with no boost.
+    plain = Starfield(
+        density=0.035, star_l=0.88, fill_from=0.04, fill_to=1.0, arc_s=132.0
+    )
+    assert float(s.render(lights, 8.0)[:, 0].max()) > float(
+        plain.render(lights, 8.0)[:, 0].max()
+    )
+    # Stateless.
+    assert np.array_equal(s.render(lights, 77.7), s.render(lights, 77.7))
+
+
+def test_starfall_empties_the_sky_one_streak_at_a_time():
+    """The stars leave by falling: departures follow the one/few/wave/
+    trickle schedule, a falling star leaves a streak, and the keep
+    fraction never falls."""
+    from luminary.patterns.primitives import Starfall
+    from luminary.patterns.util import seeded_random
+
+    lights = make_lights(n=3000, seed=13)
+    sf = Starfall(
+        density=0.035, star_l=0.70, sky_l=0.024, fall_delay=16.0, fall_span=181.0
+    )
+    pick = seeded_random(f"{sf.salt}-pick", 3000)
+    star = pick < sf.density
+    T = sf._departures(pick)[star]
+    finite = np.sort(T[np.isfinite(T)])
+    # The keepers: about the keep fraction of the population never falls.
+    assert abs(1.0 - finite.size / star.sum() - sf.keep) < 0.06
+    # The schedule has a shape: openers spaced out, the wave dense.
+    gaps = np.diff(finite)
+    openers = gaps[finite[:-1] < sf.fall_delay + 0.2 * sf.fall_span]
+    wave = gaps[
+        (finite[:-1] > sf.fall_delay + 0.4 * sf.fall_span)
+        & (finite[:-1] < sf.fall_delay + 0.6 * sf.fall_span)
+    ]
+    assert float(np.median(openers)) > 3.0 * float(np.median(wave))
+    # A streak: sampling right after one departure lights a trail well
+    # beyond the star's own pixel.
+    t_probe = float(finite[finite.size // 2]) + 0.5
+    frame = sf.render(lights, t_probe)
+    assert float(frame[:, 0].max()) > 0.7
+    assert int((frame[:, 0] > 0.4).sum()) > 3
+    # The sky really empties: far fewer lit stars late than early.
+    early = int((sf.render(lights, 5.0)[:, 0] > 0.25).sum())
+    late = int(
+        (sf.render(lights, sf.fall_delay + sf.fall_span + 10.0)[:, 0] > 0.25).sum()
+    )
+    assert late < early * 0.35
+    assert late >= 3  # the keepers hold
+    assert np.array_equal(sf.render(lights, 99.9), sf.render(lights, 99.9))
+
+
+def test_ringwave_launch_cadence_and_meander():
+    """Rings launch on their own cadence (two share the sphere), the
+    first too-dim toll is dropped, and each ring's color walks the
+    meander palette — green early, warm red late."""
+    from luminary.patterns.palettes import Palette
+    from luminary.patterns.primitives import RingWave
+
+    meander = Palette(
+        [
+            (0.0, 0.50, 0.13, 150.0),
+            (0.33, 0.72, 0.06, 225.0),
+            (0.62, 0.68, 0.07, 300.0),
+            (1.0, 0.30, 0.11, 30.0),
+        ]
+    )
+    lights = make_lights(n=1500, seed=14)
+    r = RingWave(
+        period=14.0,
+        sigma_deg=6.0,
+        launch_s=7.0,
+        start_at=7.0,
+        gain_from=0.22,
+        gain_to=1.0,
+        arc_s=110.0,
+        meander=meander,
+        meander_s=439.0,
+    )
+    # Before the first launch: nothing but the floor.
+    assert float(r.render(lights, 3.0)[:, 0].max()) < 0.05
+
+    # Mid-act: hue near the green start; late: warm red, and dimmer.
+    def ring_hues(t):
+        f = r.render(lights, t)
+        m = f[:, 0] > 0.10
+        return f[m, 2], f[:, 0].max()
+
+    hues_early, _ = ring_hues(12.0)
+    assert ((hues_early > 120.0) & (hues_early < 200.0)).all()
+    hues_late, max_late = ring_hues(425.0)
+    assert ((hues_late < 60.0) | (hues_late > 350.0)).all()
+    _, max_mid = ring_hues(200.0)
+    assert max_late < max_mid * 0.7  # the red end dims
+
+
+def test_candles_anchor_seats_and_the_sighing_breath():
+    """The gathering starts at the sculpture's anchor seats and the
+    snuff wave takes every flame, leaving the warm floor."""
+    from luminary.patterns.primitives import Candles
+    from luminary.patterns.util import phi_theta
+
+    anchors = ((54.0, 37.38), (-90.0, 37.38), (0.0, 90.0))
+    lights = make_lights(n=3000, seed=15)
+    c = Candles(
+        anchors=anchors,
+        fill_from=0.0,
+        fill_to=1.0,
+        arc_s=130.0,
+        fill_gamma=0.75,
+        spot_to=9.5,
+        pos_to=1.0,
+        flutter=0.16,
+        snuff_at=138.0,
+        snuff_s=13.0,
+        floor_pos=0.05,
+    )
+    phi, th = phi_theta(lights)
+    span = float(np.max(phi))
+    sp = np.sin(phi)
+    nl = np.column_stack([sp * np.cos(th), sp * np.sin(th), np.cos(phi)])
+
+    def near(az_deg, ph_deg):
+        scale = span / np.radians(c.anchor_span_deg)
+        az, ph = np.radians(az_deg), np.radians(ph_deg) * scale
+        ax = np.array([np.sin(ph) * np.cos(az), np.sin(ph) * np.sin(az), np.cos(ph)])
+        return np.degrees(np.arccos(np.clip(nl @ ax, -1, 1))) < 6.0
+
+    early = c.render(lights, 4.0)[:, 0]
+    anchor_l = np.mean([early[near(a, p)].mean() for a, p in anchors])
+    assert float(anchor_l) > float(early.mean()) * 1.8  # seats lead
+    roar = float(c.render(lights, 135.0)[:, 0].mean())
+    gone = c.render(lights, 156.0)[:, 0]
+    assert roar > 0.25  # the roaring wave
+    assert float(gone.max()) < 0.10  # the breath took every flame
+    assert float(gone.mean()) > 0.012  # onto the warm smoke floor
+
+
+def test_aurora_crest_is_hot_and_rayed():
+    """The storm's crest runs far hotter than its floor, with fine
+    spatial structure (rays), and never saturates flat."""
+    from luminary.patterns.primitives import AuroraVeils
+
+    lights = make_lights(n=3000, seed=16)
+    v = AuroraVeils(
+        speed=1.3,
+        crest_at=0.45,
+        activity_floor=0.5,
+        arc_s=391.0,
+        gain=1.35,
+        surge_s=24.0,
+    )
+    calm = v.render(lights, 15.0)[:, 0]
+    crest = v.render(lights, 176.0)[:, 0]
+    assert float(np.quantile(crest, 0.95)) > float(np.quantile(calm, 0.95)) * 1.4
+    assert float(crest.max()) > 0.7  # the cores burn toward white
+    assert float(crest.mean()) < 0.42  # still a night sky, not a blast
+    # Rays: real spatial variance among the lit region, not one wash.
+    lit = crest > 0.15
+    assert float(np.std(crest[lit])) > 0.08
