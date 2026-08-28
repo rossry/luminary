@@ -13,6 +13,9 @@
 #include <Adafruit_NeoPXL8.h>
 #include <Arduino.h>
 
+#include <cstring>
+#include <vector>
+
 #include "lumicodec.h"
 
 // Controller identity: set per board at flash time (spec §6.2.1).
@@ -43,6 +46,15 @@ static const uint16_t MAX_PER_STRIP = LUMINARY_MAX_PER_STRIP;
 static Adafruit_NeoPXL8 pixels(MAX_PER_STRIP, PINS, LUMINARY_COLOR_ORDER);
 static lumicodec::Decoder decoder;
 static uint8_t rgbBuffer[MAX_PER_STRIP * 3];
+// Staging is decoupled from the DMA by one buffer of our own. Writing
+// straight into NeoPXL8's pixel buffer means staging cannot begin until the
+// transfer reading it has finished, which serialises DMA (10.8 ms at 360 px)
+// with staging and cost 59.0 -> 46.9 fps at 8x360. Staging here instead lets
+// the next frame be built while the current one is still going out; the copy
+// into NeoPXL8 at show time is ~8.6 KB, tens of microseconds. This is our own
+// buffer, deliberately not NeoPXL8's internal double buffering -- that was
+// measured before, gave no gain, and wedged the board under load.
+static uint8_t stageBuffer[8 * MAX_PER_STRIP * 3];
 static uint8_t serialBuffer[512];
 static uint8_t outFrame[64];
 static uint8_t statsFrame[64];
@@ -60,6 +72,8 @@ static const uint32_t SILENCE_TIMEOUT_MS = 60000;
 static uint32_t lastFrameMs = 0;
 static uint32_t framesSeen = 0;
 static uint16_t fadeScale = 256;  // 256 = full brightness, 0 = black
+static uint32_t fadeStartMs = 0;
+static const uint32_t FADE_MS = 1900;  // hold-then-fade duration (spec 11.7.7)
 
 // Per-phase instrumentation (spec 13.7). Accumulated in microseconds and
 // reported once a second as a STATS frame, so optimisation work is measured
@@ -73,6 +87,47 @@ static uint32_t statShowUs = 0;
 static uint32_t statLoopMaxUs = 0;
 static uint32_t lastStatsMs = 0;
 static const uint32_t STATS_INTERVAL_MS = 1000;
+
+// ---------------------------------------------------------------- two cores
+//
+// Split by determinism, not by load (spec 13.8). Core1 owns everything from
+// decoded state to pixels -- colour conversion, staging, show() -- which is
+// fixed-cost work against a hard deadline, and therefore schedulable. Core0
+// keeps everything whose cost varies: USB, COBS, CRC, decode, the predictor,
+// ACK. It has no deadline; it only has to keep core1 fed.
+//
+// Putting only show() on core1 was rejected: that moves the cheap part and
+// leaves colour conversion -- the largest deadline-relevant cost -- on the
+// core servicing USB interrupts.
+//
+// The handoff is a state snapshot plus two sequence numbers. Core0 publishes
+// by incrementing renderSeq; core1 answers by matching renderedSeq. Core0
+// only touches the snapshot (or the channel metadata, on a SESSION) while
+// the two are equal, which is the whole mutual exclusion -- no locks on
+// either core's hot path.
+static volatile uint32_t renderSeq = 0;
+static volatile uint32_t renderedSeq = 0;
+static volatile uint32_t renderStartedMs = 0;
+static volatile bool renderTestMode = false;
+static volatile uint32_t renderDeadline = 0;
+static lumicodec::PresentationClock presentClock;
+// Fixed display delay. Every board applies the same one, so it shifts the
+// whole show in time without pulling the boards apart; what it buys is slack
+// for a frame that arrives late. Must exceed worst-case arrival jitter, since
+// a frame later than its own deadline can only be shown late.
+#ifndef LUMINARY_PRESENT_DELAY_US
+#define LUMINARY_PRESENT_DELAY_US 20000
+#endif
+static volatile uint16_t renderFade = 256;
+static std::vector<int32_t> qSnapshot;
+static uint32_t statRenderUs = 0;
+
+static inline bool renderIdle() { return renderedSeq == renderSeq; }
+
+// Core1-private staging state.
+static uint32_t stagedSeq = 0;
+static uint32_t stagedDeadline = 0;
+static bool haveStaged = false;
 
 // Never block on outbound. USB-CDC writes can stall when the host stops
 // reading while keeping the port open (a frozen server); a blocked write
@@ -106,8 +161,84 @@ void setup() {
   rp2040.wdt_begin(8000);
 }
 
+// Decoded state -> staged pixels. Runs on core1; does NOT show.
+static void stageFrame() {
+  const uint32_t started = micros();
+  const bool testMode = renderTestMode;
+  const uint32_t scale = renderFade;
+  const uint32_t now = millis();
+  for (uint8_t channel = 0; channel < 8; channel++) {
+    uint16_t length;
+    if (testMode) {
+      length = MAX_PER_STRIP;
+      const uint32_t convertStart = micros();
+      lumicodec::testPatternRGB(channel, rgbBuffer, length, now);
+      statConvertUs += micros() - convertStart;
+    } else {
+      const uint32_t convertStart = micros();
+      length = decoder.stripRGBFrom(qSnapshot.data(), channel, rgbBuffer,
+                                    MAX_PER_STRIP);
+      statConvertUs += micros() - convertStart;
+    }
+    const uint32_t stageStart = micros();
+    // Write NeoPXL8's buffer directly rather than one setPixelColor() call
+    // per pixel -- at 8x360 that was 2880 calls of offset math per frame.
+    constexpr uint8_t R_OFF = (LUMINARY_COLOR_ORDER >> 4) & 0b11;
+    constexpr uint8_t G_OFF = (LUMINARY_COLOR_ORDER >> 2) & 0b11;
+    constexpr uint8_t B_OFF = LUMINARY_COLOR_ORDER & 0b11;
+    uint8_t* out = stageBuffer + (uint32_t)channel * MAX_PER_STRIP * 3;
+    for (uint16_t i = 0; i < length; i++) {
+      out[R_OFF] = (uint8_t)((rgbBuffer[i * 3] * scale) >> 8);
+      out[G_OFF] = (uint8_t)((rgbBuffer[i * 3 + 1] * scale) >> 8);
+      out[B_OFF] = (uint8_t)((rgbBuffer[i * 3 + 2] * scale) >> 8);
+      out += 3;
+    }
+    statStageUs += micros() - stageStart;
+  }
+  statRenderUs += micros() - started;
+}
+
+void setup1() {}
+
+void loop1() {
+  // Two steps, so the work happens as soon as the frame lands but the pixels
+  // appear at the scheduled instant: stage early, show on the deadline. That
+  // is what keeps the boards together -- they share the frame's `t` and the
+  // same fixed delay, so they light the same frame at the same moment
+  // without ever exchanging a clock.
+  if (!haveStaged) {
+    if (renderIdle()) return;
+    // No canShow() gate here any more: staging writes our own buffer, so it
+    // can run while the previous frame is still being clocked out.
+    stagedSeq = renderSeq;
+    stagedDeadline = renderDeadline;
+    stageFrame();
+    haveStaged = true;
+    return;
+  }
+  // Wrap-safe comparison: micros() rolls over every ~71 minutes.
+  if ((int32_t)(micros() - stagedDeadline) < 0) return;
+  // Never spin waiting on the DMA: core1 busy-waiting on canShow() wedged the
+  // board outright and it needed a physical replug. Returning retries next
+  // pass, so a transfer in flight costs a pass, not the board.
+  if (!pixels.canShow()) return;
+  const uint32_t showStart = micros();
+  std::memcpy(pixels.getPixels(), stageBuffer, sizeof(stageBuffer));
+  pixels.show();
+  statShowUs += micros() - showStart;
+  statFrames++;
+  haveStaged = false;
+  renderedSeq = stagedSeq;
+}
+
 void loop() {
-  rp2040.wdt_reset();
+  // Core0 pets the watchdog, so a core1 that wedged mid-render would go
+  // unnoticed. Stop petting if a render has been outstanding far longer than
+  // one could legitimately take, and let the 8 s watchdog reboot the board --
+  // the sender re-uploads SESSION on the HELLO that follows.
+  if (renderIdle() || (millis() - renderStartedMs) < 2000) {
+    rp2040.wdt_reset();
+  }
   const uint32_t loopStart = micros();
   int available = Serial.available();
   while (available > 0) {
@@ -163,6 +294,8 @@ void loop() {
   if (consumedNow != framesSeen) {
     framesSeen = consumedNow;
     lastFrameMs = now;
+    // Sample the host clock on arrival, before any of our own queuing.
+    presentClock.observe(decoder.lastT(), micros());
     if (fadeScale != 256) {
       fadeScale = 256;
       dirty = true;
@@ -170,55 +303,40 @@ void loop() {
   }
   bool silent = framesSeen > 0 && decoder.hasSession() &&
                 (now - lastFrameMs) >= SILENCE_TIMEOUT_MS;
+  if (!silent) fadeStartMs = now;  // reset while the stream is alive
   bool fading = silent && fadeScale > 0;
 
-  bool testMode = decoder.testPatternActive();
-  bool due = testMode || fading || (dirty && decoder.synced());
-  if (due && now - lastShowMs >= 15 && pixels.canShow()) {
+  // Hand the frame to core1 (spec 13.8). The snapshot and the channel
+  // metadata may only be touched while core1 is idle, which is what makes
+  // the handoff safe without locking either hot path.
+  const bool testMode = decoder.testPatternActive();
+  const bool due = testMode || fading || (dirty && decoder.synced());
+  if (due && renderIdle()) {
+    if (fading) {
+      // Fade on the clock, not on the repaint count: a fixed step per
+      // repaint made the fade's duration a side effect of the repaint rate.
+      const uint32_t elapsed = now - fadeStartMs;
+      fadeScale = (elapsed >= FADE_MS)
+                      ? 0
+                      : (uint16_t)(256 - (elapsed * 256) / FADE_MS);
+    }
+    if (!testMode) {
+      const size_t words = decoder.snapshotWords();
+      if (qSnapshot.size() != words) qSnapshot.assign(words, 0);
+      std::memcpy(qSnapshot.data(), decoder.q(), words * sizeof(int32_t));
+    }
     dirty = false;
     lastShowMs = now;
-    if (fading) {
-      // 256 -> 0 in steps of 2 at the 15 ms repaint gate: ~1.9 s fade.
-      fadeScale = (fadeScale >= 2) ? fadeScale - 2 : 0;
-    }
-    for (uint8_t channel = 0; channel < 8; channel++) {
-      // Bound by the buffer, not by the wire's declared strip length: a
-      // longer strip is clamped here rather than overrunning rgbBuffer.
-      uint16_t length;
-      if (testMode) {
-        length = MAX_PER_STRIP;
-        lumicodec::testPatternRGB(channel, rgbBuffer, length, now);
-      } else {
-        const uint32_t convertStart = micros();
-        length = decoder.stripRGB(channel, rgbBuffer, MAX_PER_STRIP);
-        statConvertUs += micros() - convertStart;
-      }
-      const uint32_t stageStart = micros();
-      // Write the pixel buffer directly rather than one setPixelColor()
-      // call per pixel -- at 8x360 that was 2880 calls per frame of offset
-      // math and bounds checks. The base class stores raw bytes in strip
-      // order (its brightness member stays 0 = no scaling; NeoPXL8 applies
-      // its own brightness during stage()), so this swizzle-copy stores
-      // exactly what setPixelColor stored. The channel offsets come from
-      // the library's own encoding of the neoPixelType constant.
-      const uint32_t scale = fadeScale;  // 256 is exact identity (x*256>>8)
-      constexpr uint8_t R_OFF = (LUMINARY_COLOR_ORDER >> 4) & 0b11;
-      constexpr uint8_t G_OFF = (LUMINARY_COLOR_ORDER >> 2) & 0b11;
-      constexpr uint8_t B_OFF = LUMINARY_COLOR_ORDER & 0b11;
-      uint8_t* out = pixels.getPixels() +
-                     (uint32_t)channel * MAX_PER_STRIP * 3;
-      for (uint16_t i = 0; i < length; i++) {
-        out[R_OFF] = (uint8_t)((rgbBuffer[i * 3] * scale) >> 8);
-        out[G_OFF] = (uint8_t)((rgbBuffer[i * 3 + 1] * scale) >> 8);
-        out[B_OFF] = (uint8_t)((rgbBuffer[i * 3 + 2] * scale) >> 8);
-        out += 3;
-      }
-      statStageUs += micros() - stageStart;
-    }
-    const uint32_t showStart = micros();
-    pixels.show();
-    statShowUs += micros() - showStart;
-    statFrames++;
+    renderTestMode = testMode;
+    renderFade = fadeScale;
+    renderStartedMs = now;
+    renderDeadline =
+        presentClock.ready()
+            ? presentClock.deadline(
+                  decoder.lastT(),
+                  presentClock.usableDelay(LUMINARY_PRESENT_DELAY_US))
+            : micros();
+    renderSeq = renderSeq + 1;
   }
 
   // Flow control (spec §11.7.6). Acknowledge after the repaint, so an ACK
@@ -239,9 +357,9 @@ void loop() {
   if (now - lastStatsMs >= STATS_INTERVAL_MS) {
     lastStatsMs = now;
     const uint32_t fields[8] = {
-        statFrames,       statDecodeUs,  lumicodec::g_predictUs,
-        statConvertUs,    statStageUs,   statShowUs,
-        statLoopMaxUs,    (uint32_t)decoder.nActive(),
+        statFrames,    statDecodeUs, lumicodec::g_predictUs,
+        statConvertUs, statStageUs,  statShowUs,
+        statLoopMaxUs, (uint32_t)decoder.nActive(),
     };
     size_t len = lumicodec::buildStats(LUMINARY_CONTROLLER_ID, fields, 8,
                                        statsFrame);

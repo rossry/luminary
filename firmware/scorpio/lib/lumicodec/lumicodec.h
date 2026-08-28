@@ -98,6 +98,15 @@ class Decoder {
   // is bounded only by the frame size, so trusting it overruns the buffer.
   uint16_t stripRGB(uint8_t channel, uint8_t* rgb, uint16_t maxPixels) const;
 
+  // stripRGB against a caller-supplied state snapshot rather than the live
+  // q_. The render core works from a snapshot so the decode core can advance
+  // the next frame's state concurrently (spec 13.8).
+  uint16_t stripRGBFrom(const int32_t* q, uint8_t channel, uint8_t* rgb,
+                        uint16_t maxPixels) const;
+
+  // Bytes of state one frame snapshot needs: nActive * 3 int32.
+  size_t snapshotWords() const { return nActive_ * 3; }
+
  private:
   bool decodeFrame(const uint8_t* raw, size_t len);
   bool applySession(const uint8_t* payload, size_t len);
@@ -169,5 +178,52 @@ size_t buildStats(uint8_t controller, const uint32_t* fields, uint8_t nFields,
 // Microseconds spent in the O(nActive) predictor loop since the counter was
 // last cleared. Instrumentation only; compiled out off-target.
 extern uint32_t g_predictUs;
+
+// Maps the host's frame time onto a local presentation deadline (spec 13.9).
+//
+// Without this each board paints whenever its own decode happens to finish,
+// so boards drift apart by their own decode times and by whatever jitter the
+// host and USB contribute -- invisible on a gradient, ragged on a hard cut.
+// Every board is fed the same `t` sequence by one host, so if each presents
+// frame `t` at the same offset from its own arrival estimate, they present
+// together without any clock exchange.
+//
+// The offset is tracked with a MINIMUM filter, not a mean. Arrival delay is
+// the true offset plus a non-negative queuing term, so the minimum over a
+// window converges on the true offset while a mean would bake each board's
+// own average queuing delay into its estimate -- the standard NTP argument.
+// The window resets periodically so the estimate can follow crystal drift
+// (RP2040 parts differ by tens of ppm, tens of ms per hour).
+class PresentationClock {
+ public:
+  void reset();
+  // A frame with header time `t` arrived at local `nowUs`.
+  void observe(double t, uint32_t nowUs);
+  bool ready() const { return have_; }
+  // Local micros at which frame `t` should be shown. `delayUs` is the fixed
+  // display delay: it must exceed worst-case arrival jitter, since a frame
+  // that arrives after its own deadline can only be shown late.
+  uint32_t deadline(double t, uint32_t delayUs) const;
+  int32_t skewUs() const { return skewUs_; }
+  // Smoothed host frame interval, microseconds; 0 until two frames are seen.
+  uint32_t intervalUs() const { return intervalUs_; }
+  // The display delay actually usable at the current frame rate. One
+  // snapshot is in flight at a time, so holding a frame longer than a frame
+  // period stalls the pipeline rather than buffering it -- measured at
+  // 8x360: 8 ms and 20 ms both gave 56 fps, 33 ms gave 45.
+  uint32_t usableDelay(uint32_t wantUs) const;
+
+ private:
+  static constexpr uint16_t WINDOW = 64;  // observations per minimum window
+  uint32_t nominal(double t) const;
+  bool have_ = false;
+  double baseT_ = 0.0;
+  uint32_t baseUs_ = 0;
+  int32_t skewUs_ = 0;
+  int32_t windowMin_ = 0;
+  uint16_t windowCount_ = 0;
+  double lastT_ = 0.0;
+  uint32_t intervalUs_ = 0;
+};
 
 }  // namespace lumicodec

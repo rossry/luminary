@@ -14,7 +14,22 @@ python firmware/tools/phases.py --port /dev/ttyACM0 --channels 8 \
 cd firmware/test/host && make -s && ./test_decoder ../../golden/case1
 ```
 
-## Where it stands (8x360, 60 fps requested)
+## Result so far
+
+8x360, every light ACTIVE — the hardest case:
+
+| stage | fps |
+|---|---|
+| baseline | 36.7 |
+| + LMS->RGB at Q13 (nine `__aeabi_lmul` calls per pixel removed) | 48.8 |
+| + repaint gate removed | 45.9 |
+| + core1 render, staging decoupled from the DMA | 59.0 |
+| + presentation clock, delay capped to the frame interval | **58.4** |
+
+8x180 reaches 59.0 fps. At the production 30 fps, 8x360 runs 29.9 fps with
+roughly half the frame budget spare.
+
+## Where it stood before the core1 work (8x360, 60 fps requested)
 
 | phase | µs/frame | note |
 |---|---|---|
@@ -50,12 +65,26 @@ and the busiest real board uses 1440 of 4096.
 
 ## Remaining, in order
 
-### 1. Drop the 15 ms repaint gate
+### 1. Deeper snapshot queue
 
-`main.cpp`: `due && now - lastShowMs >= 15` hard-caps ~66 fps and quantises
-every repaint. 60 fps is unreachable while it stands. Cheapest change here.
+Only one state snapshot is in flight, so the display delay must stay below a
+frame period: 8 ms and 20 ms both measured 56 fps at 8x360, 33 ms measured 45.
+The delay now adapts to the observed frame interval, which recovers the
+throughput, but real jitter absorption needs 2-3 snapshots (~34.5 KB each at
+2880 active). RAM is at 9.6% of 262144, so there is room.
 
-### 2. Inter-board sync + play-out buffer
+### 2. Hardware interpolators (INTERP0/INTERP1)
+
+Two `cosInterp_q14` calls per pixel are exactly what the RP2040's interpolator
+blocks do. Colour conversion is still the largest single phase.
+
+### DONE — repaint gate
+
+Removed. `due && now - lastShowMs >= 15` hard-capped ~66 fps and quantised
+every repaint. The silence fade is now on the clock rather than a fixed step
+per repaint, so its duration no longer depends on the repaint rate.
+
+### DONE — inter-board sync
 
 **There is currently no sync at all.** Each board paints when its own
 `dirty && canShow()` allows; the header `t` is only echoed in the ACK. Skew
@@ -77,7 +106,7 @@ what makes the window safe. With a queue it becomes "enqueued", and queue
 depth joins the window arithmetic — otherwise the sender double-counts the
 buffering and runs further ahead than intended.
 
-### 3. Core1 — split by determinism, not by load
+### DONE — core1, split by determinism, not by load
 
 Core1 takes the whole path from decoded state to pixels: conversion, stage,
 show (7.8 ms, fixed cost, hard deadline). Core0 keeps everything variable:
@@ -95,11 +124,12 @@ serialise (~34 KB at 2880 active, ~86 µs memcpy). Watch SRAM bank contention
 — that is what sank the earlier NeoPXL8 double-buffering attempt.
 `__scratch_x`/`__scratch_y` are separate 4 KB banks for hot small structures.
 
-### 4. Hardware interpolators (INTERP0/INTERP1)
+### Hard-won: never block core1 on the DMA
 
-Two `cosInterp_q14` calls per pixel are exactly what the RP2040's
-interpolator blocks do in hardware. Smallest and most speculative; do it last
-against the phase harness.
+A busy-wait on `canShow()` in `loop1()` wedged the board so hard the 1200 bps
+touch could not reach it — it needed a physical BOOTSEL replug. `loop1()`
+returns and retries instead. Core0 stops petting the watchdog when a render
+stays outstanding beyond 2 s, turning a core1 hang into a reboot.
 
 ## Environment
 

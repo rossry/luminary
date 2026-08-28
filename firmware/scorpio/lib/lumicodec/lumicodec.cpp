@@ -429,6 +429,11 @@ void oklchQ14ToRgb8(int32_t l_q14, int32_t c_q14, int32_t h_88,
 }
 
 uint16_t Decoder::stripRGB(uint8_t id, uint8_t* rgb, uint16_t maxPixels) const {
+  return stripRGBFrom(q_.data(), id, rgb, maxPixels);
+}
+
+uint16_t Decoder::stripRGBFrom(const int32_t* q, uint8_t id, uint8_t* rgb,
+                               uint16_t maxPixels) const {
   const ChannelState* ch = channel(id);
   if (ch == nullptr) return 0;
   buildTables();
@@ -452,8 +457,8 @@ uint16_t Decoder::stripRGB(uint8_t id, uint8_t* rgb, uint16_t maxPixels) const {
     if (kind == KIND_ACTIVE) {
       size_t slot = ch->base + activeCursor;
       activeCursor++;
-      oklchQ14ToRgb8(g_lq14_of_ql[q_[slot * 3]], g_cq14_of_qc[q_[slot * 3 + 1]],
-                     q_[slot * 3 + 2] << 8, brightness_, colorCorrection_, out);
+      oklchQ14ToRgb8(g_lq14_of_ql[q[slot * 3]], g_cq14_of_qc[q[slot * 3 + 1]],
+                     q[slot * 3 + 2] << 8, brightness_, colorCorrection_, out);
       continue;
     }
     // INTERPOLATED: bounding actives are the cursor's neighbors.
@@ -464,15 +469,15 @@ uint16_t Decoder::stripRGB(uint8_t id, uint8_t* rgb, uint16_t maxPixels) const {
     size_t prevSlot = ch->base + activeCursor - 1;
     size_t nextSlot = ch->base + activeCursor;
     int32_t w = ch->weights[pos];  // 0..255
-    int32_t lA = g_lq14_of_ql[q_[prevSlot * 3]];
-    int32_t lB = g_lq14_of_ql[q_[nextSlot * 3]];
-    int32_t cA = g_cq14_of_qc[q_[prevSlot * 3 + 1]];
-    int32_t cB = g_cq14_of_qc[q_[nextSlot * 3 + 1]];
+    int32_t lA = g_lq14_of_ql[q[prevSlot * 3]];
+    int32_t lB = g_lq14_of_ql[q[nextSlot * 3]];
+    int32_t cA = g_cq14_of_qc[q[prevSlot * 3 + 1]];
+    int32_t cB = g_cq14_of_qc[q[nextSlot * 3 + 1]];
     int32_t l_q14 = lA + static_cast<int32_t>((static_cast<int64_t>(lB - lA) * w) >> 8);
     int32_t c_q14 = cA + static_cast<int32_t>((static_cast<int64_t>(cB - cA) * w) >> 8);
     // OKLCH shortest-arc hue in 8.8 fixed point (spec §13.5.1).
-    int32_t hA = q_[prevSlot * 3 + 2];
-    int32_t dH = hueWrapDiff(q_[nextSlot * 3 + 2], hA);
+    int32_t hA = q[prevSlot * 3 + 2];
+    int32_t dH = hueWrapDiff(q[nextSlot * 3 + 2], hA);
     int32_t h_88 = ((hA << 8) + dH * w) & 0xFFFF;
     oklchQ14ToRgb8(l_q14, c_q14, h_88, brightness_, colorCorrection_, out);
   }
@@ -519,6 +524,65 @@ void testPatternRGB(uint8_t channel, uint8_t* rgb, uint16_t nPixels,
 // ---------------------------------------------------------- outbound frames
 
 uint32_t g_predictUs = 0;
+
+// ------------------------------------------------------- presentation clock
+
+void PresentationClock::reset() {
+  have_ = false;
+  skewUs_ = 0;
+  windowMin_ = 0;
+  windowCount_ = 0;
+  lastT_ = 0.0;
+  intervalUs_ = 0;
+}
+
+uint32_t PresentationClock::usableDelay(uint32_t wantUs) const {
+  if (intervalUs_ == 0) return wantUs;
+  const uint32_t cap = (intervalUs_ * 3) / 4;
+  return wantUs < cap ? wantUs : cap;
+}
+
+uint32_t PresentationClock::nominal(double t) const {
+  // Elapsed host time since the base frame, in local micros. Deliberately
+  // computed as a delta rather than an absolute: micros() wraps every ~71
+  // minutes, and unsigned arithmetic on the difference wraps with it.
+  const double elapsed = (t - baseT_) * 1e6;
+  return baseUs_ + static_cast<uint32_t>(static_cast<int64_t>(elapsed));
+}
+
+void PresentationClock::observe(double t, uint32_t nowUs) {
+  if (!have_) {
+    have_ = true;
+    baseT_ = t;
+    baseUs_ = nowUs;
+    skewUs_ = 0;
+    windowMin_ = 0;
+    windowCount_ = 1;
+    lastT_ = t;
+    return;
+  }
+  // Smoothed frame interval, so the display delay can be held below one
+  // frame period whatever rate the host is running at.
+  const double dt = (t - lastT_) * 1e6;
+  if (dt > 0.0 && dt < 1e6) {
+    const uint32_t sample = static_cast<uint32_t>(dt);
+    intervalUs_ = intervalUs_ ? (intervalUs_ * 7 + sample) / 8 : sample;
+  }
+  lastT_ = t;
+  // Signed difference, wrap-safe: the unsigned subtraction wraps the same way
+  // micros() does, and the cast reinterprets it as a signed offset.
+  const int32_t err = static_cast<int32_t>(nowUs - nominal(t));
+  if (windowCount_ == 0 || err < windowMin_) windowMin_ = err;
+  if (++windowCount_ >= WINDOW) {
+    skewUs_ = windowMin_;
+    windowCount_ = 0;
+    windowMin_ = 0;
+  }
+}
+
+uint32_t PresentationClock::deadline(double t, uint32_t delayUs) const {
+  return nominal(t) + static_cast<uint32_t>(skewUs_) + delayUs;
+}
 
 static size_t buildFrame(uint8_t type, uint8_t controller, double t,
                          uint8_t out[64]) {

@@ -1073,6 +1073,60 @@ image exists to accept wire serial input" (exit condition) = this project built
 and flashable, with a loopback test mode that drives a known pattern from a
 canned `SESSION`+frames for bring-up without a server.
 
+### 13.8 Two cores
+
+13.8.1 The render path is split across the RP2040's two cores **by
+determinism, not by load**. Core1 owns everything from decoded state to lit
+pixels — colour conversion, staging, show — which is fixed-cost work against a
+hard deadline, and therefore schedulable. Core0 keeps everything whose cost
+varies with the wire: USB, COBS, CRC, decode, the predictor, ACK, watchdog. It
+carries no deadline; it only has to keep core1 fed.
+
+13.8.2 Putting only `show()` on core1 is rejected: that moves the cheap part
+and leaves colour conversion — the largest deadline-relevant cost — on the core
+servicing USB interrupts. Splitting conversion between the cores is rejected
+too: both cores then carry deadline work *and* core0 still has USB.
+
+13.8.3 The handoff is a state snapshot plus two sequence numbers. Core0
+publishes by incrementing; core1 answers by matching. Core0 touches the
+snapshot, or the channel metadata on a SESSION, only while the two are equal.
+That is the whole mutual exclusion — neither hot path takes a lock.
+
+13.8.4 Core1 must **never** block on the strip DMA. A busy-wait on `canShow()`
+there wedges the board hard enough to need a physical replug. It returns and
+retries instead, so a transfer in flight costs a pass, not the board. Because
+core0 pets the watchdog, it stops doing so when a render stays outstanding far
+beyond any legitimate duration, converting a core1 hang into a reboot.
+
+13.8.5 Staging writes a buffer of the firmware's own, not NeoPXL8's pixel
+buffer, so the next frame can be built while the current one is still being
+clocked out; the copy at show time is ~8.6 KB. Writing NeoPXL8's buffer
+directly serialised DMA with staging and cost 59.0 → 46.9 fps at 8×360. This
+is deliberately not NeoPXL8's internal double buffering, which was measured
+earlier, gave no gain, and wedged the board under load.
+
+### 13.9 Presentation clock
+
+13.9.1 Boards present on a **shared schedule derived from the stream**, not
+whenever their own decode happens to finish. Each maps the frame header's `t`
+onto a local deadline and shows then. Every board is fed the same `t` sequence
+by one host, so applying the same fixed display delay makes them light the
+same frame together without exchanging a clock.
+
+13.9.2 The offset is tracked with a **minimum** filter, not a mean. Arrival
+delay is the true offset plus a non-negative queuing term, so the minimum over
+a window converges on the offset while a mean bakes each board's own average
+queuing into its estimate — the standard NTP argument. The window resets
+periodically so the estimate follows crystal drift.
+
+13.9.3 The display delay is capped below one frame period. One snapshot is in
+flight at a time, so holding a frame longer than a frame period stalls the
+pipeline rather than buffering it: measured at 8×360, 8 ms and 20 ms both gave
+56 fps and 33 ms gave 45. The board tracks the host's frame interval and
+clamps the delay to three quarters of it. A deeper jitter buffer needs a
+deeper snapshot queue (§13.8.3), which is deferred.
+
+
 ---
 
 ## 14. Web Client
