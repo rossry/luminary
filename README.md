@@ -70,10 +70,39 @@ luminary show --lights pentagon-4A-33 --pattern aurora
 `/preview` — one engine, so the preview is evidence of what the hardware
 received rather than a second render.
 
-Flash again after mapping: `--max-per-strip` must be at least a board's
-longest strip, that is 360 unless every strip on the board is 180, and which
-boards those are is only knowable once mapped. `flash` reads it from the
-records. Step-by-step: [`QUICKSTART.md`](QUICKSTART.md).
+Step-by-step, from a fresh checkout: [`QUICKSTART.md`](QUICKSTART.md).
+
+**Flash again after mapping.** `--max-per-strip` sets the frame-rate ceiling
+and must be at least a board's longest strip — under-setting it clamps, and
+the rest of every longer strip stays dark. Strips are 360 unless every strip
+on a board is 180, which is the exception and only knowable once mapped, so
+`flash` reads it from the records rather than leaving it to a flag. The
+all-180 board is worth roughly double the frame rate.
+
+Add `--interpolate` to `geometry` if a board carries several 360-LED strips:
+each then costs 180 lights on the wire and the board reconstructs the rest.
+
+### When a board misbehaves
+
+`luminary boards -v` lists every device on USB and why it was accepted or
+rejected. A board that has never been flashed does not enumerate at all — hold
+BOOTSEL while plugging it in.
+
+| Reported | Means |
+|---|---|
+| `bootsel` | No usable firmware. `luminary flash`. |
+| `blocked` | Port not openable. Re-run `install.sh`, then log out and in. |
+| `unresponsive` | Enumerates, does not answer. Re-flash. |
+| duplicate ids | Two boards driving the same lights. Re-flash one. |
+
+Everything else recovers on its own: a dropped board is retried every second
+and re-sent its geometry, a reboot is detected and re-synced, and a firmware
+hang is caught by an 8 s watchdog.
+
+**Limits.** 4096 active lights per board — above it the board refuses the
+geometry and runs a rainbow test pattern, which is what running beads mean.
+Production frame rate is 30 fps, against a measured board ceiling of 67.6 fps
+at 8x360.
 
 In the web UI, pick a geometry and a pattern and press Play; the header
 shows live fps and bytes/light·frame so you can watch the codec work. Add
