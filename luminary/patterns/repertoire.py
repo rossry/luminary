@@ -223,7 +223,12 @@ class Fireflies(Primitive):
     flash_decay = 0.18
     spot_deg = 5.0  # angular radius of one fly's pool of light
     wander_deg = 13.0  # how far a fly drifts from home
+    wander_s = 54.0  # mean wander period (54 = the meadow's amble)
     meadow_l = 0.032
+    # The meadow's colors: grass by default; retuned voices (Köln's
+    # scouting) move the whole scene into another world.
+    base_hue = 132.0
+    glow_hue_shift = -18.0  # flash color relative to the base
     salt = "fireflies"
 
     def _coherence(self, t: float) -> float:
@@ -235,11 +240,13 @@ class Fireflies(Primitive):
         n = lights.shape[0]
         k = self.count
 
-        # Per-fly constants: homes in the mid band, wander clocks.
+        # Per-fly constants: homes in the mid band, wander clocks
+        # (scaled by wander_s; the default reproduces the meadow's own).
         th0 = seeded_random(f"{self.salt}-th", k) * 2.0 * np.pi - np.pi
         ph0 = 0.55 + 1.35 * seeded_random(f"{self.salt}-ph", k)
-        p1 = 37.0 + 34.0 * seeded_random(f"{self.salt}-p1", k)
-        p2 = 53.0 + 44.0 * seeded_random(f"{self.salt}-p2", k)
+        ws = self.wander_s / 54.0
+        p1 = ws * (37.0 + 34.0 * seeded_random(f"{self.salt}-p1", k))
+        p2 = ws * (53.0 + 44.0 * seeded_random(f"{self.salt}-p2", k))
         a1 = seeded_random(f"{self.salt}-a1", k) * 2.0 * np.pi
         a2 = seeded_random(f"{self.salt}-a2", k) * 2.0 * np.pi
 
@@ -268,7 +275,7 @@ class Fireflies(Primitive):
         out = np.empty((n, 3))
         out[:, 0] = self.meadow_l * (0.85 + 0.30 * sheen)
         out[:, 1] = 0.045
-        out[:, 2] = 132.0
+        out[:, 2] = self.base_hue
 
         # Light only the flies that are actually glowing.
         lit = env > 1e-4
@@ -289,7 +296,8 @@ class Fireflies(Primitive):
 
             out[:, 0] += (0.68 - out[:, 0]) * glow**0.9
             out[:, 1] = 0.045 + 0.115 * glow
-            out[:, 2] = 132.0 - 18.0 * glow  # grass green toward firefly gold-green
+            # The base hue shading toward the flash color as a fly glows.
+            out[:, 2] = self.base_hue + self.glow_hue_shift * glow
         return out
 
 
@@ -448,7 +456,7 @@ def nocturne_movements() -> List[Movement]:
             251.0,
             fade=10.0,
             title="embers",
-            audio="nocturne-embers.mp3",
+            audio="poa-alpina.mp3",
             notes=(
                 "The day's fire, and the wind that ends it. Coals glow "
                 "inside the ash banks — never the dark between — and "
@@ -478,7 +486,7 @@ def nocturne_movements() -> List[Movement]:
             132.0,
             fade=12.0,
             title="first-stars",
-            audio="nocturne-first-stars.mp3",
+            audio="saman.mp3",
             notes=(
                 "One star, then three, then a sky. While it is nearly "
                 "empty the few that are on burn nearly full — and short-"
@@ -500,7 +508,7 @@ def nocturne_movements() -> List[Movement]:
             391.0,
             fade=24.0,
             title="veils",
-            audio="nocturne-veils.mp3",
+            audio="flight-from-the-city.mp3",
             notes=(
                 "Weather from above: curtains of rayed light hung from "
                 "the apex, their tops uneven, their shafts racing. The "
@@ -547,7 +555,7 @@ def nocturne_movements() -> List[Movement]:
             194.0,
             fade=24.0,
             title="deep-sea",
-            audio="nocturne-deep-sea.mp3",
+            audio="the-pearl.mp3",
             notes=(
                 "The resting heart of the night. Two sphere-wide swells "
                 "cross each other — every wave arrives differently — and "
@@ -571,7 +579,7 @@ def nocturne_movements() -> List[Movement]:
             439.0,
             fade=18.0,
             title="rings",
-            audio="nocturne-rings.mp3",
+            audio="cantus.mp3",
             notes=(
                 "Out of the stillness, a toll every seven seconds, each "
                 "ring still taking its slow fourteen from apex to rim — "
@@ -598,7 +606,7 @@ def nocturne_movements() -> List[Movement]:
             166.0,
             fade=14.0,
             title="candles",
-            audio="nocturne-candles.mp3",
+            audio="requiem-static-king.mp3",
             notes=(
                 "An answer: flames at the sculpture's own bones — the "
                 "four hexagon hearts, the center-front, the arm tips — "
@@ -623,7 +631,7 @@ def nocturne_movements() -> List[Movement]:
             211.0,
             fade=16.0,
             title="starfall",
-            audio="nocturne-starfall.mp3",
+            audio="eluvium.mp3",
             notes=(
                 "The same stars as before — the sky remembers its own. "
                 "Then one is chosen: it swells, and falls, streaking off "

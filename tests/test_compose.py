@@ -162,13 +162,13 @@ def test_nocturne_is_a_registered_half_hour():
     assert sum(row["duration"] for row in rows) == 1784.0
     # Every act declares its own track (separate files in var/audio).
     assert [r["audio"] for r in rows] == [
-        "nocturne-embers.mp3",
-        "nocturne-first-stars.mp3",
-        "nocturne-veils.mp3",
-        "nocturne-deep-sea.mp3",
-        "nocturne-rings.mp3",
-        "nocturne-candles.mp3",
-        "nocturne-starfall.mp3",
+        "poa-alpina.mp3",
+        "saman.mp3",
+        "flight-from-the-city.mp3",
+        "the-pearl.mp3",
+        "cantus.mp3",
+        "requiem-static-king.mp3",
+        "eluvium.mp3",
     ]
 
     lights = make_lights(60)
@@ -348,6 +348,17 @@ def test_album_cue_sheets_and_audio_pairings():
     ]
     assert koln.schedule()[3]["start"] == 3549.0
     assert koln.audio == "koln-concert.mp3"
+    # Part I is a suite on its own cue sheet (seconds into the track).
+    part_i = koln.chapters()[0]["children"]
+    assert [(c["title"], c["start"]) for c in part_i] == [
+        ("vamp", 0.0),
+        ("scouting", 304.0),  # 5:04 — the sharper, exploratory mode
+        ("the-breath", 405.0),  # 6:45 fade-out; one re-entry at 7:00
+        ("the-theme", 434.0),  # 7:14 — in earnest
+        ("wandering", 520.0),  # 8:40 — the sparse interlude
+        ("revisited", 581.0),  # 9:41 — to the end of the side
+    ]
+    assert sum(c["duration"] for c in part_i) == 1562.0
 
     spiegel = registry.get("spiegel")
     assert spiegel.duration == 715.0  # the Minkler-Johnson recording

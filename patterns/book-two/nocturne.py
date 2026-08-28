@@ -5,27 +5,27 @@ queued as chapters, the stage starts each act's music at the act. The
 movements are timed to these exact recordings (video runtimes; retime
 the movement if your file differs):
 
-  I    embers       nocturne-embers.mp3       4:11
+  I    embers       poa-alpina.mp3            4:11
        Biosphere — "Poa Alpina" (Substrata)
        https://www.youtube.com/watch?v=xc7atbM0k6g
-  II   first-stars  nocturne-first-stars.mp3  2:12
+  II   first-stars  saman.mp3                 2:12
        Ólafur Arnalds — "saman" (re:member)
        https://www.youtube.com/watch?v=XmHs_sMDueA
-  III  veils        nocturne-veils.mp3        6:31
+  III  veils        flight-from-the-city.mp3  6:31
        Jóhann Jóhannsson — "Flight from the City" (Orphée)
        https://www.youtube.com/watch?v=aXlx-YnvgKU
-  IV   deep-sea     nocturne-deep-sea.mp3     3:14
+  IV   deep-sea     the-pearl.mp3             3:14
        Harold Budd & Brian Eno — "The Pearl" (2005 remaster)
        https://www.youtube.com/watch?v=qySCf2ovWJc
-  V    rings        nocturne-rings.mp3        7:19
+  V    rings        cantus.mp3                7:19
        Arvo Pärt — "Cantus in Memoriam Benjamin Britten"
        (Nagano / Orchestre Philharmonique de Radio France)
        https://www.youtube.com/watch?v=GMF2C2-zcWM
-  VI   candles      nocturne-candles.mp3      2:46
+  VI   candles      requiem-static-king.mp3   2:46
        A Winged Victory for the Sullen — "Requiem for the Static
        King, Part One"
        https://www.youtube.com/watch?v=SwmRJQAx8eA
-  VII  starfall     nocturne-starfall.mp3     3:31
+  VII  starfall     eluvium.mp3               3:31
        Eluvium — "Radio Ballet" (2019 Pianoworks version; the 2007
        Copia original runs 3:13 — say so and VII retimes)
        https://www.youtube.com/watch?v=nvtV4fvNJpY
