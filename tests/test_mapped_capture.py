@@ -204,3 +204,75 @@ def test_each_board_is_one_contiguous_block_sliceable_by_channel(plan, net, net_
             assert np.all(channels[offset : offset + length] == channel)
             offset += length
         assert offset == rows.size, "declared lengths do not cover the block"
+
+
+def _polygon_area(poly):
+    pts = np.asarray(poly, dtype=float)
+    x, y = pts[:, 0], pts[:, 1]
+    return 0.5 * abs(np.dot(x, np.roll(y, 1)) - np.dot(y, np.roll(x, 1)))
+
+
+def _strip_rows(lights, controller, channel):
+    rows = np.flatnonzero(
+        (lights.ints(LightColumns.CONTROLLER) == controller)
+        & (lights.ints(LightColumns.CHANNEL) == channel)
+    )
+    return rows[np.argsort(lights.ints(LightColumns.INDEX)[rows])]
+
+
+def _one_dense_strip(plan, density=360):
+    boards = _full_mapping(plan)
+    unit = plan.units[0]
+    channels = dict(boards[unit].channels)
+    channels[0] = ChannelRecord(face=channels[0].face, winding="ccw", density=density)
+    boards[unit] = BoardRecord(unit, boards[unit].controller_id, channels)
+    return boards
+
+
+def test_double_density_subdivides_beams_into_distinct_lights(plan, net, net_lights):
+    """Twice the beams, each lit by one LED — not two LEDs on one beam.
+
+    Coincident lights would render identically forever, so distinct positions
+    are the property that matters.
+    """
+    lights = capture_mapped(net, plan, _one_dense_strip(plan), net_lights=net_lights)
+    rows = _strip_rows(lights, 0, 0)
+
+    assert rows.size == 360
+    xy = lights.array[np.ix_(rows, [LightColumns.X, LightColumns.Y])]
+    assert len({tuple(np.round(p, 9)) for p in xy}) == 360
+
+
+def test_subdivided_beams_halve_the_display_shape(plan, net, net_lights):
+    """Each half-beam gets its own slice of the polygon, not a copy."""
+    lights = capture_mapped(net, plan, _one_dense_strip(plan), net_lights=net_lights)
+
+    halves = [_polygon_area(lights.display[r]) for r in _strip_rows(lights, 0, 0)]
+    natives = [_polygon_area(lights.display[r]) for r in _strip_rows(lights, 0, 1)]
+
+    assert np.mean(halves) == pytest.approx(np.mean(natives) / 2, rel=0.05)
+
+
+def test_subdivided_lights_keep_a_folded_3d_position(plan, net, net_lights):
+    """A half-beam's centre is a new point; its fold must be recomputed."""
+    lights = capture_mapped(net, plan, _one_dense_strip(plan), net_lights=net_lights)
+    rows = _strip_rows(lights, 0, 0)
+
+    p3 = lights.array[np.ix_(rows, [LightColumns.X3, LightColumns.Y3, LightColumns.Z3])]
+    assert np.isfinite(p3).all()
+    assert len({tuple(np.round(p, 9)) for p in p3}) == 360
+
+
+def test_native_density_still_inherits_the_whole_beam(plan, net, net_lights):
+    """No subdivision when the strip maps one-for-one."""
+    lights = capture_mapped(net, plan, _full_mapping(plan), net_lights=net_lights)
+    rows = _strip_rows(lights, 0, 0)
+
+    source = {
+        tuple(np.round(np.asarray(d, dtype=float).ravel(), 9))
+        for d in net_lights.display
+        if d
+    }
+    for row in rows:
+        shape = tuple(np.round(np.asarray(lights.display[row], dtype=float).ravel(), 9))
+        assert shape in source

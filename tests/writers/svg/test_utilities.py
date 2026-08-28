@@ -61,9 +61,7 @@ class TestSVGUtilities:
         p2 = Point(100, 50)
 
         result = create_line_svg(p1, p2, "black", 2)
-        expected = (
-            '  <line x1="0" y1="0" x2="100" y2="50" stroke="black" stroke-width="2" stroke-linecap="round"/>'
-        )
+        expected = '  <line x1="0" y1="0" x2="100" y2="50" stroke="black" stroke-width="2" stroke-linecap="round"/>'
         assert result == expected
 
         # Test with negative coordinates
