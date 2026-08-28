@@ -115,10 +115,16 @@ class Encoder:
                 or state.frames_since_keyframe >= self.config.keyframe_interval
             )
             if due:
-                frame = self._encode_keyframe(state, target, t)
+                keyframe = self._encode_keyframe(state, target, t)
                 self.stats.keyframes += 1
-            else:
-                frame = self._encode_delta(state, target, t)
+                self.stats.bytes_sent += len(keyframe)
+                frames.append(keyframe)
+                # Same-tick heal (spec §11.7.3a): the ranked delta pass now
+                # runs against the just-snapped model, so keyframe rounding
+                # residue and the velocity reset never outlive this tick —
+                # without it, every cadence keyframe pulses slow dark content
+                # (half the lights dip one LSB for several frames).
+            frame = self._encode_delta(state, target, t)
             state.frames_since_keyframe = 0 if due else state.frames_since_keyframe + 1
             self.stats.bytes_sent += len(frame)
             frames.append(frame)

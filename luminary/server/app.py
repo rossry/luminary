@@ -7,7 +7,7 @@ imports this module.
 
 from __future__ import annotations
 
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 from pathlib import Path
 from typing import Any, AsyncIterator, Callable, Dict, Optional
 
@@ -36,6 +36,9 @@ def create_app(
     allow_pattern_upload: bool = True,
     mapping_demo: bool = False,
     broadcast_factory: Optional[Callable[[Any], Any]] = None,
+    stage: bool = False,
+    stage_lights: Optional[str] = None,
+    audio_player: Optional[str] = None,
 ) -> FastAPI:
     """Build the app. ``allow_pattern_upload=False`` hard-disables
     POST /api/patterns (403) — uploads execute in-process (spec §15.5.2), so
@@ -43,6 +46,11 @@ def create_app(
     instead (docs/deploy.md). ``mapping_demo=True`` mounts the hardware-free
     mapping tutorial (``luminary.mapping.web``) at ``/demo/mapping``; its
     mapping records persist under ``<store_dir>/mapping-demo/``.
+    ``stage=True`` runs the play-queue control plane (``luminary.stage``) at
+    /stage + /api/queue over the ``stage_lights`` geometry (a store id or
+    file path; default: the production pentagon-4A-33 capture), with state
+    under ``<store_dir>/stage/`` and audio files from ``<store_dir>/audio/``
+    (player auto-detected; ``audio_player`` overrides).
 
     ``broadcast_factory`` turns the server into the ``luminary show`` surface:
     called with the running event loop, it returns the
@@ -58,27 +66,7 @@ def create_app(
         [uploads_dir] if allow_pattern_upload else []
     )
 
-    @asynccontextmanager
-    async def _broadcast_lifespan(_app: FastAPI) -> AsyncIterator[None]:
-        """Own the hardware stream for the server's lifetime.
-
-        Started here rather than at app-build time because the session's
-        fan-out posts frames to a specific event loop, and the loop that
-        matters is the one uvicorn is running.
-        """
-        session = None
-        if broadcast_factory is not None:
-            import asyncio
-
-            session = broadcast_factory(asyncio.get_running_loop())
-            _app.state.broadcast = session
-            session.start()
-        try:
-            yield
-        finally:
-            if session is not None:
-                session.stop()
-
+    demo_app: Optional[FastAPI] = None
     if mapping_demo:
         from luminary.mapping.web import create_demo_app
 
@@ -86,19 +74,57 @@ def create_app(
             root_page="demo", store_dir=store_dir / "mapping-demo"
         )
 
-        @asynccontextmanager
-        async def _demo_lifespan(_app: FastAPI) -> AsyncIterator[None]:
-            # Starlette does not run mounted apps' lifespans; enter the
-            # demo's explicitly so its frame ticker starts and stops with
-            # this server.
-            async with demo_app.router.lifespan_context(demo_app):
-                async with _broadcast_lifespan(_app):
-                    yield
+    stage_core = None
+    if stage:
+        from luminary.stage.web import build_stage
 
-        app = FastAPI(title="Luminary", version="2.1", lifespan=_demo_lifespan)
+        stage_core = build_stage(
+            store_dir, registry, lights_ref=stage_lights, audio_player=audio_player
+        )
+
+    @asynccontextmanager
+    async def _broadcast(_app: FastAPI) -> AsyncIterator[None]:
+        """Own the hardware stream for the server's lifetime.
+
+        Entered here rather than built with the app because the session's
+        fan-out posts frames to a specific event loop, and the loop that
+        matters is the one uvicorn ends up running.
+        """
+        import asyncio
+
+        session = broadcast_factory(asyncio.get_running_loop())  # type: ignore[misc]
+        _app.state.broadcast = session
+        session.start()
+        try:
+            yield
+        finally:
+            session.stop()
+
+    @asynccontextmanager
+    async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
+        # Starlette does not run mounted apps' lifespans, and this app may
+        # carry several long-lived tickers; enter each explicitly so they
+        # start and stop with this server.
+        async with AsyncExitStack() as stack:
+            if demo_app is not None:
+                await stack.enter_async_context(
+                    demo_app.router.lifespan_context(demo_app)
+                )
+            if stage_core is not None:
+                from luminary.stage.web import stage_lifespan
+
+                await stack.enter_async_context(stage_lifespan(stage_core))
+            if broadcast_factory is not None:
+                await stack.enter_async_context(_broadcast(_app))
+            yield
+
+    app = FastAPI(title="Luminary", version="2.1", lifespan=_lifespan)
+    if demo_app is not None:
         app.mount("/demo/mapping", demo_app, name="mapping-demo")
-    else:
-        app = FastAPI(title="Luminary", version="2.1", lifespan=_broadcast_lifespan)
+    if stage_core is not None:
+        from luminary.stage.web import register_stage
+
+        register_stage(app, stage_core)
     app.state.store = store
     app.state.registry = registry
     app.state.uploads_dir = uploads_dir

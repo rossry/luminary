@@ -60,6 +60,9 @@ def cmd_serve(args: argparse.Namespace) -> int:
         store_dir=store_dir,
         allow_pattern_upload=not args.disable_pattern_upload,
         mapping_demo=not args.no_mapping_demo,
+        stage=not args.no_stage,
+        stage_lights=args.stage_lights,
+        audio_player=args.audio_player,
     )
     uvicorn.run(app, host=args.host, port=args.port, log_level="info")
     return 0
@@ -523,6 +526,23 @@ def main(argv: Optional[list] = None) -> int:
         "--no-mapping-demo",
         action="store_true",
         help="Don't mount the hardware-free mapping tutorial at /demo/mapping",
+    )
+    serve.add_argument(
+        "--no-stage",
+        action="store_true",
+        help="Don't run the stage play-queue control plane at /stage",
+    )
+    serve.add_argument(
+        "--stage-lights",
+        default=None,
+        help="Stage lights geometry: store id or file path "
+        "(default: the production pentagon-4A-33 capture)",
+    )
+    serve.add_argument(
+        "--audio-player",
+        default=None,
+        help="Audio player command for stage entries "
+        "(default: first of mpv, cvlc, ffplay on PATH)",
     )
     serve.set_defaults(func=cmd_serve)
 
