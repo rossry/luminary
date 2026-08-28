@@ -119,8 +119,12 @@ def test_wire_stream_resyncs_across_rebuild(core):
             assert {t for t, _ in received} == {p.FRAME_SESSION}
             assert sorted(c for _, c in received) == sorted(CONTROLLERS)
             core.tick(0.1)
-            received = [decoder.decode(ws.receive_bytes()) for _ in range(n)]
-            assert {t for t, _ in received} == {p.FRAME_KEYFRAME}
+            # Keyframe ticks carry KEYFRAME + the same-tick healing DELTA
+            # per controller (spec §11.7.3a).
+            received = [decoder.decode(ws.receive_bytes()) for _ in range(2 * n)]
+            assert sorted(t for t, _ in received) == sorted(
+                [p.FRAME_KEYFRAME] * n + [p.FRAME_DELTA] * n
+            )
             # Locking a board rebuilds the engines; the adapter re-sends
             # SESSION for the whole set, and the fresh encoder keyframes
             # on its first tick — a late joiner and a rebuild are the
@@ -130,8 +134,10 @@ def test_wire_stream_resyncs_across_rebuild(core):
             assert {t for t, _ in received} == {p.FRAME_SESSION}
             assert sorted(c for _, c in received) == sorted(CONTROLLERS)
             core.tick(0.2)
-            received = [decoder.decode(ws.receive_bytes()) for _ in range(n)]
-            assert {t for t, _ in received} == {p.FRAME_KEYFRAME}
+            received = [decoder.decode(ws.receive_bytes()) for _ in range(2 * n)]
+            assert sorted(t for t, _ in received) == sorted(
+                [p.FRAME_KEYFRAME] * n + [p.FRAME_DELTA] * n
+            )
 
 
 def test_control_socket_applies_events_and_saves(core, plan):

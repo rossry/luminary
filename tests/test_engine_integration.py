@@ -53,7 +53,8 @@ def test_decoded_matches_pattern_within_quantization(lights, registry):
         truth = p.quantize(engine.colors_oklch(t)[lights.control_mask])
         got = decoder.active_q(0)
         # Uncapped budget: within one quantization step everywhere, exact
-        # almost everywhere (keyframe bottom-bit residue heals via deltas).
+        # almost everywhere (keyframe rounding residue heals in the same
+        # tick, spec §11.7.3a; only delta-range saturation can lag).
         assert np.max(np.abs(got[:, 0] - truth[:, 0])) <= 1
         assert np.max(np.abs(got[:, 1] - truth[:, 1])) <= 1
         hue_err = np.abs(((got[:, 2] - truth[:, 2] + 128) % 256) - 128)
