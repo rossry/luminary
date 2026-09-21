@@ -11,7 +11,7 @@ import json
 
 from contextlib import AsyncExitStack, asynccontextmanager
 from pathlib import Path
-from typing import Any, AsyncIterator, Callable, Dict, Optional
+from typing import Any, AsyncIterator, Callable, Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException, Query, UploadFile, WebSocket
 from fastapi.websockets import WebSocketDisconnect
@@ -42,6 +42,8 @@ def create_app(
     stage_lights: Optional[str] = None,
     audio_player: Optional[str] = None,
     stage_key: Optional[str] = None,
+    vibe: bool = True,
+    vibe_coder: Optional[Any] = None,
 ) -> FastAPI:
     """Build the app. ``allow_pattern_upload=False`` hard-disables
     POST /api/patterns (403) — uploads execute in-process (spec §15.5.2), so
@@ -70,9 +72,21 @@ def create_app(
     uploads_dir = Path(uploads_dir or state_dir / "patterns-uploads")
     uploads_dir.mkdir(parents=True, exist_ok=True)
     docs = GeometryStore(state_dir)
-    registry = registry or default_registry(
-        [uploads_dir] if allow_pattern_upload else []
-    )
+    # Vibe mode executes model-written patterns in-process, exactly like
+    # upload does — so a server that locked uploads out gets it only
+    # behind a stage key.
+    import os
+
+    stage_key = stage_key or os.environ.get("LUMINARY_STAGE_KEY") or None
+    vibe_on = bool(stage and vibe and (allow_pattern_upload or stage_key))
+    vibe_dir = state_dir / "vibe"
+    extra_dirs: List[Path] = []
+    if allow_pattern_upload:
+        extra_dirs.append(uploads_dir)
+    if vibe_on:
+        vibe_dir.mkdir(parents=True, exist_ok=True)
+        extra_dirs.append(vibe_dir)
+    registry = registry or default_registry(extra_dirs)
 
     demo_app: Optional[FastAPI] = None
     if mapping_demo:
@@ -83,15 +97,32 @@ def create_app(
         )
 
     stage_core = None
+    vibe_core = None
     if stage:
-        import os
-
         from luminary.stage.web import build_stage
 
-        stage_key = stage_key or os.environ.get("LUMINARY_STAGE_KEY") or None
         stage_core = build_stage(
             state_dir, registry, lights_ref=stage_lights, audio_player=audio_player
         )
+        if vibe_on:
+            from luminary.vibe.core import VibeCore
+            from luminary.vibe.setup import default_coder, vibe_models
+
+            coder, backend = (
+                (vibe_coder, "custom")
+                if vibe_coder is not None
+                else default_coder(validator=None)
+            )
+            vibe_core = VibeCore(
+                vibe_dir,
+                registry,
+                stage_core,
+                coder,
+                models=vibe_models(),
+                backend=backend,
+            )
+            if hasattr(coder, "validator"):
+                coder.validator = vibe_core.validate
 
     @asynccontextmanager
     async def _broadcast(_app: FastAPI) -> AsyncIterator[None]:
@@ -125,6 +156,9 @@ def create_app(
                 from luminary.stage.web import stage_lifespan
 
                 await stack.enter_async_context(stage_lifespan(stage_core))
+            if vibe_core is not None:
+                vibe_core.start()
+                stack.callback(vibe_core.stop)
             if broadcast_factory is not None:
                 await stack.enter_async_context(_broadcast(_app))
             yield
@@ -140,6 +174,10 @@ def create_app(
         # process can reach the core -- `luminary stage` appends a serial sink
         # to it, which is how the queue reaches the boards.
         app.state.stage = stage_core
+    if vibe_core is not None:
+        from luminary.vibe.web import register_vibe
+
+        register_vibe(app, vibe_core, stage_key=stage_key)
     app.state.geometry_docs = docs
     app.state.registry = registry
     app.state.uploads_dir = uploads_dir
@@ -156,6 +194,7 @@ def create_app(
             "protocol_version": PROTOCOL_VERSION,
             "patterns": len(registry.patterns),
             "pattern_upload": allow_pattern_upload,
+            "vibe": vibe_core is not None,
         }
 
     # --------------------------------------------------------------- scaffolds

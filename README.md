@@ -31,7 +31,8 @@ pip install -e '.[dev]'     # omit [dev] to skip the test tooling
 
 Python ≥ 3.12. Editable deliberately: geometry configs and patterns live
 beside the package rather than inside it, and the code resolves them from the
-source tree. `pip install -e '.[flash]'` adds PlatformIO for building firmware.
+source tree. `pip install -e '.[flash]'` adds PlatformIO for building firmware;
+`'.[vibe]'` adds the Claude Agent SDK for vibe mode's session backend.
 
 ## Quick start
 
@@ -160,6 +161,7 @@ against shared golden vectors (`firmware/golden/`).
 | `POST /api/repeats/move` · `DELETE /api/repeats/{i}` | reorder / cancel turns of the stage's repeats cycle |
 | `WS /api/stage` · `GET /api/stage/{layout,patterns,chapters?pattern=N}` | the stage's wire-codec stream (SESSION on join, `{"type":"resync"}` back), its canvas draw layout, panel pattern metadata (notes, `loop`, `has_chapters`), and one pattern's chapter tree (`[]` if chapterless) |
 | `GET /api/audio` | audio inventory: `{dir, files: [{name, seconds}]}` — `dir` is the resolved directory the stage reads (the checkout's `var/audio/`), `seconds` null when unreadable |
+| `GET /vibe` · `GET/POST /api/vibe` · `POST /api/vibe/select` | vibe mode (below): the prompt-to-pattern page over the stage; its whole shared state (the thread of generations, what is cooking, what is showing, the pattern menu); queue a prompt (`{prompt, name?, author?, model?, from_scratch?}` → 202 with its number); cut the stage to any pattern (`{pattern}`). Mutations take the stage key when one is configured; mounted by `serve` when the stage is (opt out: `--no-vibe`) |
 
 ## The stage (play queue)
 
@@ -229,6 +231,59 @@ so anyone can watch. Put the key in the systemd unit's environment
 with VJs — the page takes the key from its footer field (persisted in
 localStorage) or once via a `#key=…` URL fragment. With no key
 configured, endpoints stay open (LAN deployments).
+
+## Vibe mode (prompt → pattern, live)
+
+`/vibe` is the stage for a crowd: the sphere on a canvas, a text box,
+and a coding model. Type what the sphere should do and press enter;
+the server hands the prompt to the model, validates the module it
+writes against the real lights, saves it as **generation #N** (numbered
+from 1, in order of asking), and hot-cuts the stage to it — the sphere
+and every open page switch together. Optional boxes take a name and
+your name; a model select picks who writes it. The point is play:
+pair-programming the sphere out loud, several people, quick turns.
+
+- **Shared state.** Everything lives on the server (`/api/vibe`); the
+  page is a thin adapter that polls it, so open it on every phone at
+  the sphere and they all see the same thread, the same cooking prompt,
+  the same menu.
+- **Context.** A prompt carries the pattern that was showing *when it
+  was typed* — name and source — so "slower and more purple" means
+  that one even if someone cut elsewhere while the model was busy.
+  Tick "from scratch" to drop it.
+- **Always ships.** The model may leave a one- or two-sentence note or
+  question beside its result, but it ships its best try to every
+  prompt. A module that fails validation (shape, non-finite values,
+  statefulness, a frame over budget) gets one repair round; a
+  generation that still fails is shown failed in the thread, and the
+  stage stays where it was.
+- **Nothing is lost.** Generations are ordinary pattern files under
+  `var/vibe/` (`vibe-0001.py`…, registered as `vibe-N`; rejected drafts
+  kept beside them under a leading underscore), and `var/vibe/log.json`
+  is the whole thread. The side menu (☰ hides it) lists the named
+  generations, then all of them, then the repo's own patterns by
+  folder — click anything to cut the stage to it, for comparison or as
+  the base of the next prompt. Promote a keeper by copying its file
+  into `patterns/book-two/`.
+
+**Backends.** With the [Claude Agent SDK](https://pypi.org/project/claude-agent-sdk/)
+installed (`pip install -e '.[vibe]'`) and a `claude` CLI on PATH (logged
+in, or `ANTHROPIC_API_KEY` set), each prompt runs as its own **Claude
+Code session** in the checkout, read-only, shipping through one MCP
+tool that validates on the spot and hands failures straight back —
+the session iterates inside its own turn. Without the SDK, the server
+makes one direct Messages API call (`ANTHROPIC_API_KEY` required).
+`LUMINARY_VIBE_BACKEND=session|api` forces one; the page's footer says
+which is running. `LUMINARY_VIBE_MODELS=claude-sonnet-5,claude-opus-5`
+(the default) is the list the select offers, first entry default —
+keep the fast one first; a reply that takes a minute is not a
+conversation.
+
+**Security.** A generation is model-written code executed in-process,
+exactly like an upload — so vibe mode mounts only where upload is
+allowed **or** a stage key is configured, and then its mutations take
+the key like the queue's do. `serve --no-vibe` leaves it off entirely;
+`GET /api/health` reports `"vibe"`.
 
 ## Pattern development
 

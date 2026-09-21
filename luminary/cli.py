@@ -134,6 +134,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
         stage_lights=args.stage_lights,
         audio_player=args.audio_player,
         stage_key=args.stage_key,
+        vibe=not args.no_vibe,
     )
     uvicorn.run(app, host=args.host, port=args.port, log_level="info")
     return 0
@@ -771,6 +772,12 @@ def main(argv: Optional[list] = None) -> int:
         default=None,
         help="Audio player command for stage entries "
         "(default: first of mpv, cvlc, ffplay on PATH)",
+    )
+    serve.add_argument(
+        "--no-vibe",
+        action="store_true",
+        help="Don't mount vibe mode (/vibe: prompt-to-pattern on the stage; "
+        "needs a stage key when pattern upload is disabled)",
     )
     serve.set_defaults(func=cmd_serve)
 

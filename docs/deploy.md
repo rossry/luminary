@@ -28,6 +28,15 @@ prefer one of:
 Only re-enable pattern upload (drop the flag) on a server locked to people
 you would hand a shell.
 
+**Vibe mode is the same class of surface.** `/vibe` (README "Vibe mode")
+executes model-written patterns in-process, so the server mounts it only
+where upload is allowed *or* a stage key is configured — and then every
+vibe mutation (a prompt, a cut) requires the key, like the queue's. With
+upload disabled and no key, `/vibe` is simply absent (`"vibe": false` in
+`/api/health`); `--no-vibe` keeps it off regardless. Treat the key as the
+thing that stands between the internet and code execution on the box:
+share it with the people at the sphere, not in a public URL.
+
 ## Path 1 — plain VPS (recommended for iteration speed)
 
 Best when you control the box and want `git pull && systemctl restart
@@ -128,6 +137,34 @@ The default stage geometry is the production `pentagon-4A-33` capture;
 the current queue entry from its beginning — there is no mid-file audio
 seek.
 
+## Vibe mode (prompt → pattern on the stage)
+
+`/vibe` needs a coding model reachable from the box. Two backends,
+picked automatically (`LUMINARY_VIBE_BACKEND=session|api` forces one):
+
+- **session** — each prompt is its own Claude Code session in the
+  checkout (read-only tools, one MCP tool to ship through). Needs the
+  Agent SDK and the CLI:
+
+  ```bash
+  pip install -e '.[vibe]'                 # in the service's venv
+  npm install -g @anthropic-ai/claude-code # `claude` on the unit's PATH
+  claude login                             # as the service user, once — or set ANTHROPIC_API_KEY
+  ```
+
+- **api** — one direct Messages API call per prompt; only
+  `ANTHROPIC_API_KEY` in the unit's environment.
+
+Put `Environment=ANTHROPIC_API_KEY=…` (and `LUMINARY_STAGE_KEY=…`, which
+also unlocks vibe mode on an upload-disabled server) in the systemd
+unit. `LUMINARY_VIBE_MODELS` is the comma-separated list the page's
+model select offers (default `claude-sonnet-5,claude-opus-5`; the first
+is the default — keep a fast one first). Generations land in
+`var/vibe/` (`vibe-0001.py`…, plus `log.json`, the thread); they are
+real patterns to the stage page too, and never deleted or overwritten.
+The page's footer names the running backend; the thread's first line
+says "no coding model" when neither is configured.
+
 ## Smoke test (either path)
 
 ```bash
@@ -142,8 +179,8 @@ B/light·frame readout confirms the wire codec is doing its job.
 
 - **State** is only the checkout's `var/` — geometry documents,
   pattern uploads, stage state and audio (`var/stage/`, `var/audio/`),
-  and the mapping YAMLs (`var/mapping/`, and the tutorial's
-  `var/mapping-demo/`). The directory ships in the repo
+  vibe generations (`var/vibe/`), and the mapping YAMLs (`var/mapping/`,
+  and the tutorial's `var/mapping-demo/`). The directory ships in the repo
   (`var/.gitkeep`); its contents are gitignored. Back it up or
   volume-mount it; everything else is stateless and rebuilt from the
   repo. The default is anchored to the checkout, so no flag is needed;
