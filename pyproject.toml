@@ -67,6 +67,12 @@ strict_equality = true
 show_error_codes = true
 explicit_package_bases = true
 
+# The Agent SDK is the optional [vibe] extra: CI type-checks without it,
+# so its names are Any there (luminary/vibe/session.py stays typed either way).
+[[tool.mypy.overrides]]
+module = "claude_agent_sdk"
+ignore_missing_imports = true
+
 [tool.black]
 line-length = 88
 target-version = ['py310']

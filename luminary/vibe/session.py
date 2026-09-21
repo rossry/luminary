@@ -179,18 +179,21 @@ async def _sdk_runner(prompt: str, options: Dict[str, Any]) -> AsyncIterator[Any
 
     ship = options["ship"]
 
-    @tool(
+    async def ship_pattern(args: Dict[str, Any]) -> Dict[str, Any]:
+        result: Dict[str, Any] = await ship(args)
+        return result
+
+    # Applied as a call, not decorator syntax: the SDK is an optional
+    # extra, and mypy runs without it (the module is Any there).
+    ship_tool = tool(
         "ship_pattern",
         "Ship the complete pattern module (and a short note for the crew). "
         "The server validates it on the real lights and answers ok, or "
         "returns exactly what broke so you can fix it and ship again.",
         {"code": str, "note": str},
-    )
-    async def ship_pattern(args: Dict[str, Any]) -> Dict[str, Any]:
-        result: Dict[str, Any] = await ship(args)
-        return result
+    )(ship_pattern)
 
-    server = create_sdk_mcp_server(name="luminary", tools=[ship_pattern])
+    server = create_sdk_mcp_server(name="luminary", tools=[ship_tool])
     stderr: List[str] = []  # the CLI's own words when it fails (not logged in…)
     sdk_options = ClaudeAgentOptions(
         cwd=options["cwd"],
