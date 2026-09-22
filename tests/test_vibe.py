@@ -3,12 +3,13 @@ is validated on the stage's own lights, saved as generation #N — never
 overwritten — and hot-cut onto the stage; every page shares that state.
 
 The model is a fake on both backends: ``Coder(transport=...)`` answers
-with scripted replies, and ``SessionCoder(runner=...)`` is driven by a
+with scripted replies, and ``SessionCoder(session_factory=...)`` gets a
 fake Claude Code session that calls the ``ship_pattern`` tool the way
 the SDK would. No network, no CLI, no real player — the stage is the
 same fake-clock core the stage tests use.
 """
 
+import asyncio
 import json
 import time
 
@@ -410,91 +411,240 @@ class AssistantMessage:
         self.content = list(blocks)
 
 
-def test_session_backend_ships_through_the_tool():
-    seen = {}
+class ResultMessage:
+    def __init__(self, is_error=False, result=None, subtype="success"):
+        self.is_error, self.result, self.subtype = is_error, result, subtype
 
-    async def runner(prompt, options):
-        seen["prompt"], seen["options"] = prompt, options
-        ship = options["ship"]
-        first = await ship({"code": "BROKEN", "note": "try one"})
-        assert first["content"][0]["text"].startswith("rejected:\nno good")
-        second = await ship({"code": "GOOD", "note": "try two"})
-        assert second["content"][0]["text"].startswith("ok: accepted")
-        yield AssistantMessage(TextBlock("Slower this time — want it bluer?"))
 
+class FakeSession:
+    """Stands in for ClaudeSDKClient: one scripted step per prompt, the
+    ship tool called the way the SDK would. A step is a dict: ``ship``
+    ((code, note) pairs pushed through the tool), ``say`` (the
+    assistant's words), ``result`` (ResultMessage kwargs), ``raise`` (an
+    exception), ``sleep`` (seconds before answering)."""
+
+    def __init__(self, options, steps, stderr=()):
+        self.options = options
+        self.steps = list(steps)
+        self.stderr = list(stderr)
+        self.prompts = []
+        self.models = []
+        self.results = []
+        self.connected = False
+        self.disconnected = False
+
+    async def connect(self):
+        self.connected = True
+
+    async def query(self, prompt):
+        self.prompts.append(prompt)
+
+    async def receive_response(self):
+        step = self.steps.pop(0)
+        if step.get("sleep"):
+            await asyncio.sleep(step["sleep"])
+        if step.get("raise"):
+            raise step["raise"]
+        for code, note in step.get("ship", []):
+            reply = await self.options["ship"]({"code": code, "note": note})
+            self.results.append(reply["content"][0]["text"].split("\n")[0])
+        yield AssistantMessage(TextBlock(step.get("say", "")))
+        yield ResultMessage(**step.get("result", {}))
+
+    async def set_model(self, model):
+        self.models.append(model)
+
+    async def disconnect(self):
+        self.disconnected = True
+
+
+OK_REPLY = "ok: accepted — it runs on the sphere. Say your note and stop."
+
+
+def scripted_sessions(*scripts, stderr=()):
+    """A session factory handing out one FakeSession per connect, each
+    with the next script; returns (factory, the sessions made)."""
+    made, pending = [], list(scripts)
+
+    def factory(options):
+        session = FakeSession(options, pending.pop(0), stderr=stderr)
+        made.append(session)
+        return session
+
+    return factory, made
+
+
+def session_coder(*scripts, stderr=(), **kwargs):
+    factory, made = scripted_sessions(*scripts, stderr=stderr)
     coder = SessionCoder(
         "/repo",
         model="m-deep",
         validator=lambda code: None if code == "GOOD" else "no good",
-        runner=runner,
+        session_factory=factory,
+        **kwargs,
+    )
+    return coder, made
+
+
+def test_session_backend_keeps_one_session_across_prompts():
+    coder, made = session_coder(
+        [
+            {"ship": [("BROKEN", "try one"), ("GOOD", "try two")], "say": "Bluer?"},
+            {"ship": [("GOOD", "again")], "say": "Done."},
+            {"ship": [("GOOD", "")], "say": ""},
+        ]
     )
     assert coder.available is True
-    code, note = coder.draft({"prompt": "slower", "author": "ross", "shown": ""})
-    assert code == "GOOD\n" and note == "try two"
-    assert seen["prompt"].startswith("Prompt from ross: slower")
-    options = seen["options"]
+    request = {"prompt": "slower", "author": "ross", "shown": "", "pattern": "vibe-1"}
+    assert coder.draft(request) == ("GOOD\n", "try two")
+    session = made[0]
+    assert session.connected and session.results == ["rejected:", OK_REPLY]
+    assert session.prompts[0].startswith("Prompt from ross: slower")
+    options = session.options
     assert options["cwd"] == "/repo" and options["model"] == "m-deep"
     assert SHIP_TOOL in options["allowed_tools"] and "Read" in options["allowed_tools"]
     assert (
         "Bash" in options["disallowed_tools"] and "Write" in options["disallowed_tools"]
     )
     assert options["permission_mode"] == "auto"  # rules first, then the classifier
-    assert options["setting_sources"] == []
-    assert "ship_pattern" in options["system_prompt"]
-    # The mode is a knob (LUMINARY_VIBE_PERMISSION_MODE); the tool lists are not.
-    manual = SessionCoder("/repo", runner=runner, permission_mode="default")
-    assert manual._options(None, ship=None)["permission_mode"] == "default"
+    assert options["setting_sources"] == [] and "max_turns" not in options
     assert (
-        manual._options(None, ship=None)["disallowed_tools"]
-        == options["disallowed_tools"]
+        "ONGOING" in options["system_prompt"]
+        and "ship_pattern" in options["system_prompt"]
+    )
+
+    # The next prompt goes to the SAME session — its memory is the point —
+    # on the model this submitter picked; a pattern it shipped itself is
+    # referred to by number, not re-sent.
+    request = {
+        "prompt": "more purple",
+        "model": "m-fast",
+        "shown": "vibe-1",
+        "shown_source": "SOURCE-OF-1",
+        "pattern": "vibe-2",
+    }
+    assert coder.draft(request) == ("GOOD\n", "again")
+    assert len(made) == 1 and coder.sessions_started == 1
+    assert session.models == ["m-fast"]
+    assert "you shipped this one earlier" in session.prompts[1]
+    assert (
+        "vibe-0001.py" in session.prompts[1] and "SOURCE-OF-1" not in session.prompts[1]
+    )
+    # A repo pattern's source still travels with the prompt.
+    coder.draft(
+        {
+            "prompt": "x",
+            "shown": "spiral",
+            "shown_source": "SPIRAL-SRC",
+            "pattern": "vibe-3",
+        }
+    )
+    assert "SPIRAL-SRC" in session.prompts[2] and session.models == ["m-fast", "m-deep"]
+
+    coder.close()
+    assert session.disconnected is True
+
+
+def test_session_backend_permission_mode_knob():
+    coder, _made = session_coder([], permission_mode="default")
+    options = coder._options(None)
+    assert options["permission_mode"] == "default"
+    assert (
+        options["disallowed_tools"]
+        == session_coder([])[0]._options(None)["disallowed_tools"]
     )
 
 
+def test_session_backend_drops_a_broken_session_and_starts_over():
+    coder, made = session_coder(
+        [{"raise": RuntimeError("boom")}],
+        [{"ship": [("GOOD", "")], "say": "back"}],
+        stderr=["Not logged in"],
+    )
+    with pytest.raises(RuntimeError, match="boom") as info:
+        coder.draft({"prompt": "x"})
+    assert "Not logged in" in str(info.value)  # the CLI's own words, kept
+    assert made[0].disconnected is True
+    assert coder.draft({"prompt": "x"}) == ("GOOD\n", "back")  # a fresh one
+    assert len(made) == 2 and coder.sessions_started == 2
+    coder.close()
+
+
+def test_session_backend_cuts_off_a_runaway_prompt():
+    coder, made = session_coder(
+        [{"sleep": 5.0}],
+        [{"ship": [("GOOD", "")], "say": "fresh"}],
+        turn_timeout=0.05,
+    )
+    with pytest.raises(RuntimeError, match="longer than"):
+        coder.draft({"prompt": "x"})
+    assert made[0].disconnected is True
+    assert coder.draft({"prompt": "x"}) == ("GOOD\n", "fresh")
+    assert len(made) == 2
+    coder.close()
+
+
+def test_session_backend_closes_an_idle_session():
+    coder, made = session_coder(
+        [{"ship": [("GOOD", "")], "say": "one"}],
+        [{"ship": [("GOOD", "")], "say": "two"}],
+        idle_s=0.05,
+    )
+    coder.draft({"prompt": "x"})
+    deadline = time.monotonic() + 3.0
+    while not made[0].disconnected and time.monotonic() < deadline:
+        time.sleep(0.02)
+    assert made[0].disconnected is True  # nobody came back: closed
+    assert coder.draft({"prompt": "y"}) == ("GOOD\n", "two")  # lazily reopened
+    assert len(made) == 2
+    coder.close()
+
+
 def test_session_backend_falls_back_to_spoken_code_or_fails():
-    async def talker(prompt, options):
-        yield AssistantMessage(TextBlock("Here you go.\n```python\nclass A: pass\n```"))
-
-    coder = SessionCoder("/repo", runner=talker)
+    coder, made = session_coder(
+        [
+            {"say": "Here you go.\n```python\nclass A: pass\n```"},
+            {"say": "Hmm."},
+            {
+                "say": "gave up",
+                "result": {"is_error": True, "result": "API rate limited"},
+            },
+            {"ship": [("GOOD", "")], "say": "fixed"},
+        ]
+    )
     assert coder.draft({"prompt": "x"}) == ("class A: pass\n", "Here you go.")
-
-    async def silent(prompt, options):
-        yield AssistantMessage(TextBlock("Hmm."))
-
     with pytest.raises(RuntimeError, match="without shipping"):
-        SessionCoder("/repo", runner=silent).draft({"prompt": "x"})
-
-    async def repairer(prompt, options):
-        assert "It failed on the server:" in prompt and "boom" in prompt
-        await options["ship"]({"code": "GOOD", "note": ""})
-        yield AssistantMessage(TextBlock("fixed"))
-
-    coder = SessionCoder("/repo", validator=lambda c: None, runner=repairer)
+        coder.draft({"prompt": "x"})
+    with pytest.raises(RuntimeError, match="rate limited"):
+        coder.draft({"prompt": "x"})
+    # A repair is a follow-up in the same conversation, not a new brief.
     assert coder.repair({"prompt": "x"}, "old", "boom") == ("GOOD\n", "fixed")
+    prompt = made[0].prompts[-1]
+    assert prompt.startswith("The module you just shipped failed")
+    assert "boom" in prompt and "old" in prompt
+    assert len(made) == 1  # none of that cost the session
+    coder.close()
 
 
 def test_session_backend_end_to_end_on_the_stage(tmp_path, lights):  # noqa: F811
     """The session validates inside its turn against the core's own
-    validator, and the core still runs its gates after."""
-    attempts = []
-
-    async def runner(prompt, options):
-        for code in (BROKEN, GOOD):
-            result = await options["ship"]({"code": code, "note": "shipped"})
-            attempts.append(result["content"][0]["text"].split("\n")[0])
-        yield AssistantMessage(TextBlock("Two tries."))
-
+    validator, the core still runs its gates after, and stopping the
+    core closes the session."""
+    factory, made = scripted_sessions(
+        [{"ship": [(BROKEN, "shipped"), (GOOD, "shipped")], "say": "Two tries."}]
+    )
     core, stage, _registry = make_vibe(
-        tmp_path, lights, SessionCoder("/repo", runner=runner)
+        tmp_path, lights, SessionCoder("/repo", session_factory=factory)
     )
     core.submit({"prompt": "tide"})
     core.process_one()
-    assert attempts == [
-        "rejected:",
-        "ok: accepted — it runs on the sphere. Say your note and stop.",
-    ]
-    assert core.generations[0]["status"] == "ok"
-    assert core.generations[0]["note"] == "shipped"
+    assert made[0].results == ["rejected:", OK_REPLY]
+    entry = core.generations[0]
+    assert entry["status"] == "ok" and entry["note"] == "shipped"
+    assert entry["seconds"] is not None and entry["seconds"] >= 0
     assert stage.snapshot()["now"]["pattern"] == "vibe-1"
+    core.stop()
+    assert made[0].disconnected is True
 
 
 # ---------------------------------------------------------------- the web

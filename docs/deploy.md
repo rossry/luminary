@@ -142,9 +142,10 @@ seek.
 `/vibe` needs a coding model reachable from the box. Two backends,
 picked automatically (`LUMINARY_VIBE_BACKEND=session|api` forces one):
 
-- **session** — each prompt is its own Claude Code session in the
-  checkout (read-only tools, one MCP tool to ship through). Needs the
-  Agent SDK and the CLI:
+- **session** — one ongoing Claude Code session in the checkout takes
+  the prompts in turn (read-only tools, one MCP tool to ship through; it
+  remembers the night, closes after twenty idle minutes and reopens on
+  the next prompt). Needs the Agent SDK and the CLI:
 
   ```bash
   pip install -e '.[vibe]'                 # in the service's venv
