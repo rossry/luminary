@@ -268,10 +268,14 @@ pair-programming the sphere out loud, several people, quick turns.
 
 **Backends.** With the [Claude Agent SDK](https://pypi.org/project/claude-agent-sdk/)
 installed (`pip install -e '.[vibe]'`) and a `claude` CLI on PATH (logged
-in, or `ANTHROPIC_API_KEY` set), each prompt runs as its own **Claude
-Code session** in the checkout, read-only, shipping through one MCP
-tool that validates on the spot and hands failures straight back —
-the session iterates inside its own turn. It runs in Claude Code's
+in, or `ANTHROPIC_API_KEY` set), one ongoing **Claude Code session**
+in the checkout takes the prompts in turn — read-only, shipping
+through one MCP tool that validates on the spot and hands failures
+straight back, so it iterates inside its own turn — and it remembers
+the night: what it shipped and what people asked, so "like #3 but
+slower" works (every generation is on disk for it to read, too). A
+session idle for twenty minutes closes; the next prompt starts a
+fresh one. It runs in Claude Code's
 **auto** permission mode: its read-only tools and the ship tool are
 pre-approved, writes, shell and web are denied outright, and only a
 call outside both lists goes to the permission classifier — nothing

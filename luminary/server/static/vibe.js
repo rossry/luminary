@@ -141,10 +141,12 @@ function genRow(g, playing) {
   }
   const who = document.createElement("span");
   who.className = "who";
+  const done = g.status === "ok" || g.status === "failed";
   who.textContent =
     (g.author || "") +
     (g.status === "queued" ? " · queued" : g.status === "cooking" ? " · cooking…" : "") +
-    (g.model ? ` · ${g.model.replace(/^claude-/, "")}` : "");
+    (g.model ? ` · ${g.model.replace(/^claude-/, "")}` : "") +
+    (done && g.seconds != null ? ` · ${Math.round(g.seconds)} s` : "");
   head.appendChild(who);
   row.appendChild(head);
   const prompt = document.createElement("div");

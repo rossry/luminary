@@ -145,6 +145,7 @@ class VibeCore:
                 "status": "queued",
                 "error": "",
                 "file": "",
+                "seconds": None,
                 "created": _now(),
             }
             self.generations.append(entry)
@@ -178,6 +179,7 @@ class VibeCore:
             entry["status"] = "cooking"
             self._working = entry
             self._save_log()
+        started = time.monotonic()
         try:
             self._cook(request, entry)
         except (
@@ -188,6 +190,7 @@ class VibeCore:
             logger.exception("vibe #%d failed", entry["n"])
         finally:
             with self._lock:
+                entry["seconds"] = round(time.monotonic() - started, 1)
                 self._working = None
                 self._save_log()
         return True
@@ -283,6 +286,9 @@ class VibeCore:
         if self._thread is not None:
             self._thread.join(timeout=2.0)
             self._thread = None
+        close = getattr(self.coder, "close", None)  # a session backend holds one
+        if callable(close):
+            close()
 
     # ------------------------------------------------------------- helpers
 
