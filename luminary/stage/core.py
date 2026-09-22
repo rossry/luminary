@@ -378,6 +378,23 @@ class StageCore:
                 self._save()
             return self.snapshot()
 
+    def cut(self, raw: Dict[str, Any]) -> Dict[str, Any]:
+        """Hot-cut: ``raw`` is playing by the time this returns — inserted
+        right after the current entry and jumped to (the current one ends
+        as if skipped, keyframe and all); a holding stage simply starts
+        it. The vibe surface's one verb."""
+        with self._lock:
+            entry = self._make_entry(raw)
+            if entry.repeat:
+                self._append_token(entry)
+            if self.holding:
+                self.entries.append(entry)
+                self._start_entry(len(self.entries) - 1)
+            else:
+                self.entries.insert(self.index + 1, entry)
+                self._advance(jump=True)
+            return self.snapshot()
+
     def remove(self, i: int) -> Dict[str, Any]:
         """Remove entry ``i``. Removing history shifts the index with it;
         removing the playing entry starts whatever slides into its slot."""

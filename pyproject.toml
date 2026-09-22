@@ -17,13 +17,14 @@ dependencies = [
     "pyyaml>=6.0",
     # Exact track lengths for stage queue timing (luminary/stage/audio.py).
     "mutagen>=1.47",
+    # The vibe surface's one outbound call: the coding model (luminary/vibe/coder.py).
+    "httpx>=0.27",
 ]
 
 [project.optional-dependencies]
 # `pip install -e .[dev]` for the test suite and the quality gates.
 dev = [
     "pytest>=8.0",
-    "httpx>=0.27",
     "websockets>=12.0",
     "mypy>=1.10",
     "black>=24.0",
@@ -32,6 +33,10 @@ dev = [
 ]
 # Flashing boards needs a toolchain; the rest of the CLI does not.
 flash = ["platformio>=6.1"]
+# Vibe mode's session backend: one Claude Code session per prompt through
+# the Agent SDK (luminary/vibe/session.py). Without it the server falls
+# back to a direct Messages API call.
+vibe = ["claude-agent-sdk>=0.2"]
 
 [project.scripts]
 luminary = "luminary.cli:main"
@@ -61,6 +66,12 @@ warn_unreachable = true
 strict_equality = true
 show_error_codes = true
 explicit_package_bases = true
+
+# The Agent SDK is the optional [vibe] extra: CI type-checks without it,
+# so its names are Any there (luminary/vibe/session.py stays typed either way).
+[[tool.mypy.overrides]]
+module = "claude_agent_sdk"
+ignore_missing_imports = true
 
 [tool.black]
 line-length = 88

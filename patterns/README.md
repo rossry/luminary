@@ -223,6 +223,13 @@ The dev server rescans this directory on restart (or on any
 deployments run with uploads disabled, so contributed patterns ship the
 repo way: PR → merge → `git pull` + service restart (`docs/deploy.md`).
 
+Vibe mode (`/vibe`, README "Vibe mode") is the other way patterns get
+made at the sphere: a coding model writes one per prompt, under this
+same contract, and the server keeps every generation as a real pattern
+file in `var/vibe/` (`vibe-0001.py`…, registered as `vibe-N`). A keeper
+becomes a repo pattern the ordinary way — copy the file into
+`book-two/`, give it a name, and open the PR.
+
 ## Composing from the library (book two)
 
 `luminary/patterns/` is the importable library — write field math once

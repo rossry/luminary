@@ -11,7 +11,7 @@ import sys
 import traceback
 import types
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Union
+from typing import Dict, List, Optional, Sequence, Tuple, Union
 
 from luminary.patterns.base import Pattern
 
@@ -24,6 +24,7 @@ class PatternRegistry:
         self.patterns: Dict[str, Pattern] = {}
         self.errors: Dict[str, str] = {}
         self._by_stem: Dict[str, str] = {}
+        self._origins: Dict[str, Tuple[Path, Path]] = {}
         self._load_counter = 0
         self.reload()
 
@@ -50,6 +51,7 @@ class PatternRegistry:
         patterns: Dict[str, Pattern] = {}
         errors: Dict[str, str] = {}
         by_stem: Dict[str, str] = {}
+        origins: Dict[str, Tuple[Path, Path]] = {}
 
         for directory in self.directories:
             if not directory.is_dir():
@@ -71,10 +73,12 @@ class PatternRegistry:
                     continue
                 patterns[loaded.name] = loaded
                 by_stem.setdefault(path.stem, loaded.name)
+                origins[loaded.name] = (directory, path)
 
         self.patterns = patterns
         self.errors = errors
         self._by_stem = by_stem
+        self._origins = origins
 
     def _load_file(self, path: Path) -> Optional[Pattern]:
         # A fresh module name per reload forces true re-execution, and
@@ -109,10 +113,38 @@ class PatternRegistry:
         available = ", ".join(sorted(self.patterns)) or "(none)"
         raise KeyError(f"Unknown pattern {name!r}; available: {available}")
 
+    def origin_of(self, name: str) -> Optional[Tuple[Path, Path]]:
+        """``(registry directory, file)`` a pattern was loaded from —
+        which volume it lives in and where — or None for a name the
+        registry does not hold."""
+        return self._origins.get(name)
+
+    def source_of(self, name: str) -> Optional[str]:
+        """The pattern's own source file, as text (a registration file
+        is short: what it composes lives in the library)."""
+        origin = self._origins.get(name)
+        if origin is None:
+            return None
+        try:
+            return origin[1].read_text()
+        except OSError:
+            return None
+
     def list(self) -> List[dict]:
-        """Metadata for every discovered pattern plus load errors (spec §15.3)."""
+        """Metadata for every discovered pattern plus load errors (spec
+        §15.3). ``file`` is the pattern's path relative to the registry
+        directory it came from — the volume structure, for menus."""
         entries = [
-            {"name": pattern.name, "description": pattern.description, "ok": True}
+            {
+                "name": pattern.name,
+                "description": pattern.description,
+                "ok": True,
+                "file": str(
+                    self._origins[pattern.name][1].relative_to(
+                        self._origins[pattern.name][0]
+                    )
+                ),
+            }
             for pattern in sorted(self.patterns.values(), key=lambda p: p.name)
         ]
         entries.extend(

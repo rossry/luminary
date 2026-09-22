@@ -32,7 +32,7 @@ import json
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, AsyncIterator, Dict, List, Optional
+from typing import Any, AsyncIterator, Callable, Dict, List, Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Request, WebSocket
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -153,6 +153,21 @@ async def stage_lifespan(core: StageCore) -> AsyncIterator[None]:
 # --------------------------------------------------------------------- routes
 
 
+def stage_key_guard(stage_key: Optional[str]) -> Callable[[Request], None]:
+    """The one gate every mutating stage-side route hangs on: 403 unless
+    the request carries the configured key in ``X-Stage-Key``; with no
+    key configured the surface stays open (LAN deployments). Shared by
+    the stage routes and the vibe surface, so the rule is written once."""
+
+    def _require_key(request: Request) -> None:
+        if stage_key and request.headers.get("X-Stage-Key") != stage_key:
+            raise HTTPException(
+                403, detail="stage key required (send it in an X-Stage-Key header)"
+            )
+
+    return _require_key
+
+
 def register_stage(
     app: FastAPI, core: StageCore, *, stage_key: Optional[str] = None
 ) -> None:
@@ -166,16 +181,7 @@ def register_stage(
     layout_doc = projection.lights_layout(core.engine.lights)
     app.state.stage = core
 
-    def _require_key(request: Request) -> None:
-        """403 unless the request carries the configured stage key. All
-        mutating routes hang this dependency; with no key configured the
-        stage stays open (LAN deployments)."""
-        if stage_key and request.headers.get("X-Stage-Key") != stage_key:
-            raise HTTPException(
-                403, detail="stage key required (send it in an X-Stage-Key header)"
-            )
-
-    guarded = [Depends(_require_key)]
+    guarded = [Depends(stage_key_guard(stage_key))]
 
     # ------------------------------------------------------------- pages
 
