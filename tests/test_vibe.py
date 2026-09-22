@@ -438,9 +438,16 @@ def test_session_backend_ships_through_the_tool():
     assert (
         "Bash" in options["disallowed_tools"] and "Write" in options["disallowed_tools"]
     )
-    assert options["permission_mode"] == "default"  # root refuses bypass
+    assert options["permission_mode"] == "auto"  # rules first, then the classifier
     assert options["setting_sources"] == []
     assert "ship_pattern" in options["system_prompt"]
+    # The mode is a knob (LUMINARY_VIBE_PERMISSION_MODE); the tool lists are not.
+    manual = SessionCoder("/repo", runner=runner, permission_mode="default")
+    assert manual._options(None, ship=None)["permission_mode"] == "default"
+    assert (
+        manual._options(None, ship=None)["disallowed_tools"]
+        == options["disallowed_tools"]
+    )
 
 
 def test_session_backend_falls_back_to_spoken_code_or_fails():

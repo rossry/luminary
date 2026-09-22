@@ -159,7 +159,12 @@ Put `Environment=ANTHROPIC_API_KEY=…` (and `LUMINARY_STAGE_KEY=…`, which
 also unlocks vibe mode on an upload-disabled server) in the systemd
 unit. `LUMINARY_VIBE_MODELS` is the comma-separated list the page's
 model select offers (default `claude-sonnet-5,claude-opus-5`; the first
-is the default — keep a fast one first). Generations land in
+is the default — keep a fast one first). `LUMINARY_VIBE_PERMISSION_MODE`
+(default `auto`) is the session backend's Claude Code permission mode;
+the tool allow/deny lists are fixed in code either way, so the
+classifier only sees a call outside both. Auto mode needs a Sonnet 4.6+,
+Opus 4.6+ or Fable session model — if you put a Haiku model in the list,
+set it to `default` (allowlist-only, also never prompts). Generations land in
 `var/vibe/` (`vibe-0001.py`…, plus `log.json`, the thread); they are
 real patterns to the stage page too, and never deleted or overwritten.
 The page's footer names the running backend; the thread's first line

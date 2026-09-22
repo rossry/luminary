@@ -271,8 +271,13 @@ installed (`pip install -e '.[vibe]'`) and a `claude` CLI on PATH (logged
 in, or `ANTHROPIC_API_KEY` set), each prompt runs as its own **Claude
 Code session** in the checkout, read-only, shipping through one MCP
 tool that validates on the spot and hands failures straight back —
-the session iterates inside its own turn. Without the SDK, the server
-makes one direct Messages API call (`ANTHROPIC_API_KEY` required).
+the session iterates inside its own turn. It runs in Claude Code's
+**auto** permission mode: its read-only tools and the ship tool are
+pre-approved, writes, shell and web are denied outright, and only a
+call outside both lists goes to the permission classifier — nothing
+ever waits on a prompt (`LUMINARY_VIBE_PERMISSION_MODE=default` for
+plain allowlist-only mode). Without the SDK, the server makes one
+direct Messages API call (`ANTHROPIC_API_KEY` required).
 `LUMINARY_VIBE_BACKEND=session|api` forces one; the page's footer says
 which is running. `LUMINARY_VIBE_MODELS=claude-sonnet-5,claude-opus-5`
 (the default) is the list the select offers, first entry default —

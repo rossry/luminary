@@ -37,6 +37,11 @@ SHIP THROUGH THE TOOL: call `ship_pattern` with the complete module source (and 
 
 READ_ONLY_TOOLS = ["Read", "Glob", "Grep"]
 SHIP_TOOL = "mcp__luminary__ship_pattern"
+#: Auto mode: the deny list below still blocks first and the allow list
+#: still pre-approves, so the classifier only ever sees a call outside
+#: both — and nothing waits on a prompt nobody is there to answer. (The
+#: CLI refuses ``bypassPermissions`` under root; auto has no such rule.)
+DEFAULT_PERMISSION_MODE = "auto"
 DENIED_TOOLS = [
     "Write",
     "Edit",
@@ -66,11 +71,13 @@ class SessionCoder:
         model: Optional[str] = None,
         validator: Optional[Validator] = None,
         runner: Optional[Runner] = None,
+        permission_mode: Optional[str] = None,
     ) -> None:
         self.repo = Path(repo)
         self.model = model
         self.validator = validator or (lambda source: None)
         self._runner = runner
+        self.permission_mode = permission_mode or DEFAULT_PERMISSION_MODE
 
     @property
     def available(self) -> bool:
@@ -140,9 +147,7 @@ class SessionCoder:
             "system_prompt": SYSTEM + SESSION_ADDENDUM,
             "allowed_tools": READ_ONLY_TOOLS + [SHIP_TOOL],
             "disallowed_tools": DENIED_TOOLS,
-            # Everything it may touch is pre-approved above, so the default
-            # mode never prompts; bypassing is refused by the CLI under root.
-            "permission_mode": "default",
+            "permission_mode": self.permission_mode,
             "max_turns": MAX_TURNS,
             "setting_sources": [],
             "ship": ship,

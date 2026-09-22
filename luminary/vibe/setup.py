@@ -37,5 +37,11 @@ def default_coder(validator: Optional[Any] = None) -> Tuple[Any, str]:
     repo = Path(__file__).resolve().parents[2]
     models = vibe_models()
     if choice == "session" or (choice == "auto" and sdk_available()):
-        return SessionCoder(repo, model=models[0], validator=validator), "session"
+        coder = SessionCoder(
+            repo,
+            model=models[0],
+            validator=validator,
+            permission_mode=os.environ.get("LUMINARY_VIBE_PERMISSION_MODE") or None,
+        )
+        return coder, "session"
     return Coder(model=models[0]), "api"
